@@ -1,0 +1,540 @@
+// ============================================================
+//  UI / Resize.js — 窗口缩放 + 自动布局弹出
+// ============================================================
+import * as THREE from 'three';
+import { appState } from '../module0_AppState.js';
+import { processSidebar2DPanning } from '../richEditor/tree-panel.js';
+import { layoutTree, assignCoordinates, extractNodePositions } from '../2DView/index.js';
+import { rebuildAllLines, generateRandomPosition } from '../VisualComponents/index.js';
+import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { groupRects } from '../2DView/shared.js';
+
+export function bindResize() {
+  window.addEventListener('resize', () => {
+    appState.camera.aspect = window.innerWidth / window.innerHeight;
+    appState.camera.updateProjectionMatrix();
+    appState.renderer.setSize(window.innerWidth, window.innerHeight);
+    appState.effectComposer.setSize(window.innerWidth, window.innerHeight);
+    appState.labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    if (appState.renderer && appState.renderer.domElement) {
+      appState.renderer.domElement.style.width = window.innerWidth + 'px';
+      appState.renderer.domElement.style.height = window.innerHeight + 'px';
+    }
+  });
+
+  // ============================================================
+//  所有图层自动排列（2D 模式下遍历所有图层逐一重排）
+// ============================================================
+function arrangeAllLayers() {
+  const sortedLayers = [...appState.layers].sort((a, b) => a.order - b.order);
+  const rootNode = appState.methodsTree;
+  if (!rootNode || !rootNode.id) return;
+
+  // 保存当前图层
+  const curLayer = appState.getCurrentLayer();
+  if (curLayer) {
+    curLayer.positions2D = new Map(appState.positions2D);
+  }
+
+  // 1. 先用第一个图层跑一次布局，拿到标准位置映射
+  let referencePositions = null;
+  const firstLayer = sortedLayers[0];
+  if (firstLayer) {
+    appState.currentLayerId = firstLayer.id;
+    appState.positions2D = firstLayer.positions2D || new Map();
+    if (appState.autoArrangeTreeLayout) {
+      appState.autoArrangeTreeLayout();
+    }
+    // 保存第一个图层的排列结果作为基准
+    referencePositions = new Map(appState.positions2D);
+    firstLayer.positions2D = new Map(appState.positions2D);
+  }
+
+  // 2. 其余图层：用第一个图层的标准位置覆盖，并偏移对齐到第一个图层的根节点位置
+  // 先找到第一个图层的 primary node（第一个可见节点）作为锚点
+  let anchorPos = null;
+  if (firstLayer) {
+    for (const [id, pos] of (referencePositions || [])) {
+      if (id !== rootNode.id && firstLayer.nodeIds && firstLayer.nodeIds.has(id)) {
+        anchorPos = { x: pos.x, y: pos.y };
+        break;
+      }
+    }
+  }
+
+  for (let i = 1; i < sortedLayers.length; i++) {
+    const layer = sortedLayers[i];
+    appState.currentLayerId = layer.id;
+    appState.positions2D = layer.positions2D || new Map();
+
+    // 用第一个图层的标准位置覆盖当前图层的所有节点位置
+    if (referencePositions) {
+      for (const [nodeId, pos] of referencePositions) {
+        appState.positions2D.set(nodeId, { x: pos.x, y: pos.y });
+      }
+      // 以当前图层的根节点位置为基准重新运行布局，确保树结构一致
+      appState.autoArrangeTreeLayout();
+
+      // 应用偏移对齐：使该图层的 primary node 与第一个图层的 primary node 在同一位置
+      // 根节点位置不参与对齐偏移（只移动后代节点）
+      if (anchorPos && layer.nodeIds) {
+        let layerPrimaryPos = null;
+        for (const [id, pos] of appState.positions2D) {
+          if (id !== rootNode.id && layer.nodeIds.has(id)) {
+            layerPrimaryPos = { x: pos.x, y: pos.y };
+            break;
+          }
+        }
+        if (layerPrimaryPos) {
+          const offsetX = anchorPos.x - layerPrimaryPos.x;
+          const offsetY = anchorPos.y - layerPrimaryPos.y;
+          if (offsetX !== 0 || offsetY !== 0) {
+            const newPositions = new Map();
+            for (const [id, pos] of appState.positions2D) {
+              if (id === rootNode.id) {
+                // 根节点位置保持不变
+                newPositions.set(id, { x: pos.x, y: pos.y });
+              } else {
+                newPositions.set(id, { x: pos.x + offsetX, y: pos.y + offsetY });
+              }
+            }
+            appState.positions2D = newPositions;
+          }
+        }
+      }
+    }
+    layer.positions2D = new Map(appState.positions2D);
+  }
+
+  // 恢复当前图层
+  if (curLayer) {
+    appState.currentLayerId = curLayer.id;
+    appState.positions2D = curLayer.positions2D || new Map();
+  }
+
+  // 刷新 2D 视图
+  if (appState.refresh2DView) appState.refresh2DView();
+  if (appState.refreshTreePanel) appState.refreshTreePanel();
+  // 自动排列后把结果保存到当前时间点（不新建时间点）
+  // 动态 import 避免循环依赖；scheduleAmend 用 microtask 去重
+  import('../versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
+    if (typeof scheduleAmend === 'function') scheduleAmend();
+  }).catch(() => {});
+}
+
+// ============================================================
+//  3D 默认散布排列
+// ============================================================
+function arrange3DDefault() {
+  appState.layer3DLayout = false;
+  // 隐藏图层按钮
+  const layerBtn = document.getElementById('layerIconBtn');
+  if (layerBtn) layerBtn.style.display = 'none';
+  // 清除图层高亮矩形
+  if (appState.layerHighlights) {
+    appState.layerHighlights.forEach(h => appState.scene.remove(h));
+    appState.layerHighlights = [];
+  }
+  // 清除3D组群矩形
+  if (appState.groupRectMeshes) {
+    appState.groupRectMeshes.forEach(m => appState.scene.remove(m));
+    appState.groupRectMeshes = [];
+  }
+
+  const existing = [];
+  const base = new THREE.Vector3(0, 0, 0);
+  const nodeIds = Array.from(appState.positions.keys()).filter(id => id !== appState.VIRTUAL_ROOT_ID);
+  for (const id of nodeIds) {
+    const pos = generateRandomPosition(existing, base);
+    appState.positions.set(id, pos);
+    existing.push(pos);
+    const obj = appState.nodeMeshes.get(id);
+    if (obj) {
+      obj.mesh.position.copy(pos);
+      if (obj.label) {
+        obj.label.position.set(pos.x, pos.y + appState.NODE_RADIUS + 0.28, pos.z);
+      }
+    }
+  }
+  rebuildAllLines();
+  saveCurrentProjectData();
+  // 自动排列后把结果保存到当前时间点（不新建时间点）
+  import('../versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
+    if (typeof scheduleAmend === 'function') scheduleAmend();
+  }).catch(() => {});
+}
+
+// ============================================================
+//  3D 按 2D 布局排列（不同图层按层序向上堆叠）
+// ============================================================
+function arrange3DWith2DLayout() {
+  const rootNode = appState.methodsTree;
+  if (!rootNode || !rootNode.id) return;
+
+  appState.layer3DLayout = true;
+  const LAYER_SPACING = 4; // 每层之间的 Y 轴间距
+  appState.layer3DSpacing = LAYER_SPACING;
+  const sortedLayers = [...appState.layers].sort((a, b) => a.order - b.order);
+
+  // 保存当前图层的 2D 位置
+  const curLayer = appState.getCurrentLayer();
+  if (curLayer) {
+    curLayer.positions2D = new Map(appState.positions2D);
+  }
+
+  // 1. 先用第一个图层跑一次布局，拿到标准位置映射
+  let referencePositions = null;
+  const firstLayer = sortedLayers[0];
+  if (firstLayer) {
+    appState.currentLayerId = firstLayer.id;
+    appState.positions2D = firstLayer.positions2D || new Map();
+    const rootPos = appState.positions2D.get(rootNode.id) || { x: -500, y: -200 };
+
+    // 保存真实根节点的位置
+    const realRootPositions = new Map();
+    for (const child of (rootNode.children || [])) {
+      if (child && child.id) {
+        const saved = appState.positions2D.get(child.id);
+        if (saved) realRootPositions.set(child.id, { x: saved.x, y: saved.y });
+      }
+    }
+
+    const layout = layoutTree(rootNode);
+    assignCoordinates(layout, 0, 0);
+    const positions = extractNodePositions(layout);
+    // 虚拟根节点 + 真实根节点位置不参与重排
+    positions.set(rootNode.id, { x: rootPos.x, y: rootPos.y });
+    appState.positions2D.set(rootNode.id, { x: rootPos.x, y: rootPos.y });
+    for (const [id, saved] of realRootPositions) {
+      positions.set(id, { x: saved.x, y: saved.y });
+      appState.positions2D.set(id, { x: saved.x, y: saved.y });
+    }
+    const rootLayoutPos = positions.get(rootNode.id);
+    if (rootLayoutPos) {
+      const offsetX = rootPos.x - rootLayoutPos.x;
+      const offsetY = rootPos.y - rootLayoutPos.y;
+      for (const [id, pos] of positions) {
+        if (id === rootNode.id || realRootPositions.has(id)) continue;
+        pos.x += offsetX;
+        pos.y += offsetY;
+      }
+    }
+    referencePositions = new Map(positions);
+  }
+
+  // 2. 用统一的标准位置映射到各图层的 3D 坐标
+  if (referencePositions) {
+    // 找到第一个图层的 primary node（第一个非虚拟根且在图层中的节点）作为锚点
+    let anchorPos = null;
+    if (firstLayer) {
+      for (const [id, pos] of referencePositions.entries()) {
+        if (id !== rootNode.id && firstLayer.nodeIds && firstLayer.nodeIds.has(id)) {
+          anchorPos = { x: pos.x, y: pos.y };
+          break;
+        }
+      }
+    }
+
+    sortedLayers.forEach((layer, layerIdx) => {
+      const yBase = layerIdx * LAYER_SPACING;
+
+      // 计算当前图层的偏移量，使其 primary node 对齐到第一个图层的锚点位置
+      let offsetX = 0, offsetY = 0;
+      if (anchorPos && layer.nodeIds) {
+        for (const [id, pos] of referencePositions.entries()) {
+          if (id !== rootNode.id && layer.nodeIds.has(id)) {
+            offsetX = anchorPos.x - pos.x;
+            offsetY = anchorPos.y - pos.y;
+            break;
+          }
+        }
+      }
+
+      for (const [id, pos] of referencePositions.entries()) {
+        if (layer.nodeIds && !layer.nodeIds.has(id)) continue;
+        // 应用偏移量，使该图层节点对齐到第一个图层的对应位置
+        const adjustedX = pos.x + offsetX;
+        const adjustedY = pos.y + offsetY;
+        const worldPos = new THREE.Vector3(
+          adjustedX * 0.005,
+          yBase,
+          adjustedY * 0.015
+        );
+        appState.positions.set(id, worldPos);
+        const obj = appState.nodeMeshes.get(id);
+        if (obj) {
+          obj.mesh.position.copy(worldPos);
+          if (obj.label) {
+            obj.label.position.set(worldPos.x, worldPos.y + appState.NODE_RADIUS + 0.28, worldPos.z);
+          }
+        }
+      }
+    });
+  }
+
+  // 3. 树遍历修正 X 坐标：逐层还原 2D 边缘到边缘连线夹角
+  // child_3D_X = parent_adjusted_X + (child_base_X - parent_base_X) - parent_width * SCALE
+  {
+    const SCALE = 0.015, BASE_W = 120;
+    function applyEdgeOffset(node, parentId, parentBaseX, parentAdjustedX) {
+      const pos = appState.positions.get(node.id);
+      if (!pos) return;
+      const baseX = pos.x;
+      let adjustedX;
+      if (parentId && parentId !== appState.VIRTUAL_ROOT_ID) {
+        const pNode = appState.nodeMap.get(parentId);
+        adjustedX = pNode
+          ? parentAdjustedX + (baseX - parentBaseX) - (pNode.sizeScale || 1) * BASE_W * SCALE
+          : baseX;
+      } else {
+        adjustedX = baseX;
+      }
+      pos.x = adjustedX;
+      const obj = appState.nodeMeshes.get(node.id);
+      if (obj) {
+        obj.mesh.position.x = adjustedX;
+        if (obj.label) obj.label.position.x = adjustedX;
+      }
+      (node.children || []).forEach(c => applyEdgeOffset(c, node.id, baseX, adjustedX));
+    }
+    applyEdgeOffset(appState.methodsTree, null, 0, 0);
+  }
+
+  // 4. 为每层节点绘制半透明高亮矩形
+  {
+    // 清除旧的高亮矩形
+    if (appState.layerHighlights) {
+      appState.layerHighlights.forEach(h => appState.scene.remove(h));
+    }
+    appState.layerHighlights = [];
+
+    sortedLayers.forEach((layer, layerIdx) => {
+      const yBase = layerIdx * LAYER_SPACING;
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      let hasNode = false;
+
+      for (const id of (layer.nodeIds || [])) {
+        const pos = appState.positions.get(id);
+        if (!pos) continue;
+        hasNode = true;
+        if (pos.x < minX) minX = pos.x;
+        if (pos.x > maxX) maxX = pos.x;
+        if (pos.z < minZ) minZ = pos.z;
+        if (pos.z > maxZ) maxZ = pos.z;
+      }
+
+      if (!hasNode) return;
+
+      const PAD = 0.5;
+      const w = maxX - minX + PAD * 2;
+      const h = maxZ - minZ + PAD * 2;
+      const geom = new THREE.PlaneGeometry(Math.max(w, 0.1), Math.max(h, 0.1), 64, 64);
+
+      // 水面波纹着色器
+      const waterUniforms = {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color(0x4488ff) },
+        uOpacity: { value: 0.45 },
+        uHighlight: { value: 0.0 }
+      };
+      const waterMat = new THREE.ShaderMaterial({
+        uniforms: waterUniforms,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        vertexShader: `
+          uniform float uTime;
+          varying vec2 vUv;
+          varying float vWave;
+          void main() {
+            vUv = uv;
+            vec3 pos = position;
+            // 多层波纹叠加
+            float wave1 = sin(pos.x * 6.0 + uTime * 1.2) * cos(pos.y * 5.0 + uTime * 0.8) * 0.015;
+            float wave2 = sin(pos.x * 10.0 - uTime * 1.5) * sin(pos.y * 8.0 + uTime * 1.1) * 0.008;
+            float wave3 = cos(pos.x * 3.0 + pos.y * 4.0 + uTime * 0.6) * 0.01;
+            pos.z += wave1 + wave2 + wave3;
+            vWave = wave1 + wave2 + wave3;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          uniform float uHighlight;
+          varying vec2 vUv;
+          varying float vWave;
+          void main() {
+            // 流动泛光
+            float flow1 = sin(vUv.x * 12.0 + uTime * 1.5) * cos(vUv.y * 10.0 - uTime * 1.0);
+            float flow2 = sin(vUv.x * 8.0 - uTime * 0.7 + vUv.y * 6.0) * 0.5;
+            float flow = (flow1 + flow2) * 0.5 + 0.5;
+
+            // 自由运动波纹
+            float ripple = sin(length(vUv - 0.5) * 20.0 - uTime * 3.0) * 0.5 + 0.5;
+            ripple *= smoothstep(0.5, 0.0, length(vUv - 0.5));
+
+            // 中心泛光
+            float glow = smoothstep(0.6, 0.0, length(vUv - 0.5)) * 0.3;
+
+            // 波峰高光
+            float specular = pow(max(0.0, vWave * 30.0), 2.0) * 0.4;
+
+            float alpha = (0.15 + flow * 0.12 + ripple * 0.1 + glow + specular) * uOpacity;
+            alpha = clamp(alpha, 0.0, 0.85);
+
+            vec3 col = uColor + specular * vec3(0.3, 0.5, 1.0);
+            col += uHighlight * vec3(0.1, 0.2, 0.4);
+
+            gl_FragColor = vec4(col, alpha);
+          }
+        `
+      });
+
+      const plane = new THREE.Mesh(geom, waterMat);
+      plane.rotation.x = -Math.PI / 2; // 平放在 XZ 平面
+      plane.position.set((minX + maxX) / 2, yBase, (minZ + maxZ) / 2);
+      plane.renderOrder = 999;
+      appState.scene.add(plane);
+      appState.layerHighlights.push(plane);
+    });
+  }
+
+  // 5. 绘制3D组群矩形
+  {
+    if (appState.groupRectMeshes) {
+      appState.groupRectMeshes.forEach(m => appState.scene.remove(m));
+    }
+    appState.groupRectMeshes = [];
+
+    const X_SCALE = 0.005, Z_SCALE = 0.015;
+    for (const gr of groupRects) {
+      // 找到组群所属图层
+      let layerIdx = -1;
+      if (gr.layerId) {
+        layerIdx = sortedLayers.findIndex(l => l.id === gr.layerId);
+      }
+      if (layerIdx < 0) {
+        // 无 layerId 时尝试通过 nodeIds 找图层
+        for (let li = 0; li < sortedLayers.length; li++) {
+          const layer = sortedLayers[li];
+          if (gr.nodeIds && gr.nodeIds.some(nid => layer.nodeIds && layer.nodeIds.has(nid))) {
+            layerIdx = li;
+            break;
+          }
+        }
+      }
+      if (layerIdx < 0) continue;
+
+      const yBase = layerIdx * LAYER_SPACING;
+      const cx = (gr.x + gr.width / 2) * X_SCALE;
+      const cz = (gr.y + gr.height / 2) * Z_SCALE;
+      const w = Math.max(gr.width * X_SCALE, 0.05);
+      const h = Math.max(gr.height * Z_SCALE, 0.05);
+
+      // 半透明填充
+      const geom = new THREE.PlaneGeometry(w, h);
+      const fillAlpha = gr.fillOpacity !== undefined ? gr.fillOpacity : 0.25;
+      const mat = new THREE.MeshBasicMaterial({
+        color: gr.fillColor ? parseInt(gr.fillColor.slice(1), 16) : 0x4a3c7e,
+        transparent: true,
+        opacity: fillAlpha,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const plane = new THREE.Mesh(geom, mat);
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(cx, yBase + 0.01, cz);
+      plane.renderOrder = 998;
+      appState.scene.add(plane);
+      appState.groupRectMeshes.push(plane);
+
+      // 边框线
+      const edgeGeom = new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, h));
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: gr.borderColor ? parseInt(gr.borderColor.slice(1), 16) : 0x7a6aae,
+        transparent: true,
+        opacity: 0.8
+      });
+      const edgeLine = new THREE.LineSegments(edgeGeom, edgeMat);
+      edgeLine.rotation.x = -Math.PI / 2;
+      edgeLine.position.set(cx, yBase + 0.02, cz);
+      edgeLine.renderOrder = 999;
+      appState.scene.add(edgeLine);
+      appState.groupRectMeshes.push(edgeLine);
+    }
+  }
+
+  // 显示图层按钮
+  const layerBtn = document.getElementById('layerIconBtn');
+  if (layerBtn) layerBtn.style.display = '';
+
+  // 恢复当前图层
+  if (curLayer) {
+    appState.currentLayerId = curLayer.id;
+    appState.positions2D = curLayer.positions2D || new Map();
+  }
+
+  // 重建连线
+  rebuildAllLines();
+  saveCurrentProjectData();
+  // 自动排列后把结果保存到当前时间点（不新建时间点）
+  import('../versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
+    if (typeof scheduleAmend === 'function') scheduleAmend();
+  }).catch(() => {});
+}
+
+  // ---------- 自动排列按钮（任务栏） ----------
+  const arrangeBtn = document.getElementById('arrangeBtn');
+  const arrangePopup = document.getElementById('arrangePopup');
+  const arrangeTreeBtn = document.getElementById('arrangeTreeBtn');
+  const arrangeAllLayersBtn = document.getElementById('arrangeAllLayersBtn');
+  const arrange3DDefaultBtn = document.getElementById('arrange3DDefaultBtn');
+  const arrange3D2DBtn = document.getElementById('arrange3D2DBtn');
+  if (arrangeBtn && arrangePopup) {
+    arrangeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      arrangePopup.classList.toggle('show');
+    });
+
+    document.addEventListener('pointerdown', (e) => {
+      if (!arrangePopup.contains(e.target) && e.target !== arrangeBtn) {
+        arrangePopup.classList.remove('show');
+      }
+    });
+
+    document.getElementById('arrangeTreeBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (appState.autoArrangeTreeLayout) appState.autoArrangeTreeLayout();
+    });
+
+    document.getElementById('arrangeAllLayersBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      arrangeAllLayers();
+    });
+
+    document.getElementById('arrange3DDefaultBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      arrange3DDefault();
+    });
+
+    document.getElementById('arrange3D2DBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      arrange3DWith2DLayout();
+    });
+  }
+}
+
+// ==================== 2D平移循环（统一处理） ====================
+function start2DPanningLoop() {
+  function loop() {
+    if (appState.is2DView && appState.process2DPanning) {
+      appState.process2DPanning();
+    }
+    processSidebar2DPanning();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+start2DPanningLoop();

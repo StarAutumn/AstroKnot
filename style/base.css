@@ -1,0 +1,367 @@
+/* ============================================================
+   启动闪屏（应用加载时显示，加载完成后渐变消失）
+   ============================================================ */
+#appSplash {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #0a1a3a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.5s ease;
+    pointer-events: all;
+}
+#appSplash.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+#splashCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: all;
+}
+.splash-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 28px;
+    pointer-events: none;
+    -webkit-box-reflect: below 4px linear-gradient(transparent 40%, rgba(255,255,255,0.25));
+}
+.splash-icon {
+    width: 240px;
+    height: 240px;
+    object-fit: contain;
+}
+.splash-text {
+    font-size: 100px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    font-family: system-ui, sans-serif;
+    line-height: 1;
+    background: linear-gradient(90deg, #4aafff, #b8d4e8, #d0d8e0);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ============================================================
+   全局滚动条样式（统一 Electron 和浏览器的样式）
+   ============================================================ */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(7, 22, 31, 0.85);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 255, 0.4);
+}
+
+/* ============================================================
+   全局样式 & 基础重置
+   ============================================================ */
+html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #01010c;
+    font-family: 'Segoe UI', 'Poppins', 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    position: relative;
+}
+
+/* ============================================================
+   Windows 11 + 科技线设计体系（统一 CSS 变量）
+   ============================================================ */
+:root {
+    --panel-bg: rgba(14, 24, 34, 0.94);
+    --panel-border: rgba(0, 255, 255, 0.35);
+    --panel-radius: 12px;
+    --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 255, 255, 0.08) inset;
+    --header-bg: rgba(0, 0, 0, 0.45);
+    --header-border: linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.5) 20%, rgba(0, 255, 255, 0.5) 80%, transparent 100%);
+    --accent: #0ff;
+    --accent-light: #aef0ff;
+    --accent-glow: 0 0 10px rgba(0, 255, 255, 0.25);
+    --text-primary: #eef;
+    --text-secondary: #aac;
+    --divider: #2c6e7e;
+    --btn-bg: rgba(20, 50, 65, 0.6);
+    --btn-hover: rgba(0, 200, 220, 0.25);
+    --input-bg: rgba(7, 22, 31, 0.85);
+    --input-border: rgba(0, 255, 255, 0.35);
+    --modal-overlay: rgba(0, 0, 0, 0.7);
+    --tech-line: linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.4) 15%, rgba(0, 255, 255, 0.6) 50%, rgba(0, 255, 255, 0.4) 85%, transparent 100%);
+}
+
+/* ============================================================
+   浅色模式 — 全局反色滤镜（一行搞定所有硬编码深色）
+   ============================================================ */
+body.light-mode {
+    /* 全局反色：深底→浅底，浅字→深字 */
+    filter: invert(1) hue-rotate(180deg);
+    /* 防止滤镜导致布局偏移 */
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+/* html 层面也确保填满 */
+html.light-mode {
+    background: #fff;
+}
+
+/* 反色滤镜下需要二次反转的元素（图片、3D画布等） */
+body.light-mode img,
+body.light-mode video,
+body.light-mode canvas:not(.tox .tox-edit-area__iframe),
+body.light-mode svg[image],
+body.light-mode .mce-content-body img,
+body.light-mode .mce-content-body video {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+/* ═══ 浅色模式：标题栏二次反转 + 浅蓝色背景 ═══ */
+body.light-mode .rich-modal-header,
+body.light-mode #settingsPopup .settings-header,
+body.light-mode #aiFloatingDialog .ai-drag-header,
+body.light-mode #astroKnotMenu {
+    filter: invert(1) hue-rotate(180deg) !important;
+    background: #c8deec !important;
+    border-bottom-color: rgba(0, 100, 160, 0.25) !important;
+}
+/* 标题栏文字也需要二次反转后设深色 */
+body.light-mode .rich-modal-header *,
+body.light-mode #settingsPopup .settings-header *,
+body.light-mode #aiFloatingDialog .ai-drag-header *,
+body.light-mode #astroKnotMenu * {
+    color: #1a3a52 !important;
+}
+
+/* 浅色模式：关闭装饰效果 */
+body.light-mode.no-header-circuit::before,
+body.light-mode.no-header-circuit-anim::before {
+    display: none !important;
+}
+body.light-mode #taskbar.no-rainbow::before {
+    display: none !important;
+}
+
+/* 科技线装饰（用于面板/模态框顶部） */
+.panel-accent-line {
+    height: 2px;
+    background: var(--tech-line);
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   自定义标题栏（无边框窗口 + 自定义按钮 + 右键菜单）
+   ============================================================ */
+#appTitleBar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    background: #0a1620;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 0 14px;
+    z-index: 10000;
+    -webkit-app-region: drag;
+    user-select: none;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+}
+/* 全屏时隐藏自定义标题栏 */
+#appTitleBar.fullscreen-hidden {
+    display: none;
+}
+.titlebar-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+}
+.titlebar-text {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+.titlebar-spacer {
+    flex: 1;
+}
+.titlebar-btn {
+    -webkit-app-region: no-drag;
+    width: 38px;
+    height: 28px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    font-family: system-ui, sans-serif;
+}
+.titlebar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+.titlebar-close-btn:hover {
+    background: rgba(196, 43, 28, 0.75) !important;
+    color: #fff !important;
+}
+
+/* 标题栏右键菜单 */
+.titlebar-context-menu {
+    position: fixed;
+    z-index: 11000;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 160px;
+    box-shadow: var(--panel-shadow);
+}
+.titlebar-context-menu button {
+    -webkit-app-region: no-drag;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    font-family: system-ui, sans-serif;
+    transition: background 0.15s;
+}
+.titlebar-context-menu button:hover {
+    background: var(--btn-hover);
+}
+.titlebar-menu-sep {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 4px 8px;
+    padding: 0 !important;
+    cursor: default !important;
+    pointer-events: none;
+}
+.tcm-close-btn:hover {
+    background: rgba(196, 43, 28, 0.7) !important;
+    color: #fff !important;
+}
+
+/* ============================================================
+   全局滑动条样式（科技青主题）
+   ============================================================ */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+    height: 20px;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    background: var(--input-bg);
+    border-radius: 2px;
+    border: 1px solid rgba(0, 255, 255, 0.15);
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-top: -6px;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.45);
+    transition: box-shadow 0.15s;
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+    box-shadow: 0 0 14px rgba(0, 255, 255, 0.7);
+}
+input[type="range"]::-moz-range-track {
+    height: 4px;
+    background: var(--input-bg);
+    border-radius: 2px;
+    border: 1px solid rgba(0, 255, 255, 0.15);
+}
+input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.45);
+}
+input[type="range"]:hover::-moz-range-thumb {
+    box-shadow: 0 0 14px rgba(0, 255, 255, 0.7);
+}
+
+/* ============================================================
+   F1 快捷键：隐藏所有标签和模态框
+   ============================================================ */
+body.hide-ui #labelRenderer,
+body.hide-ui #taskbar,
+body.hide-ui .rich-modal,
+body.hide-ui .help-modal,
+body.hide-ui #formulaEditorModal,
+body.hide-ui .layer-panel,
+body.hide-ui #aiFloatingDialog,
+body.hide-ui #nodeContextMenu,
+body.hide-ui #blankContextMenu,
+body.hide-ui #moveControlBar,
+body.hide-ui #dockPanel,
+body.hide-ui #quickNotesBar,
+body.hide-ui #wcPopup,
+body.hide-ui .arrange-popup,
+body.hide-ui .zoom-popup,
+body.hide-ui #settingsPopup,
+body.hide-ui .global-search-dropdown,
+body.hide-ui .search-dropdown,
+body.hide-ui #lineTooltip,
+body.hide-ui #excelEditorModal,
+body.hide-ui #slideshowEditorModal,
+body.hide-ui #olyEditorModal,
+body.hide-ui #olyAudioEditorModal,
+body.hide-ui .ve-overlay,
+body.hide-ui #chartEditorModal {
+    display: none !important;
+}
