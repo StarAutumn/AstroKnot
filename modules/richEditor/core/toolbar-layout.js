@@ -2,6 +2,8 @@
 //  richEditor/toolbar-layout.js — 工具栏布局（CSS + 菜单栏 + 折叠按钮）
 // ============================================================
 
+import { state } from '../shared-state.js';
+
 export function injectToolbarGridCSS() {
   const styleId = 'tb-grid-style';
   if (document.getElementById(styleId)) return;
@@ -499,6 +501,16 @@ export function injectMenuBar() {
   }
 
   bar.querySelectorAll('.tb-menubar-tab').forEach(function(el) {
+    el.addEventListener('mousedown', function(e) {
+      // 如果 textbox 正在编辑，保存选区（在切换tab前）
+      if (state.editingTextBox) {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          state._textBoxSavedRange = selection.getRangeAt(0).cloneRange();
+        }
+      }
+    }, true);
+
     el.addEventListener('click', function() {
       var tab = el.getAttribute('data-tab');
       bar.querySelectorAll('.tb-menubar-tab').forEach(function(t) { t.classList.remove('tb-menubar-tab--active'); });
@@ -507,6 +519,18 @@ export function injectMenuBar() {
       dock.classList.remove('tb-tab-home', 'tb-tab-insert', 'tb-tab-draw', 'tb-tab-layout', 'tb-tab-other', 'tb-tab-shapeformat', 'tb-tab-view', 'tb-tab-review');
       if (tab === '开始') {
         dock.classList.add('tb-tab-home');
+        // 如果 textbox 正在编辑，恢复焦点和选区
+        if (state.editingTextBox && state._textBoxSavedRange) {
+          setTimeout(function() {
+            const el = state.editingTextBox;
+            if (el) {
+              const selection = window.getSelection();
+              selection.removeAllRanges();
+              selection.addRange(state._textBoxSavedRange);
+              el.focus();
+            }
+          }, 10);
+        }
       } else if (tab === '插入') {
         dock.classList.add('tb-tab-insert');
       } else if (tab === '绘图') {

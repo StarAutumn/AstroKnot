@@ -206,9 +206,25 @@ body.light-mode ::-webkit-scrollbar-thumb:hover {
     color: #e88;
 }
 
-#clockCalendarPopup .cal-add:hover {
+#clockCalendarPopup .cal-add:hover,
+#clockCalendarPopup .cal-add-slot:hover {
     background: rgba(0, 255, 255, 0.08);
     border-color: rgba(0, 255, 255, 0.4);
+}
+
+#clockCalendarPopup .cal-slot-label:hover {
+    background: rgba(0, 255, 255, 0.08);
+    color: #eef;
+}
+
+#slotMenu .slot-menu-item:hover {
+    background: rgba(0, 255, 255, 0.12);
+    color: #eef;
+}
+
+#slotMenu .slot-menu-item[data-act="delete"]:hover {
+    background: rgba(255, 100, 100, 0.15);
+    color: #fbb;
 }
 
 .clock-time-date {

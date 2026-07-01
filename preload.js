@@ -89,6 +89,10 @@ contextBridge.exposeInMainWorld('api', {
   // 回应落盘完成
   emergencyFlushReady: () => ipcRenderer.send('emergency-flush-ready'),
 
+  // ── 快速笔记（文件系统存储）──
+  saveQuickNotes: (data) => ipcRenderer.invoke('save-quick-notes', data),
+  loadQuickNotes: (data) => ipcRenderer.invoke('load-quick-notes', data),
+
   // ── 版本图（内容寻址存储）──
   versionSaveGraph: (projectId, graph) => ipcRenderer.invoke('version-save-graph', projectId, graph),
   versionLoadGraph: (projectId) => ipcRenderer.invoke('version-load-graph', projectId),

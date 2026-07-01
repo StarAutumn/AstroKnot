@@ -72,6 +72,7 @@
     "@univerjs/presets": "^0.25.0",
     "docx-preview": "^0.3.7",
     "jszip": "^3.10.1",
+    "lunar-javascript": "^1.7.7",
     "pdfjs-dist": "^6.0.227",
     "three": "^0.128.0",
     "tinymce": "^7.9.3",

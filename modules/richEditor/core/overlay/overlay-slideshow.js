@@ -69,7 +69,7 @@ export function addSlideshow(){
   s1.elements[0].content='标题文字';s1.elements[0].fontSize=44;s1.elements[0].fontWeight='bold';
   s1.elements.push(mkText(SW*0.2,SH*0.55,SW*0.6,45,t));
   s1.elements[1].content='副标题或描述文字';s1.elements[1].fontSize=22;
-  overlayImages.push({type:'slideshow',id:'oly-slide-'+Date.now()+'-'+Math.random().toString(36).substr(2,6),blockId:bid,x:x,y:y,width:w,height:h,zIndex:getNextZIndex(),rotation:0,leftPct:pxToPct(x,bw),widthPct:pxToPct(w,bw),_refWidth:bw,title:'',effect:'slide',autoplay:false,autoplayDelay:3000,loop:true,showNavigation:true,showPagination:true,speed:500,themeIdx:0,slides:[s1]});
+  overlayImages.push({type:'slideshow',id:'oly-slide-'+Date.now()+'-'+Math.random().toString(36).substr(2,6),blockId:bid,x:x,y:y,width:w,height:h,zIndex:getNextZIndex(),rotation:0,leftPct:pxToPct(x,bw),widthPct:pxToPct(w,bw),_refWidth:bw,title:'',effect:'slide',autoplay:false,autoplayDelay:3000,loop:true,showNavigation:true,showPagination:true,speed:500,themeIdx:0,slideWidth:SW,slideHeight:SH,slides:[s1]});
   renderAll();transactRender();
 }
 
@@ -129,7 +129,12 @@ function buildHTML(slide,prev){
   c.style.cssText='position:relative;width:'+SW+'px;height:'+SH+'px;background:'+(slide.bgColor||'#0f1729')+';overflow:hidden;'+(prev?'':'transform-origin:top left;');
   if(slide.bgImage){c.style.backgroundImage="url('"+slide.bgImage+"')";c.style.backgroundSize='cover';c.style.backgroundPosition='center';}
   if(slide.bgGradient) c.style.background=slide.bgGradient;
-  (slide.elements||[]).forEach(function(el){var d=makeDOM(el,prev);if(d)c.appendChild(d);});
+  // 兼容旧格式：有 content 字段但无 elements 数组
+  var els=slide.elements;
+  if((!els||!els.length)&&slide.content){
+    els=[{id:'el-legacy-'+Date.now(),type:'text',x:0,y:0,w:SW,h:SH,content:slide.content,fontSize:18,color:'#aaa',textAlign:'center',lineHeight:1.4,fillBg:'transparent',borderWidth:0,borderColor:'#666',borderStyle:'solid',borderRadius:0,rotation:0,opacity:1,fontFamily:'Arial',fontWeight:'normal',fontStyle:'normal',textDecoration:'none',shadow:{en:false,bl:4,oX:2,oY:2,c:'rgba(0,0,0,0.3)'},anim:{enter:'none',exit:'none',em:'none',delay:0,dur:500}}];
+  }
+  (els||[]).forEach(function(el){var d=makeDOM(el,prev);if(d)c.appendChild(d);});
   return c;
 }
 
@@ -246,9 +251,12 @@ function fullscreenPresent(imgData){
    ════════════════════════════════════════ */
 
 var _modal=null,_data=null,_selId=null,_cscale=1,_dragging=false,_resizing=false,_ds=null,_rh=null;
+var _escHandler=null,_khHandler=null;
 
 export function openEditor(imgData){
   _data=imgData;_selId=null;
+  // 从数据恢复幻灯片尺寸，避免跨实例污染
+  SW=_data.slideWidth||960;SH=_data.slideHeight||540;
   if(!_modal){_modal=document.createElement('div');_modal.id='ssEditor';
     _modal.style.cssText='position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:99999;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);font-family:Arial,sans-serif;';
     var ssStyle=document.createElement('style');ssStyle.textContent='.ss-emphasis{text-emphasis:filled dot;-webkit-text-emphasis:filled dot;text-emphasis-position:under right;-webkit-text-emphasis-position:under right;}.ss-dropcap::first-letter{float:left;font-size:2.6em;line-height:0.85;padding:2px 6px 0 0;font-weight:bold;}';
@@ -256,12 +264,15 @@ export function openEditor(imgData){
     document.body.appendChild(_modal);}
   _modal.innerHTML='';_modal.style.display='flex';buildUI(_modal,imgData);
   _modal.addEventListener('mousedown',function(e){if(e.target===_modal)closeEd();});
-  document.addEventListener('keydown',function escH(e){if(e.key==='Escape'){closeEd();document.removeEventListener('keydown',escH);}});
+  // 移除旧的 ESC 监听器（如有）
+  if(_escHandler){document.removeEventListener('keydown',_escHandler);}
+  _escHandler=function(e){if(e.key==='Escape'){closeEd();}};
+  document.addEventListener('keydown',_escHandler);
 }
 
-function closeEd(){if(_modal)_modal.style.display='none';stopSlideDraw();if(_drawCanvas&&_drawCanvas.parentNode)_drawCanvas.parentNode.removeChild(_drawCanvas);_drawCanvas=null;_drawCtx=null;_data=null;_selId=null;}
+function closeEd(){if(_escHandler){document.removeEventListener('keydown',_escHandler);_escHandler=null;}if(_khHandler){document.removeEventListener('keydown',_khHandler);_khHandler=null;}if(_modal)_modal.style.display='none';stopSlideDraw();if(_drawCanvas&&_drawCanvas.parentNode)_drawCanvas.parentNode.removeChild(_drawCanvas);_drawCanvas=null;_drawCtx=null;_data=null;_selId=null;}
 export { openEditor as openSlideshowEditor };
-function saveAndClose(){if(_data)renderAll();transactRender();closeEd();}
+function saveAndClose(){if(_data){var orig=overlayImages.find(function(im){return im.id===_data.id;});if(orig)Object.assign(orig,_data);renderAll();}transactRender();closeEd();}
 
 var _activeTab='home',_drawCanvas=null,_drawCtx=null,_drawActive=false,_drawTool='pen',_drawColor='#aef0ff',_drawSize=3,_drawLineStyle='solid',_drawHistory=[],_drawHistoryIdx=-1,_drawIsDrawing=false,_drawLastX=0,_drawLastY=0,_drawRainbowHue=0,_drawTempCanvas=null,_drawTempCtx=null;
 var _undoStack=[],_redoStack=[],_UNDO_MAX=50;
@@ -690,7 +701,7 @@ function ribbonDesign(){
 
   var gSize=mkRGroup('幻灯片大小');
   gSize.appendChild(mkRSelect([{v:'960x540',l:'16:9 标准'},{v:'1024x768',l:'4:3 标准'},{v:'1280x720',l:'16:9 宽屏'}],SW+'x'+SH,function(v){
-    var parts=v.split('x');SW=parseInt(parts[0]);SH=parseInt(parts[1]);
+    var parts=v.split('x');SW=parseInt(parts[0]);SH=parseInt(parts[1]);_data.slideWidth=SW;_data.slideHeight=SH;
     var ci=document.getElementById('ssCI');if(ci){ci.style.width=SW+'px';ci.style.height=SH+'px';}
     renderCanvas();refreshThumbs();
   }));
@@ -811,7 +822,7 @@ function addFormulaToSlide(){
   if(!_data)return;var sl=_data.slides[curIdx()];if(!sl)return;
   pushUndo();
   var html='<span class="formula" data-latex="'+encodeURIComponent(formula)+'" style="font-size:20px;">'+formula+'</span>';
-  sl.elements.push({id:'el'+Date.now(),type:'text',x:SW*0.3,y:SH*0.4,w:200,h:40,content:html,fontSize:20,color:getTheme().color});
+  sl.elements.push({id:'el'+Date.now(),type:'text',x:SW*0.3,y:SH*0.4,w:200,h:40,content:html,fontSize:20,color:getTheme().tx});
   renderCanvas();refreshThumbs();
 }
 function addLinkToSlide(){
@@ -839,7 +850,7 @@ function addEmojiToSlide(){
   var em=prompt('选择表情（复制需要的）:\n'+emojis);if(!em)return;
   var t=getEditTarget();
   if(t){execTextCmd('insertText',em);}
-  else{if(!_data)return;var sl=_data.slides[curIdx()];if(!sl)return;sl.elements.push({id:'el'+Date.now(),type:'text',x:SW*0.4,y:SH*0.4,w:80,h:40,content:em,fontSize:24,color:getTheme().color});renderCanvas();refreshThumbs();}
+  else{if(!_data)return;var sl=_data.slides[curIdx()];if(!sl)return;sl.elements.push({id:'el'+Date.now(),type:'text',x:SW*0.4,y:SH*0.4,w:80,h:40,content:em,fontSize:24,color:getTheme().tx});renderCanvas();refreshThumbs();}
 }
 function addDatetimeToSlide(){
   var now=new Date();
@@ -850,7 +861,7 @@ function addDatetimeToSlide(){
   var idx=parseInt(txt)-1;if(idx<0||idx>=opts.length)return;var val=opts[idx];
   var t=getEditTarget();
   if(t){execTextCmd('insertText',val);}
-  else{if(!_data)return;var sl=_data.slides[curIdx()];if(!sl)return;sl.elements.push({id:'el'+Date.now(),type:'text',x:SW*0.3,y:SH*0.4,w:160,h:30,content:val,fontSize:16,color:getTheme().color});renderCanvas();refreshThumbs();}
+  else{if(!_data)return;var sl=_data.slides[curIdx()];if(!sl)return;sl.elements.push({id:'el'+Date.now(),type:'text',x:SW*0.3,y:SH*0.4,w:160,h:30,content:val,fontSize:16,color:getTheme().tx});renderCanvas();refreshThumbs();}
 }
 function addChartToSlide(){
   if(!_data)return;var sl=_data.slides[curIdx()];if(!sl)return;
@@ -955,9 +966,86 @@ function refreshThumbs(){
     var tw=document.createElement('div');tw.style.cssText='position:relative;width:100%;overflow:hidden;height:70px;';
     var th=buildHTML(s,true);th.style.width='100%';th.style.height='0';th.style.paddingBottom='56.25%';th.style.position='relative';th.style.transformOrigin='top left';th.style.transform='scale(0.18)';th.style.pointerEvents='none';tw.appendChild(th);
     var bd=document.createElement('span');bd.style.cssText='position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,0.7);color:#aaa;font-size:9px;padding:1px 5px;border-radius:2px;';bd.textContent=i+1;
-    it.appendChild(tw);it.appendChild(bd);it.setAttribute('data-si',i);
-    it.addEventListener('click',function(){selectSlide(i);});lw.appendChild(it);
+    // 删除按钮（右上角 ×）
+    var db=document.createElement('span');db.textContent='×';db.title='删除此页';
+    db.style.cssText='position:absolute;top:2px;right:3px;background:rgba(255,60,60,0.7);color:#fff;font-size:11px;width:16px;height:16px;line-height:14px;text-align:center;border-radius:50%;cursor:pointer;display:none;z-index:2;font-weight:bold;';
+    db.addEventListener('click',function(e){e.stopPropagation();deleteSlide(i);});
+    db.addEventListener('mousedown',function(e){e.stopPropagation();});
+    it.appendChild(tw);it.appendChild(bd);it.appendChild(db);
+    it.setAttribute('data-si',i);
+    it.addEventListener('click',function(){selectSlide(i);});
+    // 悬浮时显示删除按钮
+    it.addEventListener('mouseenter',function(){db.style.display='block';});
+    it.addEventListener('mouseleave',function(){db.style.display='none';});
+    // 右键菜单
+    it.addEventListener('contextmenu',function(e){
+      e.preventDefault();e.stopPropagation();showSlideContextMenu(e.clientX,e.clientY,i);
+    });
+    lw.appendChild(it);
   });highlightThumb();
+}
+
+/* ── 幻灯片页面管理 ── */
+function deleteSlide(idx){
+  if(!_data||!_data.slides)return;
+  if(_data.slides.length<=1){return;} // 至少保留 1 页
+  pushUndo();
+  _data.slides.splice(idx,1);
+  var ci=curIdx();
+  if(ci>=_data.slides.length)ci=_data.slides.length-1;
+  if(ci<0)ci=0;
+  refreshThumbs();selectSlide(ci);
+}
+
+function moveSlideUp(idx){
+  if(!_data||!_data.slides||idx<=0)return;
+  pushUndo();
+  var arr=_data.slides;var tmp=arr[idx];arr[idx]=arr[idx-1];arr[idx-1]=tmp;
+  refreshThumbs();selectSlide(idx-1);
+}
+
+function moveSlideDown(idx){
+  if(!_data||!_data.slides||idx>=_data.slides.length-1)return;
+  pushUndo();
+  var arr=_data.slides;var tmp=arr[idx];arr[idx]=arr[idx+1];arr[idx+1]=tmp;
+  refreshThumbs();selectSlide(idx+1);
+}
+
+function duplicateSlide(idx){
+  if(!_data||!_data.slides)return;
+  pushUndo();
+  var copy=JSON.parse(JSON.stringify(_data.slides[idx]));
+  copy.id='s'+Date.now()+'-dup';
+  copy.title=(copy.title||'')+' (副本)';
+  _data.slides.splice(idx+1,0,copy);
+  refreshThumbs();selectSlide(idx+1);
+}
+
+function showSlideContextMenu(x,y,idx){
+  // 移除旧菜单
+  var old=document.getElementById('ssSlideCtxMenu');if(old)old.remove();
+  var menu=document.createElement('div');menu.id='ssSlideCtxMenu';
+  menu.style.cssText='position:fixed;left:'+x+'px;top:'+y+'px;z-index:100000;background:#0f1e26;border:1px solid #2c6e7e;border-radius:6px;padding:4px 0;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,0.5);';
+  var items=[
+    {label:'🗑️ 删除页面',action:function(){deleteSlide(idx);menu.remove();},disabled:_data.slides.length<=1},
+    {label:'📋 复制页面',action:function(){duplicateSlide(idx);menu.remove();}},
+    {label:'⬆️ 上移',action:function(){moveSlideUp(idx);menu.remove();},disabled:idx===0},
+    {label:'⬇️ 下移',action:function(){moveSlideDown(idx);menu.remove();},disabled:idx>=_data.slides.length-1}
+  ];
+  items.forEach(function(it){
+    var row=document.createElement('div');
+    row.textContent=it.label;
+    row.style.cssText='padding:6px 14px;cursor:'+(it.disabled?'not-allowed':'pointer')+';font-size:12px;color:'+(it.disabled?'#3a5a6a':'#aef0ff')+';white-space:nowrap;';
+    if(!it.disabled){
+      row.addEventListener('mouseenter',function(){row.style.background='#1a3a4a';});
+      row.addEventListener('mouseleave',function(){row.style.background='transparent';});
+      row.addEventListener('click',it.action);
+    }
+    menu.appendChild(row);
+  });
+  document.body.appendChild(menu);
+  // 点击其他地方关闭
+  setTimeout(function(){document.addEventListener('mousedown',function cl(e){if(!menu.contains(e.target)){menu.remove();document.removeEventListener('mousedown',cl);}});},0);
 }
 
 function highlightThumb(){
@@ -1015,7 +1103,9 @@ function renderCanvas(){
 
 function bindCanvas(ci){
   ci.addEventListener('mousedown',function(e){if(e.target===ci)selEl(null);});
-  document.addEventListener('keydown',function kh(e){
+  // 移除旧的 keydown 监听器（如有）
+  if(_khHandler){document.removeEventListener('keydown',_khHandler);}
+  _khHandler=function(e){
     if(!_data||!_modal||_modal.style.display==='none')return;
     if(isTextEditing()){
       if(e.key==='Escape'){e.preventDefault();escapeTextEdit();}
@@ -1025,7 +1115,8 @@ function bindCanvas(ci){
     if(_selId&&e.ctrlKey&&e.key==='d'){e.preventDefault();dupSel();}
     if(e.ctrlKey&&(e.key==='z'||e.key==='Z')){e.preventDefault();undo();}
     if(e.ctrlKey&&(e.key==='y'||e.key==='Y')){e.preventDefault();redo();}
-  });
+  };
+  document.addEventListener('keydown',_khHandler);
   document.addEventListener('mousemove',onMM);document.addEventListener('mouseup',onMU);
 }
 

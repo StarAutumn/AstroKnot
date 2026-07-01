@@ -1,0 +1,77 @@
+{
+  "name": "astroknot",
+  "version": "1.0.0",
+  "description": "3D 知识网络可视化与编辑工具 — 将知识节点以星图形式呈现，支持富文本编辑、多媒体嵌入、思维导图",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "knowledge-graph",
+    "mind-map",
+    "3d-visualization",
+    "note-taking",
+    "electron",
+    "threejs",
+    "knowledge-management",
+    "rich-text-editor"
+  ],
+  "author": "星移三秋",
+  "license": "ISC",
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/星移三秋/astroknot"
+  },
+  "devDependencies": {
+    "electron": "^29.4.6",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.astroknot.app",
+    "productName": "AstroKnot",
+    "icon": "assets/icon.png",
+    "files": [
+      "**/*",
+      "!modules/StressTest.js",
+      "!modules/hot-update.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "mac": {
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "@soundtouchjs/audio-worklet": "^2.0.3",
+    "@univerjs/preset-sheets-advanced": "^0.25.0",
+    "@univerjs/preset-sheets-conditional-formatting": "^0.25.0",
+    "@univerjs/preset-sheets-core": "^0.25.0",
+    "@univerjs/preset-sheets-data-validation": "^0.25.0",
+    "@univerjs/preset-sheets-drawing": "^0.25.0",
+    "@univerjs/preset-sheets-filter": "^0.25.0",
+    "@univerjs/preset-sheets-find-replace": "^0.25.0",
+    "@univerjs/preset-sheets-hyper-link": "^0.25.0",
+    "@univerjs/preset-sheets-sort": "^0.25.0",
+    "@univerjs/preset-sheets-thread-comment": "^0.25.0",
+    "@univerjs/presets": "^0.25.0",
+    "js-yaml": "^4.2.0",
+    "three": "^0.128.0",
+    "tinymce": "^7.9.3",
+    "wavesurfer.js": "^7.12.7"
+  }
+}

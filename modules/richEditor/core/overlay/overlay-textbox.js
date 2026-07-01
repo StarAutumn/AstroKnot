@@ -1,7 +1,19 @@
 import { state } from '../../shared-state.js';
-import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, rgbaToHex, getInsertY, getInsertX } from './overlay-images.js';
+import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, rgbaToHex, getInsertY, getInsertX, getSelectedImage } from './overlay-images.js';
 import { DEFAULT_COLORS } from './overlay-shapes.js';
 import { getActiveBlockId, getBlockElement, getBlockWidth, pxToPct } from './overlay-block.js';
+
+// 辅助函数：设置 textbox 编辑状态
+function setEditingTextBoxState(textDiv, imgData) {
+  state.editingTextBox = textDiv;
+  state.editingTextBoxData = imgData;
+}
+
+// 辅助函数：清除 textbox 编辑状态
+function clearEditingTextBoxState() {
+  state.editingTextBox = null;
+  state.editingTextBoxData = null;
+}
 
 export function addTextBox() {
   ensureOverlay();
@@ -79,10 +91,33 @@ export function renderTextBoxContent(item, imgData) {
     textDiv.style.cursor = 'text';
     textDiv.innerHTML = imgData.html || imgData.text || '';
 
-    textDiv.addEventListener('blur', function () {
+    // 设置编辑状态，让工具栏能够检测到
+    setEditingTextBoxState(textDiv, imgData);
+
+    textDiv.addEventListener('blur', function (e) {
+      // 检查是否是因为点击工具栏面板/菜单/tab而失去焦点
+      // 如果是，不清除编辑状态，保持选区以便应用格式
+      const forecolorPanel = document.getElementById('gradientCustomPanel');
+      const backcolorPanel = document.getElementById('backcolorCustomPanel');
+      const underlinePanel = document.getElementById('underlineColorPanel');
+      const activePanel = (forecolorPanel && forecolorPanel.style.display === 'block') ||
+                          (backcolorPanel && backcolorPanel.style.display === 'block') ||
+                          (underlinePanel && underlinePanel.style.display === 'block');
+      // 也检查是否 TinyMCE 菜单或工具栏 tab 正在显示/交互
+      const activeMenu = document.querySelector('.tox-menu, .tox-collection');
+      const activeTab = document.querySelector('.tb-menubar-tab:focus, .tb-menubar-tab:active');
+
+      if (activePanel || activeMenu || activeTab) {
+        // 不清除编辑状态，让工具栏能够继续操作
+        return;
+      }
+
       saveTextBoxEdit(imgData, textDiv);
+      // 清除编辑状态
+      clearEditingTextBoxState();
       setTimeout(function () {
-        if (selectedImageId === imgData.id && !imgData._editing) {
+        const selected = getSelectedImage();
+        if (selected && selected.id === imgData.id && !imgData._editing) {
           transactRender();
         }
       }, 0);
@@ -233,4 +268,5 @@ function enterTextBoxEdit(imgData) {
   }, 100);
 }
 
-export { hideTextBoxToolbar, enterTextBoxEdit };
+// 导出辅助函数供工具栏使用
+export { hideTextBoxToolbar, enterTextBoxEdit, setEditingTextBoxState, clearEditingTextBoxState };

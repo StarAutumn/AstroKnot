@@ -529,6 +529,8 @@ export function saveSettingsToStorage() {
     headerCircuitAnim: appState.headerCircuitAnim ?? true,
     uiMode: appState.uiMode ?? 'dark',
     emergencyBackupInterval: appState.emergencyBackupInterval ?? 2,
+    notificationEnabled: appState.notificationEnabled ?? true,
+    notificationMuted: appState.notificationMuted ?? false,
   };
   try {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
@@ -579,6 +581,8 @@ function loadSettingsFromStorage() {
   if (typeof saved.headerCircuitAnim === 'boolean') appState.headerCircuitAnim = saved.headerCircuitAnim;
   if (typeof saved.uiMode === 'string') appState.uiMode = saved.uiMode;
   if (typeof saved.emergencyBackupInterval === 'number') appState.emergencyBackupInterval = saved.emergencyBackupInterval;
+  if (typeof saved.notificationEnabled === 'boolean') appState.notificationEnabled = saved.notificationEnabled;
+  if (typeof saved.notificationMuted === 'boolean') appState.notificationMuted = saved.notificationMuted;
 }
 
 function applyDefaultStartupMode() {

@@ -927,6 +927,129 @@ function bindFileIPC() {
     };
   });
 
+  // ── 保存快速笔记到文件系统 ──
+  ipcMain.handle('save-quick-notes', async (event, data) => {
+    try {
+      let savePath = data.savePath;
+      if (!savePath) {
+        savePath = path.join(app.getPath('userData'), 'quicknotes');
+      }
+      fs.mkdirSync(savePath, { recursive: true });
+
+      const notes = data.notes || [];
+      const metadata = [];
+
+      // 收集当前存在的笔记 ID，用于清理已删除笔记的文件夹
+      const currentNoteIds = new Set(notes.map(n => n.id));
+
+      // 清理已删除笔记的文件夹
+      if (fs.existsSync(savePath)) {
+        for (const entry of fs.readdirSync(savePath, { withFileTypes: true })) {
+          if (entry.isDirectory() && entry.name.startsWith('qnote_') && !currentNoteIds.has(entry.name)) {
+            fs.rmSync(path.join(savePath, entry.name), { recursive: true, force: true });
+          }
+        }
+      }
+
+      for (const note of notes) {
+        const noteDir = path.join(savePath, note.id);
+        fs.mkdirSync(noteDir, { recursive: true });
+
+        // 写入 content.html
+        fs.writeFileSync(path.join(noteDir, 'content.html'), note.content || '', 'utf-8');
+
+        // 写入 drawdata.json（仅当 drawData 非空时）
+        const ddPath = path.join(noteDir, 'drawdata.json');
+        if (note.drawData) {
+          fs.writeFileSync(ddPath, JSON.stringify(note.drawData), 'utf-8');
+        } else {
+          // drawData 为空但旧文件存在，删除旧文件
+          if (fs.existsSync(ddPath)) fs.unlinkSync(ddPath);
+        }
+
+        // 写入 overlays（复用已有的 saveOverlays 函数）
+        const overlaysDir = path.join(noteDir, 'overlays');
+        if (note.overlayImages && note.overlayImages.length > 0) {
+          saveOverlays(overlaysDir, note.overlayImages);
+        } else {
+          // overlayImages 为空但旧目录存在，删除整个 overlays 目录
+          if (fs.existsSync(overlaysDir)) {
+            fs.rmSync(overlaysDir, { recursive: true, force: true });
+          }
+        }
+
+        // 元数据索引（不含大体积的 content/overlay/drawData）
+        metadata.push({ id: note.id, title: note.title || '' });
+      }
+
+      // 写入 quicknotes.json 索引文件
+      fs.writeFileSync(path.join(savePath, 'quicknotes.json'), JSON.stringify(metadata, null, 2), 'utf-8');
+
+      return { success: true, path: savePath };
+    } catch (err) {
+      console.error('[save-quick-notes] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 从文件系统加载快速笔记 ──
+  ipcMain.handle('load-quick-notes', async (event, data) => {
+    try {
+      let savePath = data ? data.savePath : null;
+      if (!savePath) {
+        savePath = path.join(app.getPath('userData'), 'quicknotes');
+      }
+
+      const manifestPath = path.join(savePath, 'quicknotes.json');
+      if (!fs.existsSync(manifestPath)) {
+        return { success: true, notes: [], path: savePath };
+      }
+
+      const metadata = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      const notes = [];
+
+      for (const entry of metadata) {
+        try {
+          const noteDir = path.join(savePath, entry.id);
+          if (!fs.existsSync(noteDir)) continue;
+
+          const note = { id: entry.id, title: entry.title || '' };
+
+          // 读取 content.html
+          const contentPath = path.join(noteDir, 'content.html');
+          note.content = fs.existsSync(contentPath) ? fs.readFileSync(contentPath, 'utf-8') : '';
+
+          // 读取 drawdata.json
+          const drawDataPath = path.join(noteDir, 'drawdata.json');
+          if (fs.existsSync(drawDataPath)) {
+            try { note.drawData = JSON.parse(fs.readFileSync(drawDataPath, 'utf-8')); }
+            catch { note.drawData = null; }
+          } else {
+            note.drawData = null;
+          }
+
+          // 读取 overlays（复用已有的 loadOverlays 函数）
+          const overlaysDir = path.join(noteDir, 'overlays');
+          if (fs.existsSync(path.join(overlaysDir, 'manifest.json'))) {
+            const overlays = loadOverlays(overlaysDir);
+            note.overlayImages = (overlays && overlays.length > 0) ? overlays : [];
+          } else {
+            note.overlayImages = [];
+          }
+
+          notes.push(note);
+        } catch (noteErr) {
+          console.error('[load-quick-notes] 单条笔记加载失败:', entry.id, noteErr);
+        }
+      }
+
+      return { success: true, notes, path: savePath };
+    } catch (err) {
+      console.error('[load-quick-notes] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
 }
 
 // ── GPU 进程崩溃全局恢复 ──

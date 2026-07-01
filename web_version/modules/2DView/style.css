@@ -1,0 +1,836 @@
+/* ============================================================
+   2D 视图容器与画布
+   ============================================================ */
+#view2dContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    z-index: 50;
+    overflow: hidden;
+    cursor: grab;
+    background: transparent;
+}
+
+#view2dCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    pointer-events: auto;
+}
+
+.dragging {
+    cursor: grabbing;
+}
+
+/* ============================================================
+   节点右键菜单
+   ============================================================ */
+#nodeContextMenu {
+    position: absolute;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: 14px 18px;
+    z-index: 4000;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 240px;
+    box-shadow: var(--panel-shadow);
+    color: var(--text-primary);
+    font-family: system-ui, 'Segoe UI', sans-serif;
+    font-size: 13px;
+}
+
+#nodeContextMenu .menu-title {
+    font-weight: bold;
+    color: var(--accent);
+    font-size: 14px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+}
+
+.menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.menu-row label {
+    min-width: 70px;
+    color: var(--text-secondary);
+}
+
+.menu-row input[type=range] {
+    flex: 1;
+    margin: 0 8px;
+}
+
+.menu-row input[type=color] {
+    width: 36px;
+    height: 28px;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.menu-row button {
+    background: var(--btn-bg);
+    border: none;
+    color: var(--text-primary);
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 11px;
+    cursor: pointer;
+    height: 26px;
+    width: auto;
+    margin: 0;
+}
+
+.menu-row button:hover {
+    background: var(--btn-hover);
+}
+
+.menu-row select {
+    background: #07161f;
+    border: 1px solid #2c6e7e;
+    color: #eef;
+    padding: 3px 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+}
+
+.menu-row select:focus {
+    border-color: #0ff;
+}
+
+#resetNodeDefaultsBtn {
+    background: #4a2c2c;
+    margin-top: 4px;
+}
+
+#resetNodeDefaultsBtn:hover {
+    background: #6e3e3e;
+}
+
+/* ============================================================
+   移动模式控制栏
+   ============================================================ */
+#moveControlBar {
+    position: absolute;
+    bottom: 54px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 40px;
+    padding: 10px 24px;
+    display: none;
+    align-items: center;
+    gap: 16px;
+    z-index: 500;
+    font-family: system-ui, sans-serif;
+    box-shadow: var(--panel-shadow);
+}
+
+#moveControlBar button {
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    font-weight: bold;
+    padding: 8px 18px;
+    border-radius: 30px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    height: 36px;
+    width: auto;
+    margin: 0;
+}
+
+#moveControlBar button:hover {
+    background: var(--btn-hover);
+}
+
+#moveConfirmBtn {
+    background: var(--btn-hover);
+}
+
+#moveCancelBtn {
+    background: rgba(106, 44, 44, 0.8);
+}
+
+/* ============================================================
+   帮助模态框
+   ============================================================ */
+.help-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--modal-overlay);
+    backdrop-filter: blur(12px);
+    z-index: 2000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.help-modal-content {
+    background: rgba(16, 28, 40, 0.98);
+    border-radius: var(--panel-radius);
+    width: 90vw;
+    max-width: 700px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    overflow: hidden;
+}
+
+.help-modal-header {
+    padding: 12px 20px;
+    background: var(--header-bg);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.help-modal-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--accent);
+}
+
+.help-modal-header button {
+    background: var(--btn-bg);
+    border: none;
+    color: var(--text-primary);
+    padding: 4px 14px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    width: auto;
+    height: auto;
+    transition: background 0.15s;
+}
+
+.help-modal-header button:hover {
+    background: var(--btn-hover);
+}
+
+.help-modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    color: #c0e0f0;
+    line-height: 1.6;
+}
+
+.help-modal-body h3 {
+    color: #0ff;
+    margin: 16px 0 8px;
+    font-size: 16px;
+}
+
+.help-modal-body ul {
+    padding-left: 18px;
+    margin-bottom: 8px;
+}
+
+.help-modal-body li {
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+/* ============================================================
+   图层图标按钮
+   ============================================================ */
+.layer-icon-btn {
+    display: none;
+    position: fixed;
+    top: 46px;
+    right: 16px;
+    width: 38px;
+    height: 38px;
+    background: rgba(14, 24, 34, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #eef;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.layer-icon-btn:hover {
+    background: rgba(0, 200, 220, 0.2);
+    border-color: rgba(0, 255, 255, 0.4);
+}
+
+/* ============================================================
+   图层管理浮动面板（编辑器模态框风格）
+   ============================================================ */
+.layer-panel {
+    position: absolute;
+    top: 50px;
+    right: 10px;
+    width: 320px;
+    max-height: 60vh;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--panel-shadow);
+    overflow: hidden;
+    z-index: 500;
+    font-family: system-ui, 'Segoe UI', sans-serif;
+}
+
+.layer-panel-header {
+    padding: 10px 12px 10px 14px;
+    background: var(--header-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    cursor: move;
+    user-select: none;
+    min-height: 44px;
+}
+
+.layer-panel-drag-handle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
+.layer-panel-title {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+}
+
+.layer-panel-header-btns {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.layer-header-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: none;
+    color: var(--text-secondary);
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.layer-header-btn:hover {
+    background: var(--btn-hover);
+    color: var(--text-primary);
+}
+
+.layer-ghost-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.layer-close-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.layer-close-btn:hover {
+    background: rgba(196, 43, 28, 0.65) !important;
+    color: #fff !important;
+}
+
+/* ============================================================
+   图层列表
+   ============================================================ */
+.layer-list {
+    overflow-y: auto;
+    padding: 8px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.layer-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(20, 50, 65, 0.3);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    user-select: none;
+}
+
+.layer-item:hover {
+    background: rgba(0, 200, 220, 0.15);
+    border-color: rgba(0, 255, 255, 0.2);
+}
+
+.layer-item.active {
+    background: rgba(0, 200, 220, 0.2);
+    border-color: #0ff;
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.1);
+}
+
+.layer-item.dragging {
+    opacity: 0.5;
+    background: rgba(0, 200, 220, 0.3);
+}
+
+.layer-item.drag-over {
+    border-color: #0ff;
+    background: rgba(0, 200, 220, 0.25);
+    transform: scale(1.02);
+}
+
+.layer-drag-handle {
+    color: #5a8a9a;
+    font-size: 14px;
+    cursor: grab;
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.layer-drag-handle:active {
+    cursor: grabbing;
+}
+
+.layer-name {
+    color: #eef;
+    font-size: 14px;
+    flex: 1;
+    font-weight: 500;
+}
+
+.layer-item.active .layer-name {
+    color: #0ff;
+}
+
+.layer-node-count {
+    color: #5a8a9a;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   图层右键菜单
+   ============================================================ */
+.layer-context-menu {
+    position: absolute;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: 8px;
+    z-index: 9500;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 140px;
+    box-shadow: var(--panel-shadow);
+}
+
+.layer-menu-btn {
+    background: rgba(20, 50, 65, 0.6);
+    border: none;
+    color: #eef;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.layer-menu-btn:hover {
+    background: rgba(0, 200, 220, 0.3);
+}
+
+.layer-delete-btn {
+    background: rgba(106, 44, 44, 0.6);
+}
+
+.layer-delete-btn:hover {
+    background: rgba(160, 60, 60, 0.7);
+}
+
+/* ============================================================
+   图层总览按钮（标题栏内）
+   ============================================================ */
+.layer-overview-btn {
+    background: rgba(0, 180, 200, 0.25);
+    border-color: rgba(0, 255, 255, 0.4);
+    font-size: 14px;
+    padding: 5px 10px;
+}
+
+.layer-overview-btn:hover {
+    background: rgba(0, 200, 220, 0.45);
+    border-color: rgba(0, 255, 255, 0.7);
+}
+
+/* ============================================================
+   图层总览（全屏 3D 层叠视图）
+   ============================================================ */
+.layer-overview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9000;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    font-family: system-ui, 'Segoe UI', sans-serif;
+}
+
+.layer-overview-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, rgba(0, 30, 50, 0.95) 0%, rgba(0, 5, 15, 0.98) 70%);
+    backdrop-filter: blur(20px);
+    animation: overviewBgPulse 6s ease-in-out infinite;
+}
+
+@keyframes overviewBgPulse {
+    0%, 100% { background: radial-gradient(ellipse at 40% 50%, rgba(0, 40, 60, 0.95), rgba(0, 5, 15, 0.98)); }
+    50% { background: radial-gradient(ellipse at 60% 50%, rgba(0, 50, 70, 0.95), rgba(0, 5, 15, 0.98)); }
+}
+
+.layer-overview-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 120px 200px 20px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+.layer-overview-title {
+    color: #0ff;
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+
+.layer-overview-hint {
+    color: rgba(180, 210, 230, 0.5);
+    font-size: 13px;
+    margin-bottom: 36px;
+    flex-shrink: 0;
+}
+
+.layer-overview-esc {
+    color: rgba(255, 200, 100, 0.6);
+}
+
+/* ============================================================
+   侧面微俯视叠纸卡片 - 全息投影
+   ============================================================ */
+.layer-overview-cards {
+    position: relative;
+    width: 840px;
+    max-width: 92vw;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 200px;
+    overflow: visible;
+    /* 3D 透视空间 */
+    perspective: 800px;
+    perspective-origin: 50% 50%;
+}
+
+/* ---------- 单行：纸片 + 侧标签 ---------- */
+.layer-paper-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: -28px;
+    transition: margin-top 0.3s ease, transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    position: relative;
+    flex-shrink: 0;
+}
+
+.layer-paper-row:first-child {
+    margin-top: 0;
+}
+
+/* 拖拽中的源行：半透明 */
+.layer-paper-row.dragging {
+    opacity: 0.4;
+}
+
+/* 悬停目标行：高亮 */
+.layer-paper-row.drag-over .layer-card {
+    border-color: rgba(0, 255, 255, 0.9);
+    border-bottom-color: rgba(0, 255, 255, 0.8);
+    box-shadow:
+        0 0 14px rgba(0, 255, 255, 0.4),
+        0 0 30px rgba(0, 200, 255, 0.25),
+        0 0 50px rgba(0, 180, 240, 0.15),
+        inset 0 0 40px rgba(0, 255, 255, 0.12);
+}
+
+/* 占位间隙 */
+.layer-paper-row-gap {
+    height: 100px;
+    flex-shrink: 0;
+}
+
+/* ---------- 纸片本身（全息投影 60° 斜切 + 顺时针微倾） ---------- */
+.layer-card {
+    position: relative;
+    width: 440px;
+    max-width: 60vw;
+    height: 100px;
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    /* 60° 斜切长斜边 + 顺时针微倾，左下角指向层数标签 */
+    transform: rotateZ(5deg) rotateX(14deg) rotateY(0deg) skewX(-60deg);
+    transform-style: preserve-3d;
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                box-shadow 0.35s ease,
+                border-color 0.35s ease,
+                background 0.35s ease;
+    /* 全息投影：半透明底色 + 扫描线 */
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 255, 255, 0.03) 1px,
+            rgba(0, 255, 255, 0.03) 2px
+        ),
+        linear-gradient(170deg,
+            rgba(0, 40, 60, 0.35) 0%,
+            rgba(0, 60, 80, 0.38) 40%,
+            rgba(0, 50, 70, 0.36) 60%,
+            rgba(0, 30, 50, 0.33) 100%);
+    border: 1px solid rgba(0, 200, 240, 0.28);
+    border-bottom: 2px solid rgba(0, 150, 200, 0.25);
+    box-shadow:
+        0 0 8px rgba(0, 180, 220, 0.12),
+        0 0 20px rgba(0, 150, 200, 0.08),
+        inset 0 0 30px rgba(0, 255, 255, 0.04);
+    background-size: auto, auto;
+    backdrop-filter: blur(2px);
+}
+
+/* 纸片厚度 —— 底面伪元素 */
+.layer-card::after {
+    content: '';
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    bottom: -4px;
+    height: 4px;
+    background: linear-gradient(to bottom,
+        rgba(0, 100, 140, 0.45),
+        rgba(0, 60, 90, 0.35));
+    border-radius: 0 0 3px 3px;
+    border: 1px solid rgba(0, 200, 240, 0.15);
+    border-top: none;
+    transform: rotateX(-90deg);
+    transform-origin: top center;
+}
+
+/* ---------- 悬停：整片高亮发光 ---------- */
+.layer-card:hover {
+    transform: rotateZ(5deg) rotateX(10deg) rotateY(-3deg) skewX(-60deg) translateY(-6px) scale(1.03);
+    border-color: rgba(0, 255, 255, 0.7);
+    border-bottom-color: rgba(0, 240, 255, 0.6);
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 255, 255, 0.06) 1px,
+            rgba(0, 255, 255, 0.06) 2px
+        ),
+        linear-gradient(170deg,
+            rgba(0, 80, 110, 0.55) 0%,
+            rgba(0, 120, 160, 0.6) 40%,
+            rgba(0, 100, 140, 0.55) 60%,
+            rgba(0, 60, 90, 0.5) 100%);
+    box-shadow:
+        0 0 14px rgba(0, 255, 255, 0.3),
+        0 0 30px rgba(0, 200, 255, 0.2),
+        0 0 50px rgba(0, 180, 240, 0.15),
+        inset 0 0 40px rgba(0, 255, 255, 0.1);
+}
+
+/* ---------- 当前图层：更亮发光边框 ---------- */
+.layer-card.active {
+    border-color: rgba(0, 255, 255, 0.7);
+    border-bottom-color: rgba(0, 255, 255, 0.55);
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 255, 255, 0.04) 1px,
+            rgba(0, 255, 255, 0.04) 2px
+        ),
+        linear-gradient(170deg,
+            rgba(0, 60, 90, 0.45) 0%,
+            rgba(0, 90, 120, 0.5) 40%,
+            rgba(0, 70, 100, 0.48) 60%,
+            rgba(0, 40, 60, 0.42) 100%);
+    box-shadow:
+        0 0 10px rgba(0, 255, 255, 0.2),
+        0 0 25px rgba(0, 220, 255, 0.15),
+        0 0 45px rgba(0, 200, 240, 0.1),
+        0 0 0 2px rgba(0, 255, 255, 0.12),
+        inset 0 0 35px rgba(0, 255, 255, 0.06);
+}
+
+/* ---------- 纸片内部：空白（留作视觉留白） ---------- */
+.layer-card-inner {
+    display: none;
+}
+
+/* ---------- 金色节点亮点 ---------- */
+.layer-card-dot {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffe680, #d4a000);
+    box-shadow: 0 0 4px rgba(255, 200, 50, 0.6), 0 0 8px rgba(255, 180, 0, 0.3);
+    pointer-events: none;
+    animation: dotPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* ---------- 侧边标签 ---------- */
+.layer-paper-label {
+    position: absolute;
+    right: calc(50% + 400px);
+    padding-top: 4px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 30px;
+    white-space: nowrap;
+}
+
+.layer-label-index {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    opacity: 0.6;
+    text-transform: uppercase;
+}
+
+.layer-label-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #dde;
+    letter-spacing: 1px;
+    transition: color 0.25s;
+}
+
+.layer-card:hover ~ .layer-paper-label .layer-label-name,
+.layer-paper-row:hover .layer-label-name {
+    color: #0ff;
+}
+
+.layer-card.active ~ .layer-paper-label .layer-label-name {
+    color: #0ff;
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.layer-label-meta {
+    display: flex;
+    gap: 12px;
+    color: rgba(160, 190, 210, 0.45);
+    font-size: 12px;
+    transition: color 0.25s;
+}
+
+.layer-card:hover ~ .layer-paper-label .layer-label-meta,
+.layer-paper-row:hover .layer-label-meta {
+    color: rgba(180, 210, 230, 0.75);
+}
+
+.layer-card.active ~ .layer-paper-label .layer-label-meta {
+    color: rgba(0, 255, 255, 0.5);
+}
+
+.layer-label-current {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 8px;
+    background: rgba(0, 255, 255, 0.12);
+    color: #0ff;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}

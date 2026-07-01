@@ -12,6 +12,100 @@ import { saveCurrentContentCK } from '../../content-io.js';
 import { escapeHtml, saveCurrentProjectData } from '../../../module2_TreeData.js';
 import { appState } from '../../../module0_AppState.js';
 
+// ── TextBox 辅助函数 ──
+// 检测是否正在编辑 overlay textbox
+function isEditingTextBox() {
+  return state.editingTextBox && state.editingTextBoxData;
+}
+
+// 获取当前编辑的 textbox 元素
+function getEditingTextBoxElement() {
+  return state.editingTextBox;
+}
+
+// 保存 textbox 当前选区
+function saveTextBoxSelection() {
+  const el = getEditingTextBoxElement();
+  if (!el) return null;
+  const selection = window.getSelection();
+  if (selection.rangeCount > 0) {
+    try {
+      state._textBoxSavedRange = selection.getRangeAt(0).cloneRange();
+      return state._textBoxSavedRange;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
+// 恢复 textbox 选区并聚焦
+function restoreTextBoxSelection() {
+  const el = getEditingTextBoxElement();
+  if (!el) return false;
+  if (state._textBoxSavedRange) {
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(state._textBoxSavedRange);
+    el.focus();
+    return true;
+  }
+  return false;
+}
+
+// 在 textbox 中执行格式化命令（自动保存和恢复选区）
+function execTextBoxCommand(cmd, value) {
+  if (!restoreTextBoxSelection()) return false;
+  document.execCommand(cmd, false, value || null);
+  saveTextBoxSelection();
+  return true;
+}
+
+// 在 textbox 中应用字体
+function applyTextBoxFont(fontFamily) {
+  if (!restoreTextBoxSelection()) return false;
+  document.execCommand('fontName', false, fontFamily);
+  saveTextBoxSelection();
+  return true;
+}
+
+// 在 textbox 中应用字号（需要转换为像素值）
+function applyTextBoxFontSize(ptSize) {
+  if (!restoreTextBoxSelection()) return false;
+  // document.execCommand('fontSize' 使用 1-7 的索引，不太好用
+  // 直接使用像素值
+  const pxSize = Math.round(parseFloat(ptSize) * 96 / 72);
+  document.execCommand('fontSize', false, '7'); // 先设置最大字号
+  // 然后修改选中的字体大小
+  const el = getEditingTextBoxElement();
+  if (el) {
+    const spans = el.querySelectorAll('font[size="7"]');
+    spans.forEach(span => {
+      span.removeAttribute('size');
+      span.style.fontSize = pxSize + 'px';
+    });
+  }
+  saveTextBoxSelection();
+  return true;
+}
+
+// 全局 mousedown 监听器：在点击工具栏前保存 textbox 选区
+let _textBoxSelectionSaved = false;
+function _setupTextBoxSelectionGuard() {
+  document.addEventListener('mousedown', function (e) {
+    if (!isEditingTextBox()) return;
+    // 检查是否点击了 TinyMCE 工具栏区域、菜单、颜色面板或tab
+    const toolbar = e.target.closest('.tox-toolbar, .tox-toolbar__group, .tox-menubar, [role="toolbar"], .tox-menu, .tox-collection');
+    const colorPanel = e.target.closest('#gradientCustomPanel, #backcolorCustomPanel, #underlineColorPanel');
+    const tab = e.target.closest('.tb-menubar-tab');
+    if (toolbar || colorPanel || tab) {
+      saveTextBoxSelection();
+      _textBoxSelectionSaved = true;
+    }
+  }, true); // 使用 capture 阶段，确保在 TinyMCE 处理之前执行
+}
+_setupTextBoxSelectionGuard();
+
 export function registerFontRegion(editor) {
       let cnFonts = [
         { label: '宋体', family: '\'宋体\', SimSun, serif' },
@@ -376,16 +470,28 @@ export function registerFontRegion(editor) {
           text: '中文',
           tooltip: '中文字体（仅对汉字生效）',
           fetch: function (callback) {
+            // 如果正在编辑 textbox，先保存选区
+            if (isEditingTextBox()) {
+              saveTextBoxSelection();
+            }
             let items = [];
             items.push({
               type: 'menuitem', text: '清除', onAction: function () {
-                removeFontByRegex(editor, '[\\u4e00-\\u9fff\\u3400-\\u4dbf]+');
+                if (isEditingTextBox()) {
+                  execTextBoxCommand('removeFormat');
+                } else {
+                  removeFontByRegex(editor, '[\\u4e00-\\u9fff\\u3400-\\u4dbf]+');
+                }
               }
             });
             cnFonts.forEach(function (f) {
               items.push({
                 type: 'menuitem', text: f.label, onAction: function () {
-                  applyFontByRegex(editor, f.family, '[\\u4e00-\\u9fff\\u3400-\\u4dbf]+');
+                  if (isEditingTextBox()) {
+                    applyTextBoxFont(f.family);
+                  } else {
+                    applyFontByRegex(editor, f.family, '[\\u4e00-\\u9fff\\u3400-\\u4dbf]+');
+                  }
                 }
               });
             });
@@ -406,16 +512,28 @@ export function registerFontRegion(editor) {
           text: '英文',
           tooltip: '英文字体（仅对英文生效）',
           fetch: function (callback) {
+            // 如果正在编辑 textbox，先保存选区
+            if (isEditingTextBox()) {
+              saveTextBoxSelection();
+            }
             let items = [];
             items.push({
               type: 'menuitem', text: '清除', onAction: function () {
-                removeFontByRegex(editor, '[A-Za-z0-9]+');
+                if (isEditingTextBox()) {
+                  execTextBoxCommand('removeFormat');
+                } else {
+                  removeFontByRegex(editor, '[A-Za-z0-9]+');
+                }
               }
             });
             enFonts.forEach(function (f) {
               items.push({
                 type: 'menuitem', text: f.label, onAction: function () {
-                  applyFontByRegex(editor, f.family, '[A-Za-z0-9]+');
+                  if (isEditingTextBox()) {
+                    applyTextBoxFont(f.family);
+                  } else {
+                    applyFontByRegex(editor, f.family, '[A-Za-z0-9]+');
+                  }
                 }
               });
             });
@@ -826,7 +944,32 @@ let next = sp.nextSibling;
           text: 'A▲',
           tooltip: '增大字号',
           onAction: function () {
-            editor.execCommand('mceFontSizeUp');
+            if (isEditingTextBox()) {
+              // TextBox: 使用简化的字号增大逻辑
+              saveTextBoxSelection();
+              restoreTextBoxSelection();
+              const selection = window.getSelection();
+              if (selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed) {
+                // 有选中文字，增大选中文字的字号
+                const range = selection.getRangeAt(0);
+                const fragments = range.extractContents();
+                const span = document.createElement('span');
+                // 查找当前字号
+                let currentPx = 16;
+                if (fragments.firstChild && fragments.firstChild.nodeType === 1) {
+                  const style = fragments.firstChild.style;
+                  if (style.fontSize) {
+                    currentPx = parseFloat(style.fontSize);
+                  }
+                }
+                const newPx = currentPx + 2;
+                span.style.fontSize = newPx + 'px';
+                span.appendChild(fragments);
+                range.insertNode(span);
+              }
+            } else {
+              editor.execCommand('mceFontSizeUp');
+            }
           }
         });
       } catch (e) {
@@ -838,7 +981,32 @@ let next = sp.nextSibling;
           text: 'A▼',
           tooltip: '减小字号',
           onAction: function () {
-            editor.execCommand('mceFontSizeDown');
+            if (isEditingTextBox()) {
+              // TextBox: 使用简化的字号减小逻辑
+              saveTextBoxSelection();
+              restoreTextBoxSelection();
+              const selection = window.getSelection();
+              if (selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed) {
+                // 有选中文字，减小选中文字的字号
+                const range = selection.getRangeAt(0);
+                const fragments = range.extractContents();
+                const span = document.createElement('span');
+                // 查找当前字号
+                let currentPx = 16;
+                if (fragments.firstChild && fragments.firstChild.nodeType === 1) {
+                  const style = fragments.firstChild.style;
+                  if (style.fontSize) {
+                    currentPx = parseFloat(style.fontSize);
+                  }
+                }
+                const newPx = Math.max(8, currentPx - 2);
+                span.style.fontSize = newPx + 'px';
+                span.appendChild(fragments);
+                range.insertNode(span);
+              }
+            } else {
+              editor.execCommand('mceFontSizeDown');
+            }
           }
         });
       } catch (e) {
@@ -2590,6 +2758,24 @@ editor.undoManager.transact(function () {
       }
 
       function applySolidForecolor(color) {
+        // 检测是否正在编辑 textbox
+        if (isEditingTextBox()) {
+          const el = getEditingTextBoxElement();
+          if (el) {
+            // 使用保存的选区
+            if (state._textBoxSavedRange) {
+              const selection = window.getSelection();
+              selection.removeAllRanges();
+              selection.addRange(state._textBoxSavedRange);
+            }
+            el.focus();
+            document.execCommand('foreColor', false, color);
+            // 重新保存选区，以便下次操作
+            saveTextBoxSelection();
+          }
+          return;
+        }
+
         let editor = state.tinyEditor;
         if (!editor) return;
         let rng = editor.selection.getRng();
@@ -2667,6 +2853,33 @@ editor.undoManager.transact(function () {
       let forecolorPanel = null;
 
       function applySolidBackcolor(color, opacity) {
+        // 检测是否正在编辑 textbox
+        if (isEditingTextBox()) {
+          const el = getEditingTextBoxElement();
+          if (el) {
+            // 使用保存的选区
+            if (state._textBoxSavedBackRange) {
+              const selection = window.getSelection();
+              selection.removeAllRanges();
+              selection.addRange(state._textBoxSavedBackRange);
+            }
+            el.focus();
+            // hiliteColor 用于背景颜色
+            let alpha = (opacity !== undefined && opacity < 100) ? (opacity / 100) : 1;
+            let rgbaColor = color;
+            if (alpha < 1) {
+              let rr = parseInt(color.slice(1, 3), 16);
+              let gg = parseInt(color.slice(3, 5), 16);
+              let bb = parseInt(color.slice(5, 7), 16);
+              rgbaColor = 'rgba(' + rr + ',' + gg + ',' + bb + ',' + alpha + ')';
+            }
+            document.execCommand('hiliteColor', false, rgbaColor);
+            // 重新保存选区，以便下次操作
+            saveTextBoxSelection();
+          }
+          return;
+        }
+
         let editor = state.tinyEditor;
         if (!editor) return;
         let rng = editor.selection.getRng();
@@ -3046,12 +3259,25 @@ editor.undoManager.transact(function () {
 
       function showForecolorPanel(anchorEl) {
         let panel = ensureForecolorPanel();
-        if (panel.style.display === 'block') { panel.style.display = 'none'; delete state.tinyEditor._savedRange; return; }
-        let editor = state.tinyEditor;
-        if (editor) {
-          let rng = editor.selection.getRng();
-          if (!rng.collapsed) { editor._savedRange = rng.cloneRange(); }
+        if (panel.style.display === 'block') { panel.style.display = 'none'; if (state.tinyEditor) delete state.tinyEditor._savedRange; return; }
+
+        // TextBox 编辑时保存选区
+        if (isEditingTextBox()) {
+          const el = getEditingTextBoxElement();
+          if (el) {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+              state._textBoxSavedRange = selection.getRangeAt(0).cloneRange();
+            }
+          }
+        } else {
+          let editor = state.tinyEditor;
+          if (editor) {
+            let rng = editor.selection.getRng();
+            if (!rng.collapsed) { editor._savedRange = rng.cloneRange(); }
+          }
         }
+
         let rect = anchorEl.getBoundingClientRect();
         panel.style.display = 'block';
         panel.style.left = Math.min(rect.left, window.innerWidth - 230) + 'px';
@@ -3289,12 +3515,25 @@ editor.undoManager.transact(function () {
         panel._colorTarget = null;
         panel._originalBackground = null;
         if (panel._restoreRow) panel._restoreRow.style.display = 'none';
-        if (panel.style.display === 'block') { panel.style.display = 'none'; delete state.tinyEditor._savedBackRange; return; }
-        let editor = state.tinyEditor;
-        if (editor) {
-          let rng = editor.selection.getRng();
-          if (!rng.collapsed) { editor._savedBackRange = rng.cloneRange(); }
+        if (panel.style.display === 'block') { panel.style.display = 'none'; if (state.tinyEditor) delete state.tinyEditor._savedBackRange; return; }
+
+        // TextBox 编辑时保存选区
+        if (isEditingTextBox()) {
+          const el = getEditingTextBoxElement();
+          if (el) {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+              state._textBoxSavedBackRange = selection.getRangeAt(0).cloneRange();
+            }
+          }
+        } else {
+          let editor = state.tinyEditor;
+          if (editor) {
+            let rng = editor.selection.getRng();
+            if (!rng.collapsed) { editor._savedBackRange = rng.cloneRange(); }
+          }
         }
+
         let rect = anchorEl.getBoundingClientRect();
         panel.style.display = 'block';
         panel.style.left = Math.min(rect.left, window.innerWidth - 230) + 'px';
@@ -3542,6 +3781,10 @@ editor.undoManager.transact(function () {
           text: 'A',
           tooltip: '文本颜色',
           onAction: function (api) {
+            // 如果正在编辑 textbox，先保存选区
+            if (isEditingTextBox()) {
+              saveTextBoxSelection();
+            }
             let wasActive = api.isActive();
             let el = document.querySelector('[aria-label="文本颜色"]');
             if (el) showForecolorPanel(el);
@@ -3570,6 +3813,10 @@ editor.undoManager.transact(function () {
           text: 'BG',
           tooltip: '背景颜色',
           onAction: function (api) {
+            // 如果正在编辑 textbox，先保存选区
+            if (isEditingTextBox()) {
+              saveTextBoxSelection();
+            }
             let wasActive = api.isActive();
             let el = document.querySelector('[aria-label="背景颜色"]');
             if (el) showBackcolorPanel(el);

@@ -1,5 +1,7 @@
 // ============================================================
 //  模块11：快速笔记（使用主编辑器，仅保留数据管理）
+//  持久化：Electron 环境下通过 IPC 保存到文件系统，
+//         非 Electron 环境回退到 localStorage
 // ============================================================
 
 import { appState } from './module0_AppState.js';
@@ -24,15 +26,117 @@ function getFirstSentence(html) {
 }
 
 // ---------- 持久化 ----------
-export function loadQuickNotes() {
+
+// 防抖定时器
+let _saveTimer = null;
+
+/**
+ * 从磁盘/localStorage 加载快速笔记
+ */
+export async function loadQuickNotes() {
+  const isElectron = typeof window !== 'undefined' && window.__ELECTRON__ && window.api;
+
+  if (isElectron) {
     try {
-        const saved = localStorage.getItem('knowledge_graph_quick_notes');
-        appState.quickNotes = saved ? JSON.parse(saved) : [];
-    } catch { appState.quickNotes = []; }
+      const result = await window.api.loadQuickNotes({
+        savePath: appState.quickNoteSavePath || null
+      });
+
+      if (result.success) {
+        appState.quickNotes = result.notes || [];
+
+        // 磁盘无数据，但 localStorage 有旧数据 → 自动迁移
+        if (appState.quickNotes.length === 0 && !localStorage.getItem('qnotes_migrated')) {
+          const legacyData = localStorage.getItem('knowledge_graph_quick_notes');
+          if (legacyData) {
+            await migrateFromLocalStorage(legacyData);
+          }
+        }
+        return;
+      }
+    } catch (err) {
+      console.error('[快速笔记加载] IPC 失败，回退 localStorage:', err);
+    }
+  }
+
+  // 非 Electron 环境或 IPC 失败时回退到 localStorage
+  try {
+    const saved = localStorage.getItem('knowledge_graph_quick_notes');
+    appState.quickNotes = saved ? JSON.parse(saved) : [];
+  } catch { appState.quickNotes = []; }
 }
 
+/**
+ * 从 localStorage 旧数据迁移到文件系统
+ */
+async function migrateFromLocalStorage(legacyJson) {
+  try {
+    let notes = JSON.parse(legacyJson);
+    if (!Array.isArray(notes) || notes.length === 0) return;
+
+    const isElectron = typeof window !== 'undefined' && window.__ELECTRON__ && window.api;
+    if (!isElectron) return;
+
+    const result = await window.api.saveQuickNotes({
+      savePath: appState.quickNoteSavePath || null,
+      notes: notes
+    });
+
+    if (result.success) {
+      // 迁移成功，清除 localStorage 旧数据
+      localStorage.removeItem('knowledge_graph_quick_notes');
+      localStorage.setItem('qnotes_migrated', '1');
+      appState.quickNotes = notes;
+      console.log('[快速笔记迁移] 已从 localStorage 迁移到文件系统，共', notes.length, '条笔记');
+    }
+  } catch (err) {
+    console.error('[快速笔记迁移] 失败:', err);
+  }
+}
+
+/**
+ * 保存快速笔记（防抖 300ms，Electron 环境 IPC 写入文件系统，否则 localStorage）
+ */
 export function saveQuickNotes() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    _saveTimer = null;
+    await _doSaveQuickNotes();
+  }, 300);
+}
+
+/**
+ * 立即保存（无防抖，用于关键操作如应用退出时）
+ */
+export async function saveQuickNotesNow() {
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+  await _doSaveQuickNotes();
+}
+
+async function _doSaveQuickNotes() {
+  const isElectron = typeof window !== 'undefined' && window.__ELECTRON__ && window.api;
+
+  if (isElectron) {
+    try {
+      const result = await window.api.saveQuickNotes({
+        savePath: appState.quickNoteSavePath || null,
+        notes: appState.quickNotes
+      });
+      if (!result.success) {
+        console.error('[快速笔记保存] 失败:', result.error);
+      }
+      return;
+    } catch (err) {
+      console.error('[快速笔记保存] 异常:', err);
+    }
+  }
+
+  // 非 Electron 环境或 IPC 失败时回退到 localStorage
+  try {
     localStorage.setItem('knowledge_graph_quick_notes', JSON.stringify(appState.quickNotes));
+  } catch (err) {
+    console.error('[快速笔记保存] localStorage 写入失败:', err);
+  }
 }
 
 // ---------- 列表渲染 ----------
@@ -75,7 +179,7 @@ export function renderQuickNotesList() {
                 { label: '📋 复制笔记', action: function () {
                     let orig = appState.quickNotes.find(function (n) { return n.id === noteId; });
                     if (!orig) return;
-                    let newId = 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    let newId = 'qnote_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
                     appState.quickNotes.push({
                         id: newId,
                         title: (orig.title || '未命名笔记') + ' (副本)',
@@ -178,10 +282,11 @@ function finishQuickNoteRename(input, save) {
 }
 
 // ---------- 初始化 ----------
-export function initQuickNotes() {
-    loadQuickNotes();
+export async function initQuickNotes() {
+    await loadQuickNotes();
     renderQuickNotesList();
     appState.saveQuickNotes = saveQuickNotes;
+    appState.saveQuickNotesNow = saveQuickNotesNow;
     appState.renderQuickNotesList = renderQuickNotesList;
 
     // 绑定搜索输入事件

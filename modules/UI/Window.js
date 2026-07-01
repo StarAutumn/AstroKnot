@@ -151,7 +151,10 @@ export function bindFullscreenAndTab() {
   });
 
   document.addEventListener('pointerdown', function (e) {
-    if (!menu.contains(e.target) && e.target !== btn) {
+    // 检查是否点击了右键菜单（itemContextMenu），如果是则不关闭 astroKnotMenu
+    const ctxMenu = document.getElementById('itemContextMenu');
+    const isClickOnContextMenu = ctxMenu && ctxMenu.contains(e.target) && ctxMenu.style.display !== 'none';
+    if (!menu.contains(e.target) && e.target !== btn && !isClickOnContextMenu) {
       hideMenu();
     }
   });

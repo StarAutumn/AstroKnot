@@ -65,6 +65,7 @@ export function bindToolbarButtons() {
     <div class="settings-tab" data-tab="2dview">\uD83D\uDCCF 2D \u89C6\u56FE</div>
     <div class="settings-tab" data-tab="theme">\uD83C\uDFA8 \u4E3B\u9898</div>
     <div class="settings-tab" data-tab="startup">\uD83D\uDE80 \u542F\u52A8</div>
+    <div class="settings-tab" data-tab="notification">\uD83D\uDD14 \u901A\u77E5</div>
     <div class="settings-tab" data-tab="savepath">\uD83D\uDCC2 \u6587\u4EF6\u4F4D\u7F6E</div>
     <div class="settings-tab" data-tab="help">\uD83D\uDCD6 \u4F7F\u7528\u5E2E\u52A9</div>
   </div>
@@ -307,6 +308,26 @@ export function bindToolbarButtons() {
       <option value="fullscreen">\u5168\u5C4F</option>
     </select>
   </div>
+  </div>
+  <div class="settings-tab-panel" data-panel="notification" style="display:none; padding:8px 16px 14px;">
+    <div class="setting-section">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:12px;">\uD83D\uDD14 \u5F00\u542F\u901A\u77E5</span>
+        <label class="toggle-switch"><input type="checkbox" id="notificationEnableCheck"><span class="toggle-slider"></span></label>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-top:6px; line-height:1.4;">
+        \u5F00\u542F\u540E\u5C06\u5728\u5230\u8D44\u65F6\u663E\u793A\u5F39\u7A97\u5E76\u64AD\u653E\u63D0\u793A\u97F3\uFF0C\u901A\u77E5\u4E2D\u793A\u4ECD\u6709\u8BB0\u8F66\u3002\u5173\u95ED\u540E\u4E0D\u663E\u793A\u5F39\u7A97\u3001\u4E0D\u64AD\u653E\u97F3\u6548\uFF0C\u4F46\u901A\u77E5\u4E2D\u793A\u8BB0\u8F66\u4E0D\u53D8\u3002
+      </div>
+    </div>
+    <div id="notificationMuteWrap" class="setting-section" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--divider);">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:12px;">\uD83D\uDD07 \u9759\u97F3\u6A21\u5F0F</span>
+        <label class="toggle-switch"><input type="checkbox" id="notificationMuteCheck"><span class="toggle-slider"></span></label>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-top:6px; line-height:1.4;">
+        \u9759\u97F0\u540E\u4E0D\u64AD\u653E\u63D0\u793A\u97F0\uFF0C\u4F46\u4F1A\u663E\u793A\u5F39\u7A97\u901A\u77E5\u3002
+      </div>
+    </div>
   </div>
   <div class="settings-tab-panel" data-panel="savepath" style="display:none; padding:8px 16px 14px;">
     <div class="setting-section">
@@ -692,6 +713,32 @@ export function bindToolbarButtons() {
         });
       }
 
+      // 绑定通知开关
+      const notificationEnableCheck = popup.querySelector('#notificationEnableCheck');
+      const notificationMuteWrap = popup.querySelector('#notificationMuteWrap');
+      const notificationMuteCheck = popup.querySelector('#notificationMuteCheck');
+      if (notificationEnableCheck) {
+        notificationEnableCheck.checked = appState.notificationEnabled !== false;
+        if (notificationMuteWrap) {
+          notificationMuteWrap.style.display = notificationEnableCheck.checked ? '' : 'none';
+        }
+        notificationEnableCheck.addEventListener('change', function (e) {
+          appState.notificationEnabled = e.target.checked;
+          if (notificationMuteWrap) {
+            notificationMuteWrap.style.display = e.target.checked ? '' : 'none';
+          }
+          saveSettingsToStorage();
+        });
+      }
+      // 绑定静音开关
+      if (notificationMuteCheck) {
+        notificationMuteCheck.checked = appState.notificationMuted === true;
+        notificationMuteCheck.addEventListener('change', function (e) {
+          appState.notificationMuted = e.target.checked;
+          saveSettingsToStorage();
+        });
+      }
+
       glowBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         // 打开/切换设置面板时自动关闭 AstroKnot 菜单
@@ -844,6 +891,13 @@ export function bindToolbarButtons() {
         if (editorLightChk) editorLightChk.checked = appState.editorLightMode ?? false;
         const editorPgViewChk = gp.popup.querySelector('.editor-pageview-check');
         if (editorPgViewChk) editorPgViewChk.checked = appState.editorPageView ?? false;
+        // 同步通知设置
+        const notifEnableChk = gp.popup.querySelector('#notificationEnableCheck');
+        const notifMuteWrap = gp.popup.querySelector('#notificationMuteWrap');
+        const notifMuteChk = gp.popup.querySelector('#notificationMuteCheck');
+        if (notifEnableChk) notifEnableChk.checked = appState.notificationEnabled !== false;
+        if (notifMuteWrap) notifMuteWrap.style.display = appState.notificationEnabled !== false ? '' : 'none';
+        if (notifMuteChk) notifMuteChk.checked = appState.notificationMuted === true;
         // 同步 2D 视图
         const nw2d = gp.popup.querySelector('.node-width2d-input');
         if (nw2d) nw2d.value = appState.nodeWidth2D ?? 120;

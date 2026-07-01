@@ -121,6 +121,15 @@ export function renderAll() {
     }
   }
 
+  // 销毁所有 Swiper 实例（防止内存泄漏）
+  body.querySelectorAll('.tmce-overlay-block .oly-img-item').forEach(function (el) {
+    if (el._swiperInstance) {
+      try { el._swiperInstance.destroy(true, true); } catch (_) {}
+      el._swiperInstance = null;
+      el._swiperContainer = null;
+    }
+  });
+
   // 清理所有画布块内的旧 .oly-img-item 和 .tmce-overlay-sizer
   body.querySelectorAll('.tmce-overlay-block .oly-img-item').forEach(function (el) { el.remove(); });
   body.querySelectorAll('.tmce-overlay-block .tmce-overlay-sizer').forEach(function (el) { el.remove(); });
@@ -422,6 +431,17 @@ export function selectImage(id, isCtrlKey) {
   hideContextMenu();
 
   // 选中形状/文本框时切换到图形格式 tab
+  // 但如果 textbox 正在编辑文字，则不切换，让用户能使用开始工具栏编辑文字
+  let hasEditingTextbox = Array.from(selectedImageIds).some(function(sid) {
+    let sel = findImageDataById(sid);
+    return sel && sel.type === 'textbox' && sel._editing === true;
+  });
+
+  if (hasEditingTextbox) {
+    // textbox 正在编辑文字，不切换tab，保持当前tab让用户使用文字编辑工具
+    return;
+  }
+
   let hasShapeOrTextbox = Array.from(selectedImageIds).some(function(sid) {
     let sel = findImageDataById(sid);
     return sel && (sel.type === 'shape' || sel.type === 'textbox');
@@ -697,13 +717,15 @@ export function setOverlayImagesData(data) {
         item.showNavigation = d.showNavigation !== false;
         item.showPagination = d.showPagination !== false;
         item.speed = d.speed || 500;
+        item.slideWidth = d.slideWidth || 960;
+        item.slideHeight = d.slideHeight || 540;
         if (d.slides && Array.isArray(d.slides) && d.slides.length > 0) {
           item.slides = d.slides;
         } else {
           item.slides = [
-            { id: 'slide-default-0', title: '第 1 页', content: '<p style="text-align:center;color:#aaa;font-size:16px;padding-top:40%;">第 1 页</p>', bgColor: '#1a1a2e', bgImage: '' },
-            { id: 'slide-default-1', title: '第 2 页', content: '<p style="text-align:center;color:#aaa;font-size:16px;padding-top:40%;">第 2 页</p>', bgColor: '#1a1a2e', bgImage: '' },
-            { id: 'slide-default-2', title: '第 3 页', content: '<p style="text-align:center;color:#aaa;font-size:16px;padding-top:40%;">第 3 页</p>', bgColor: '#1a1a2e', bgImage: '' }
+            { id: 'slide-default-0', title: '第 1 页', bgColor: '#0f1729', bgImage: '', bgGradient: '', elements: [] },
+            { id: 'slide-default-1', title: '第 2 页', bgColor: '#0f1729', bgImage: '', bgGradient: '', elements: [] },
+            { id: 'slide-default-2', title: '第 3 页', bgColor: '#0f1729', bgImage: '', bgGradient: '', elements: [] }
           ];
         }
       } else if (item.type === 'document') {

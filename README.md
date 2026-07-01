@@ -22,6 +22,7 @@
 - **项目持久化** — Markdown + JSON 混合格式存储，支持多项目
 - **启动闪屏** — 应用图标 + 渐变文字 + 地面反光效果
 - **天气时钟** — 任务栏显示实时时钟、农历、节气、天气
+- **日历排班** — 月/周/日三视图，日程管理，四象限事项，排班（上班规律/手动倒班/规律倒班），法定节假日自动识别
 
 ## 快速开始
 
@@ -130,7 +131,23 @@ AstroKnot/
     │   ├── Theme.js                #   主题切换
     │   ├── Dock.js                 #   快捷启动 Dock
     │   ├── AiDialog.js             #   AI 对话框 UI
-    │   └── LunarCalendar.js        #   时钟/天气/农历/节气
+    │   ├── calendar/                 # 日历子系统（时钟/天气/农历/节气/排班）
+	    │       ├── index.js                #   模块入口（initTaskbarClock）
+	    │       ├── shared-state.js         #   跨模块共享状态
+	    │       ├── lunar-utils.js          #   农历/节气/节日/时辰
+	    │       ├── schedule-store.js       #   日程数据层 + 冲突检测
+	    │       ├── schedule-forms.js       #   表单/右键菜单/对话框
+	    │       ├── calendar-popup.js       #   三视图渲染 + 弹窗交互
+	    │       ├── weather.js              #   天气组件
+	    │       ├── shift-store.js          #   排班数据层（班表/班次类型/节假日）
+	    │       ├── shift-form.js           #   排班编辑表单（规律/手动/倒班）
+	    │       ├── shift-types-store.js    #   班次类型管理（白班/夜班/休息/自定义）
+	    │       ├── holidays-store.js       #   法定节假日 & 调休数据（2024-2026）
+	    │       ├── item-form.js            #   事项编辑表单（四象限分类）
+	    │       ├── items-tabs-store.js     #   事项标签页管理
+	    │       ├── add-tab-form.js         #   新增标签页表单
+	    │       ├── anniversary-view.js     #   纪念日视图
+	    │       └── anniversary-form.js     #   纪念日编辑表单
     └── richEditor/                 # 富文本编辑器
         ├── index.js                #   模块入口
         ├── shared-state.js         #   编辑器内部状态
@@ -276,6 +293,7 @@ AstroKnot/
 - **2D 思维导图**：工具栏切换 2D 视图
 - **Dock 快捷启动**：底部 Dock 栏，支持拖放文件/文件夹
 - **天气 & 农历**：任务栏右侧时钟，右键可设置城市
+- **日历排班**：月/周/日三视图，支持排班（上班规律自动识别法定节假日和调休、手动倒班、规律倒班循环），四象限事项管理，纪念日
 - **AI 对话**：支持 Chat 模式和 Agent 模式，Agent 模式可调用工具（读取项目上下文、导入 Markdown 等）
 - **新手引导**：首次打开空项目时自动启动，交互式引导完成基本操作
 

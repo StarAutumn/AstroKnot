@@ -74,6 +74,9 @@ async function doBackup() {
  */
 function flushNow() {
   try {
+    // 刷新快速笔记（将防抖中的待保存数据立即写入磁盘）
+    if (appState.saveQuickNotesNow) appState.saveQuickNotesNow();
+
     if (!appState.currentProjectId) { window.api.emergencyFlushReady(); return; }
     const snap = getEmergencySnapshot();
     if (snap) {

@@ -1,0 +1,2974 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroKnot - 3D 知识网络可视化与编辑工具</title>
+    <style>
+        /* ============================================================
+           AstroKnot 项目统一设计体系（科技青 + 深空背景）
+           ============================================================ */
+        :root {
+            --panel-bg: rgba(14, 24, 34, 0.94);
+            --panel-border: rgba(0, 255, 255, 0.35);
+            --panel-radius: 12px;
+            --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 255, 255, 0.08) inset;
+            --accent: #0ff;
+            --accent-light: #aef0ff;
+            --accent-glow: 0 0 10px rgba(0, 255, 255, 0.25);
+            --text-primary: #eef;
+            --text-secondary: #aac;
+            --divider: #2c6e7e;
+            --btn-bg: rgba(20, 50, 65, 0.6);
+            --btn-hover: rgba(0, 200, 220, 0.25);
+            --input-bg: rgba(7, 22, 31, 0.85);
+            --input-border: rgba(0, 255, 255, 0.35);
+            --tech-line: linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.4) 15%, rgba(0, 255, 255, 0.6) 50%, rgba(0, 255, 255, 0.4) 85%, transparent 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* ============================================================
+   顶部导航栏 — 华丽动态版
+   ============================================================ */
+        #topNav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            /* 动态渐变背景 — 星云流动感 */
+            background: linear-gradient(135deg, rgba(6, 16, 26, 0.92), rgba(14, 34, 50, 0.92), rgba(6, 16, 26, 0.92), rgba(20, 40, 60, 0.92));
+            background-size: 300% 300%;
+            animation: navGradient 12s ease-in-out infinite;
+            backdrop-filter: blur(20px) saturate(1.3);
+            -webkit-backdrop-filter: blur(20px) saturate(1.3);
+            /* 发光边框 — 内发光 + 外发光 */
+            border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+            box-shadow: 0 4px 40px rgba(0, 0, 0, 0.6), 0 0 60px rgba(0, 255, 255, 0.04);
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        /* 底部流光边框 — 极光扫光效果 */
+        #topNav::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: -10%;
+            width: 120%;
+            height: 2px;
+            background: linear-gradient(90deg,
+                    transparent 0%,
+                    rgba(0, 255, 255, 0.1) 15%,
+                    #0ff 35%,
+                    #aef0ff 50%,
+                    #0ff 65%,
+                    rgba(0, 255, 255, 0.1) 85%,
+                    transparent 100%);
+            background-size: 200% 100%;
+            animation: borderFlow 4s linear infinite;
+            filter: blur(1px);
+            opacity: 0.9;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        }
+
+        /* 顶部光晕 — 从上方照射的辉光 */
+        #topNav::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -20%;
+            width: 140%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, rgba(0, 255, 255, 0.04) 0%, transparent 70%);
+            pointer-events: none;
+            animation: navGlow 6s ease-in-out infinite alternate;
+        }
+
+        @keyframes navGradient {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            33% {
+                background-position: 100% 50%;
+            }
+
+            66% {
+                background-position: 50% 100%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        @keyframes borderFlow {
+            0% {
+                background-position: -200% 0;
+            }
+
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        @keyframes navGlow {
+            0% {
+                opacity: 0.3;
+                transform: scale(1) rotate(0deg);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1.1) rotate(3deg);
+            }
+        }
+
+        /* ---------- 导航链接 — 霓虹悬浮效果 ---------- */
+        #topNav .nav-link {
+            color: rgba(170, 200, 220, 0.75);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 18px;
+            border-radius: 30px;
+            transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            letter-spacing: 0.6px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+            position: relative;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.05);
+        }
+
+        /* 链接的发光边框（悬停时出现） */
+        #topNav .nav-link::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 30px;
+            padding: 2px;
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.5), rgba(0, 150, 255, 0.3), rgba(0, 255, 255, 0.5));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            pointer-events: none;
+            transform: scale(0.95);
+        }
+
+        #topNav .nav-link:hover::before,
+        #topNav .nav-link.active::before {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* 链接底部流光下划线 */
+        #topNav .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%) scaleX(0);
+            width: 50%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #0ff, #aef0ff, #0ff, transparent);
+            background-size: 200% 100%;
+            border-radius: 2px;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        #topNav .nav-link:hover::after,
+        #topNav .nav-link.active::after {
+            transform: translateX(-50%) scaleX(1);
+            animation: underlineFlow 1.5s linear infinite;
+        }
+
+        @keyframes underlineFlow {
+            0% {
+                background-position: -200% 0;
+            }
+
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        /* 悬停/激活状态 */
+        #topNav .nav-link:hover {
+            color: #ffffff;
+            text-shadow: 0 0 25px rgba(0, 255, 255, 0.5), 0 0 60px rgba(0, 255, 255, 0.15);
+            transform: translateY(-2px);
+            background: rgba(0, 255, 255, 0.05);
+        }
+
+        #topNav .nav-link.active {
+            color: #0ff;
+            text-shadow: 0 0 25px rgba(0, 255, 255, 0.4), 0 0 60px rgba(0, 255, 255, 0.1);
+            background: rgba(0, 255, 255, 0.08);
+        }
+
+        /* ---------- 品牌 Logo 增强 ---------- */
+        #topNav .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--accent-light, #aef0ff);
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: 0.5px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+            transition: all 0.3s ease;
+        }
+
+        #topNav .brand-logo:hover {
+            text-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+        }
+
+        #topNav .brand-icon {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: radial-gradient(circle at 30% 30%, #4aafff, #0ff);
+            border-radius: 50%;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.2);
+            animation: iconPulse 3s ease-in-out infinite;
+            transition: all 0.3s ease;
+        }
+
+        #topNav .brand-logo:hover .brand-icon {
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        @keyframes iconPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 25px rgba(0, 255, 255, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 40px rgba(0, 255, 255, 0.7), inset 0 0 25px rgba(255, 255, 255, 0.3);
+            }
+        }
+
+        /* ---------- 移动端适配 ---------- */
+        @media (max-width: 820px) {
+            #topNav {
+                padding: 0 16px;
+                height: 52px;
+            }
+
+            #topNav .brand-text {
+                font-size: 16px;
+            }
+
+            #navLinks {
+                display: none;
+                flex-direction: column;
+                position: absolute;
+                top: 52px;
+                left: 0;
+                right: 0;
+                background: rgba(6, 16, 26, 0.96);
+                backdrop-filter: blur(20px);
+                padding: 16px 20px 24px;
+                border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+                gap: 4px;
+                box-shadow: 0 24px 50px rgba(0, 0, 0, 0.7);
+            }
+
+            #navLinks.open {
+                display: flex;
+            }
+
+            #navLinks .nav-link {
+                padding: 12px 16px;
+                font-size: 15px;
+                width: 100%;
+                text-align: center;
+                border-radius: 12px;
+            }
+
+            #navToggle {
+                display: block !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #topNav {
+                padding: 0 12px;
+                height: 48px;
+            }
+
+            #topNav .brand-text {
+                font-size: 14px;
+            }
+
+            #topNav .brand-icon {
+                width: 22px;
+                height: 22px;
+            }
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 820px) {
+            #navLinks {
+                display: none;
+                flex-direction: column;
+                position: absolute;
+                top: 56px;
+                left: 0;
+                right: 0;
+                background: rgba(8, 18, 28, 0.96);
+                backdrop-filter: blur(16px);
+                padding: 12px 20px 20px;
+                border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+                gap: 4px;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            }
+
+            #navLinks.open {
+                display: flex;
+            }
+
+            #navLinks .nav-link {
+                padding: 10px 16px;
+                font-size: 15px;
+                width: 100%;
+                text-align: center;
+                border-radius: 12px;
+            }
+
+            #navToggle {
+                display: block !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #topNav {
+                padding: 0 12px;
+                height: 50px;
+            }
+
+            #topNav .brand-text {
+                font-size: 15px;
+            }
+
+            #topNav .brand-icon {
+                width: 22px;
+                height: 22px;
+            }
+        }
+
+        /* 滚动时隐藏导航（平滑效果） */
+        #topNav.hidden {
+            transform: translateY(-100%);
+        }
+
+        body {
+            background: #01010c;
+            font-family: 'Segoe UI', 'Poppins', 'Inter', system-ui, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* 允许文字区域选中 */
+        .intro-card p,
+        .intro-card h3,
+        .feature-item p,
+        .feature-item h3,
+        .value-item p,
+        .value-item h3,
+        .tech-stack li,
+        .tech-item span,
+        .section-header h2,
+        .hero-content * {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(7, 22, 31, 0.85);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 255, 0.4);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #starfield-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        /* 页面内容层 */
+        body>section {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-content {
+            text-align: center;
+            z-index: 1;
+            padding: 2rem;
+            max-width: 1200px;
+        }
+
+        .track-badge {
+            display: inline-block;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            padding: 0.6rem 1.8rem;
+            border-radius: 50px;
+            color: var(--accent-light);
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 2.5rem;
+            letter-spacing: 1px;
+            box-shadow: var(--panel-shadow);
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .hero h1 {
+            font-size: 10rem;
+            font-weight: 700;
+            letter-spacing: 4px;
+            line-height: 1;
+            margin-bottom: 1.5rem;
+            position: relative;
+            display: inline-block;
+
+            /* 原始字体颜色（渐变）*/
+            background: linear-gradient(90deg, #4aafff, #7dd3ff, #aee6ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+
+            /* 淡蓝色边缘发光光晕 */
+            filter: drop-shadow(0 0 12px rgba(0, 220, 255, 0.5)) drop-shadow(0 0 28px rgba(0, 200, 255, 0.35)) drop-shadow(0 0 55px rgba(0, 180, 255, 0.18)) drop-shadow(0 0 90px rgba(0, 162, 255, 0.745));
+
+            animation: fadeInUp 1s ease-out 0.2s both;
+            -webkit-box-reflect: below 4px linear-gradient(transparent 40%, rgba(255, 255, 255, 0.419));
+        }
+
+        .hero-subtitle {
+            font-size: 1.4rem;
+            color: var(--text-secondary);
+            margin-top: 7rem;
+            margin-bottom: 1rem;
+            line-height: 1.8;
+            animation: fadeInUp 1s ease-out 0.4s both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tech-line-decor {
+            height: 2px;
+            background: var(--tech-line);
+            margin: 0 auto;
+            width: 60%;
+            max-width: 600px;
+        }
+
+        /* Section Styles */
+        section {
+            padding: 6rem 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-light);
+            letter-spacing: 1px;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+
+        .section-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .section-accent-line {
+            height: 2px;
+            background: var(--tech-line);
+            width: 100px;
+            margin: 1.5rem auto 0;
+        }
+
+        /* 创意介绍卡片 */
+        .intro-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--panel-radius);
+            padding: 3rem;
+            box-shadow: var(--panel-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .intro-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--tech-line);
+        }
+
+        .intro-content h3 {
+            color: var(--accent-light);
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .intro-content p {
+            color: var(--text-secondary);
+            line-height: 1.9;
+            font-size: 1.05rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .intro-content ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .intro-content li {
+            color: var(--text-secondary);
+            padding: 0.6rem 0;
+            padding-left: 1.8rem;
+            position: relative;
+            line-height: 1.7;
+        }
+
+        .intro-content li::before {
+            content: '▹';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.8rem;
+        }
+
+        .feature-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            padding: 2rem;
+            border-radius: var(--panel-radius);
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--panel-shadow);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--tech-line);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 255, 255, 0.2) inset;
+            border-color: rgba(0, 255, 255, 0.55);
+        }
+
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.15), rgba(0, 150, 180, 0.1));
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            margin-bottom: 1.3rem;
+            box-shadow: var(--accent-glow);
+        }
+
+        .feature-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.8rem;
+            color: var(--accent-light);
+            font-weight: 600;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        /* Value Cards (价值与意义) */
+        .value-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .value-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--panel-radius);
+            padding: 2.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .value-card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(0, 255, 255, 0.55);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 255, 255, 0.08);
+        }
+
+        .value-icon {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+
+        .value-card h3 {
+            color: var(--accent-light);
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .value-card p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Tech Stack */
+        .tech-section {
+            border-top: 1px solid rgba(0, 255, 255, 0.1);
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.2rem;
+            margin-top: 3rem;
+        }
+
+        .tech-item {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            padding: 1.4rem 1.6rem;
+            border-radius: var(--panel-radius);
+            border: 1px solid var(--panel-border);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tech-item::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: var(--tech-line);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .tech-item:hover {
+            background: rgba(14, 24, 34, 0.98);
+            border-color: rgba(0, 255, 255, 0.55);
+            transform: translateX(5px);
+        }
+
+        .tech-item:hover::after {
+            opacity: 1;
+        }
+
+        .tech-name {
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: 0.4rem;
+            color: var(--accent);
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .tech-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Demo Section */
+        .demo-container {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--panel-radius);
+            padding: 3rem;
+            box-shadow: var(--panel-shadow);
+            margin-top: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .demo-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--tech-line);
+        }
+
+        .demo-placeholder {
+            width: 100%;
+            height: 500px;
+            background: radial-gradient(ellipse at center, #0a1a3a 0%, #01010c 100%);
+            border-radius: var(--panel-radius);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-light);
+            font-size: 1.2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #previewContainer {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            background: radial-gradient(ellipse at center, #0a1a3a 0%, #01010c 100%);
+            border-radius: var(--panel-radius);
+            cursor: grab;
+            overflow: hidden;
+            display: block;
+            /* 新增：覆盖 .demo-placeholder 的 flex */
+        }
+
+        #previewCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+
+        .demo-placeholder .icon {
+            font-size: 5rem;
+            margin-bottom: 1.5rem;
+            animation: pulse-glow 2s ease-in-out infinite;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.5));
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+                filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.5));
+            }
+
+            50% {
+                transform: scale(1.08);
+                opacity: 0.85;
+                filter: drop-shadow(0 0 35px rgba(0, 255, 255, 0.8));
+            }
+        }
+
+        .demo-placeholder .desc {
+            margin-top: 1rem;
+            font-size: 1rem;
+            color: var(--text-secondary);
+            letter-spacing: 2px;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            text-align: center;
+            padding: 6rem 2rem;
+            background: radial-gradient(ellipse at bottom, #0a1a3a 0%, #01010c 100%);
+            border-top: 1px solid rgba(0, 255, 255, 0.15);
+            position: relative;
+        }
+
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--tech-line);
+        }
+
+        .cta-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-light);
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+
+        .cta-desc {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            margin-bottom: 2.5rem;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 0.9rem 2.8rem;
+            background: var(--btn-bg);
+            color: var(--accent-light);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+            margin: 0.6rem 0.5rem;
+            border: 1px solid var(--panel-border);
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+            box-shadow: var(--panel-shadow);
+        }
+
+        .cta-button:hover {
+            background: var(--btn-hover);
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .cta-button.primary {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.15), rgba(0, 150, 180, 0.1));
+            border-color: rgba(0, 255, 255, 0.5);
+        }
+
+        .cta-button.primary:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.25), rgba(0, 150, 180, 0.18));
+        }
+
+        /* Footer */
+        footer {
+            background: #0a1620;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid rgba(0, 255, 255, 0.1);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        footer a:hover {
+            color: var(--accent-light);
+            text-shadow: var(--accent-glow);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 3.8rem;
+            }
+
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+
+            section {
+                padding: 4rem 1.5rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .features-grid,
+            .value-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ============================================================
+   Hero 体验链接 — 发光呼吸 + 悬浮放大
+   ============================================================ */
+        .hero-cta-link {
+            display: inline-block;
+            margin-top: 1.2rem;
+            padding: 0.6rem 2rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #0ff;
+            text-decoration: none;
+            letter-spacing: 1px;
+            border-radius: 50px;
+            background: rgba(0, 255, 255, 0.06);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+            transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                background 0.3s ease,
+                border-color 0.3s ease;
+            animation: glowPulse 2.5s ease-in-out infinite;
+            cursor: pointer;
+        }
+
+        .hero-cta-link:hover {
+            transform: scale(1.08);
+            background: rgba(0, 255, 255, 0.12);
+            border-color: rgba(0, 255, 255, 0.6);
+        }
+
+        @keyframes glowPulse {
+            0% {
+                text-shadow: 0 0 8px rgba(0, 255, 255, 0.3),
+                    0 0 20px rgba(0, 255, 255, 0.1);
+                box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+            }
+
+            50% {
+                text-shadow: 0 0 20px rgba(0, 255, 255, 0.8),
+                    0 0 40px rgba(0, 255, 255, 0.4),
+                    0 0 60px rgba(0, 255, 255, 0.2);
+                box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+            }
+
+            100% {
+                text-shadow: 0 0 8px rgba(0, 255, 255, 0.3),
+                    0 0 20px rgba(0, 255, 255, 0.1);
+                box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 全屏3D场景背景（固定不动） -->
+    <canvas id="starfield-canvas"></canvas>
+    <!-- ============================================================
+     固定顶部导航栏
+     ============================================================ -->
+    <nav id="topNav" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(8, 18, 28, 0.85);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s ease;
+">
+        <!-- Logo / 品牌名 -->
+        <a href="#hero" style="
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        color: var(--accent-light, #aef0ff);
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: 0.5px;
+        font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+    ">
+            <img src="astroknot-icon.png" alt="AstroKnot Logo" style="
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+">
+            AstroKnot
+        </a>
+
+        <!-- 导航链接 -->
+        <div style="
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    " id="navLinks">
+            <a href="#demo" class="nav-link" style="
+            color: rgba(170, 200, 220, 0.8);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            letter-spacing: 0.3px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+        ">预览
+
+                <a href="#intro" class="nav-link" style="
+            color: rgba(170, 200, 220, 0.8);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            letter-spacing: 0.3px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+        ">创意</a>
+                <a href="#users" class="nav-link" style="
+            color: rgba(170, 200, 220, 0.8);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            letter-spacing: 0.3px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+        ">目标用户</a>
+                <a href="#features" class="nav-link" style="
+            color: rgba(170, 200, 220, 0.8);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            letter-spacing: 0.3px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+        ">核心功能</a>
+                <a href="#value" class="nav-link" style="
+            color: rgba(170, 200, 220, 0.8);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            letter-spacing: 0.3px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+        ">价值</a>
+                <a href="#tech" class="nav-link" style="
+            color: rgba(170, 200, 220, 0.8);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            letter-spacing: 0.3px;
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+        ">技术</a>
+                >
+
+        </div>
+
+        <!-- 移动端菜单按钮 -->
+        <button id="navToggle" style="
+        display: none;
+        background: none;
+        border: none;
+        color: #aef0ff;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 8px;
+        transition: background 0.2s;
+    " aria-label="切换菜单">
+            ☰
+        </button>
+    </nav>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content" style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+        text-align: center;
+    ">
+            <!-- 图标 + 标题 横向排列 -->
+            <div style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        ">
+                <!-- 小图标（在标题左边） -->
+                <img src="astroknot-icon.png" alt="AstroKnot" style="
+    width: 256px;
+    height: 256px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 30px rgba(0, 255, 255, 0.5)) drop-shadow(0 0 60px rgba(0, 255, 255, 0.15));
+    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                filter 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    flex-shrink: 0;
+" onmouseenter="this.style.transform='scale(1.08)'; this.style.filter='drop-shadow(0 0 40px rgba(0,255,255,0.7)) drop-shadow(0 0 80px rgba(0,255,255,0.25))'"
+                    onmouseleave="this.style.transform='scale(1)'; this.style.filter='drop-shadow(0 0 30px rgba(0,255,255,0.5)) drop-shadow(0 0 60px rgba(0,255,255,0.15))'">
+                <h1 style="
+                font-size: 10rem;
+                font-weight: 700;
+                letter-spacing: 4px;
+                line-height: 1;
+                margin: 0;
+                position: relative;
+                display: inline-block;
+                background: linear-gradient(90deg, #4aafff, #7dd3ff, #aee6ff);
+                -webkit-background-clip: text;
+                background-clip: text;
+                -webkit-text-fill-color: transparent;
+                filter: drop-shadow(0 0 12px rgba(0, 220, 255, 0.5)) drop-shadow(0 0 28px rgba(0, 200, 255, 0.35)) drop-shadow(0 0 55px rgba(0, 180, 255, 0.18)) drop-shadow(0 0 90px rgba(0, 162, 255, 0.745));
+                animation: fadeInUp 1s ease-out 0.2s both;
+                -webkit-box-reflect: below 4px linear-gradient(transparent 40%, rgba(255, 255, 255, 0.419));
+            ">AstroKnot</h1>
+            </div>
+
+            <p class="hero-subtitle">3D 知识网络可视化与编辑工具<br>将你的思维以星图的形式呈现</p>
+            <!-- ✨ 新增体验链接 -->
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 12px;">
+                <a href="https://astroknot.netlify.app/" target="_blank" class="hero-cta-link"
+                    style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
+                    🚀 体验网页演示版
+                </a>
+                <a href="#" class="hero-cta-link"
+                    style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fab fa-windows"></i> Windows 版
+                </a>
+                <a href="#" class="hero-cta-link"
+                    style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fab fa-apple"></i> macOS 版
+                </a>
+                <a href="#" class="hero-cta-link"
+                    style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fab fa-linux"></i> Linux 版
+                </a>
+            </div>
+    </section>
+
+    <!-- 应用预览 -->
+    <section id="demo" class="demo-section">
+        <div class="section-header">
+            <h2 class="section-title">应用预览</h2>
+            <div class="section-accent-line"></div>
+        </div>
+        <div class="demo-container" style="padding:0; overflow:hidden; background:transparent;">
+            <div class="demo-placeholder" id="previewContainer"
+                style="position:relative; width:100%; height:500px; background:radial-gradient(ellipse at center, #0a1a3a 0%, #01010c 100%); border-radius:var(--panel-radius); cursor:grab; overflow:hidden;">
+                <canvas id="previewCanvas" style="display:block; width:100%; height:100%;"></canvas>
+                <!-- 右下角提示 -->
+                <div
+                    style="position:absolute; bottom:16px; right:16px; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); padding:6px 16px; border-radius:30px; font-size:12px; color:rgba(0,255,255,0.85); border:1px solid rgba(0,255,255,0.25); pointer-events:none; user-select:none; letter-spacing:0.5px;">
+                    🖱 拖拽旋转 · 滚轮缩放
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 创意介绍 -->
+    <section id="intro">
+        <div class="section-header">
+            <h2 class="section-title">创意介绍</h2>
+            <div class="section-accent-line"></div>
+        </div>
+
+        <div class="intro-card">
+            <div class="intro-content">
+                <h3>💡 想解决什么问题</h3>
+                <p>
+                    在信息爆炸的时代，知识工作者面临三大核心困境：<strong
+                        style="color: var(--accent-light);">知识碎片化</strong>——笔记散落在各处，难以形成体系；<strong
+                        style="color: var(--accent-light);">思维线性化</strong>——传统文档无法展现知识点之间的复杂关联；<strong
+                        style="color: var(--accent-light);">创作割裂化</strong>——记录想法、整理资料、深度编辑需要在多个工具间切换。
+                </p>
+
+                <h3>🎯 产品形态</h3>
+                <p>
+                    AstroKnot 是一款基于 Electron + Three.js 的桌面端知识管理应用。它将每个知识点抽象为 3D
+                    空间中的「星节点」，节点间的关联以螺旋连线呈现，配合星云粒子效果，让整个知识网络如宇宙星图般直观可见。用户可以在 3D 视图中自由探索、在 2D
+                    思维导图中整理结构，双击任意节点即可打开功能完整的富文本编辑器进行深度创作。
+                </p>
+
+                <h3>✨ 核心创新点</h3>
+                <ul>
+                    <li><strong style="color: var(--accent);">三维空间知识映射</strong> — 打破传统二维笔记的局限，用 3D 星图形式展现知识的立体结构</li>
+                    <li><strong style="color: var(--accent);">全栈式创作环境</strong> — 集成富文本、表格、公式、代码、音频、视频等 12+ 种内容类型于单一节点内
+                    </li>
+                    <li><strong style="color: var(--accent);">AI 深度融合</strong> — 内置 Chat/Agent 双模式 AI 对话，支持项目上下文感知的工具调用
+                    </li>
+                    <li><strong style="color: var(--accent);">视图自由切换</strong> — 3D 星图 / 2D 思维导图无缝切换，适应不同思考场景</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 目标用户及痛点 -->
+    <section id="users">
+        <div class="section-header">
+            <h2 class="section-title">目标用户及痛点</h2>
+            <div class="section-accent-line"></div>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎓</div>
+                <h3>学生 / 研究者</h3>
+                <p><strong>使用场景：</strong>课程笔记整理、论文文献管理、课题研究梳理<br><br>
+                    <strong>当前痛点：</strong>笔记分散在不同 App 中，复习时难以建立跨学科的知识关联；文献和笔记之间缺少直观的链接关系。
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">💼</div>
+                <h3>知识工作者</h3>
+                <p><strong>使用场景：</strong>产品需求文档、技术方案沉淀、行业研究分析<br><br>
+                    <strong>当前痛点：</strong>传统文档是线性的，无法体现业务模块之间的依赖关系；需要同时使用 Notion（记录）+ XMind（梳理）+ Word（输出），效率低下。
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">👨‍💻</div>
+                <h3>开发者 / 技术写作者</h3>
+                <p><strong>使用场景：</strong>技术博客写作、开源项目文档、API 设计文档<br><br>
+                    <strong>当前痛点：</strong>需要频繁插入代码块、数学公式、架构图，现有工具对混合内容的支持不够友好；缺乏能同时承载文字、代码、图表的创作环境。
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <h3>创意工作者</h3>
+                <p><strong>使用场景：</strong>剧本大纲构思、游戏世界观设定、创意灵感捕捉<br><br>
+                    <strong>当前痛点：</strong>想法是网状的，但工具是线性的；需要一种能像「思维导图」一样发散、又像「文档」一样深入的表达方式。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 核心功能特性 -->
+    <section id="features">
+        <div class="section-header">
+            <h2 class="section-title">核心功能</h2>
+            <p class="section-subtitle">融合 3D 可视化、富文本编辑、AI 对话的下一代知识管理平台</p>
+            <div class="section-accent-line"></div>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🌌</div>
+                <h3>3D 知识网络</h3>
+                <p>基于 Three.js 渲染，螺旋连线、星云粒子、节点光环，支持旋转/缩放/平移，让知识网络如星图般璀璨。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">✏️</div>
+                <h3>富文本编辑器</h3>
+                <p>基于 TinyMCE 7，支持字体/段落/样式、图片自由放置、形状、文本框、文件链接、分栏等专业级编辑能力。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>表格 & 公式编辑器</h3>
+                <p>基于 Univer 的完整电子表格编辑能力 + LaTeX 公式编辑器，常用符号面板，支持拖拽缩放。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">💻</div>
+                <h3>代码块编辑</h3>
+                <p>基于 Monaco Editor，支持 81 种编程语言语法高亮，内置代码片段模板，开发者友好。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🎵</div>
+                <h3>多媒体嵌入</h3>
+                <p>音频（WaveSurfer.js 波形可视化 + EQ 均衡器）、视频、幻灯片放映，全方位多媒体支持。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>AI 对话集成</h3>
+                <p>支持 Chat/Agent 双模式，多模型切换，工具调用（项目上下文感知），让 AI 成为你创作助手。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🎨</div>
+                <h3>绘图 & 覆盖层</h3>
+                <p>手绘笔/铅笔/荧光笔/彩虹笔，支持撤销重做；图片/形状/文本框/图表自由放置，可拖拽缩放旋转。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>视图切换系统</h3>
+                <p>3D 星图 / 2D 思维导图无缝切换，图层管理，满足不同思考和表达场景的需求。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 作品价值与意义 -->
+    <section id="value">
+        <div class="section-header">
+            <h2 class="section-title">价值与意义</h2>
+            <div class="section-accent-line"></div>
+        </div>
+
+        <div class="value-grid">
+            <div class="value-card">
+                <span class="value-icon">⚡</span>
+                <h3>效率提升</h3>
+                <p>将「记录 → 整理 → 创作」三个环节统一到同一个工具中，消除工具切换带来的认知负担。3D 可视化帮助用户快速定位知识盲区和关联缺口，大幅缩短从想法到成品的路径。</p>
+            </div>
+
+            <div class="value-card">
+                <span class="value-icon">🧩</span>
+                <h3>思维范式革新</h3>
+                <p>突破传统文档的线性限制，提供「先宏观后微观」的新型知识组织方式。用户可以先在 3D 星图中把握全局，再逐个深入节点细节，更符合人类大脑的发散性思维习惯。</p>
+            </div>
+
+            <div class="value-card">
+                <span class="value-icon">🌍</span>
+                <h3>社会价值</h3>
+                <p>为教育领域提供可视化的知识管理方案，帮助学生建立系统性思维框架。降低专业内容创作的门槛，让非技术人员也能轻松制作包含代码、公式、多媒体的复合型文档。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 技术栈 -->
+    <section id="tech" class="tech-section" style="padding: 6rem 2rem; max-width: 1400px; margin: 0 auto;">
+        <div class="section-header">
+            <h2 class="section-title">技术实现</h2>
+            <p class="section-subtitle">构建于成熟的开源技术栈之上</p>
+            <div class="section-accent-line"></div>
+        </div>
+        <div class="tech-grid">
+            <div class="tech-item">
+                <div class="tech-name">Electron 29</div>
+                <div class="tech-desc">桌面应用框架（无边框窗口）</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Three.js 0.128</div>
+                <div class="tech-desc">3D 渲染引擎（节点、粒子、辉光）</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">TinyMCE 7</div>
+                <div class="tech-desc">富文本编辑器（inline 模式）</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Univer 0.25</div>
+                <div class="tech-desc">电子表格编辑器</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Monaco Editor</div>
+                <div class="tech-desc">代码块编辑（81 种语言）</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">MathJax 3 / MathLive</div>
+                <div class="tech-desc">LaTeX 公式渲染与编辑</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">WaveSurfer.js 7</div>
+                <div class="tech-desc">音频波形可视化</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">FFmpeg.wasm</div>
+                <div class="tech-desc">浏览器端视频处理</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Fabric.js</div>
+                <div class="tech-desc">画布操作与遮罩</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">SoundTouchJS</div>
+                <div class="tech-desc">音频变速/变调处理</div>
+            </div>
+        </div>
+    </section>
+
+
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <h2 class="cta-title">AstroKnot，像宇航员一样去探索您的知识宇宙</h2>
+        <p class="cta-desc">用 3D 星图重新定义知识管理的方式</p>
+        <a href="https://astroknot.netlify.app/" target="_blank" class="cta-button primary">体验网页演示版</a>
+        <a href="#intro" class="cta-button">回到顶部</a>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>AstroKnot — 3D 知识网络可视化与编辑工具</p>
+        <p style="margin-top: 0.8rem; font-size: 0.9rem;">
+            Built with ❤️ using Electron + Three.js
+        </p>
+    </footer>
+
+    <!-- 完整3D场景背景（模块1+7+14 整合） -->
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script>
+        // ============================================================
+        //  AstroKnot 完整3D场景 — 作为全页背景
+        //  整合: module1(纹理) + module7(场景初始化) + module14(动画)
+        // ============================================================
+        (function () {
+            var THREE = window.THREE;
+            if (!THREE) { console.error('Three.js 未加载'); return; }
+
+            var canvas = document.getElementById('starfield-canvas');
+            if (!canvas) return;
+
+            var renderer, scene, camera, skySphere;
+            var tm = 0;
+            var starGroups = [], nebulaFlowGroups = [], flowField = null;
+
+            // ──────────────────────────────────────
+            //  模块1: 纹理生成（createGlowTexture + createPanoramaTexture）
+            // ──────────────────────────────────────
+            function createGlowTexture() {
+                var c = document.createElement('canvas');
+                c.width = c.height = 64;
+                var ctx = c.getContext('2d');
+                var g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                g.addColorStop(0, 'rgba(255,255,255,1)');
+                g.addColorStop(0.2, 'rgba(255,255,255,0.9)');
+                g.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+                g.addColorStop(0.7, 'rgba(255,255,255,0.2)');
+                g.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+                return new THREE.CanvasTexture(c);
+            }
+
+            function createPanoramaTexture() {
+                var c = document.createElement('canvas');
+                var W = 8192, H = 4096;  // 与项目一致
+                c.width = W; c.height = H;
+                var ctx = c.getContext('2d');
+
+                // 深空底色
+                var bg = ctx.createLinearGradient(0, 0, 0, H);
+                bg.addColorStop(0, '#010118'); bg.addColorStop(0.3, '#030a22');
+                bg.addColorStop(0.7, '#010a1c'); bg.addColorStop(1, '#000812');
+                ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+                function dp(x, y, fn) { for (var o = -1; o <= 1; o++) { ctx.save(); ctx.translate(o * W, 0); fn(x, y); ctx.restore(); } }
+
+                // 星云层
+                for (var i = 0; i < 25; i++) {
+                    var cx = Math.random() * W, cy = Math.random() * H, rx = 300 + Math.random() * 800, ry = 150 + Math.random() * 400, rot = Math.random() * Math.PI;
+                    var h = (i * 30 + Math.random() * 25) % 360, s = 55 + Math.random() * 35, l = 25 + Math.random() * 25;
+                    dp(cx, cy, function (x, y) {
+                        ctx.translate(x, y); ctx.rotate(rot); ctx.scale(rx / 800, ry / 500);
+                        var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 400);
+                        g.addColorStop(0, 'hsla(' + h + ',' + s + '%,' + l + '%,0.04)');
+                        g.addColorStop(0.15, 'hsla(' + h + ',' + s + '%,' + l + '%,0.035)');
+                        g.addColorStop(0.4, 'hsla(' + h + ',' + (s * 0.9).toFixed(0) + '%,' + (l * 0.9).toFixed(0) + '%,0.02)');
+                        g.addColorStop(0.7, 'hsla(' + h + ',' + (s * 0.8).toFixed(0) + '%,' + (l * 0.8).toFixed(0) + '%,0.008)');
+                        g.addColorStop(1, 'transparent');
+                        ctx.fillStyle = g; ctx.fillRect(-400, -400, 800, 800);
+                    });
+                    for (var j = 0; j < 3; j++) {
+                        var ox = (Math.random() - 0.5) * rx * 0.5, oy = (Math.random() - 0.5) * ry * 0.5, cr = 120 + Math.random() * 250, crot = Math.random() * Math.PI;
+                        dp(cx + ox, cy + oy, function (x, y) {
+                            ctx.translate(x, y); ctx.rotate(crot); ctx.scale(cr / 400, cr / 400);
+                            var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 200);
+                            g.addColorStop(0, 'hsla(' + h + ',' + s + '%,' + l + '%,0.05)');
+                            g.addColorStop(0.3, 'hsla(' + h + ',' + s + '%,' + l + '%,0.04)');
+                            g.addColorStop(0.6, 'hsla(' + h + ',' + (s * 0.8).toFixed(0) + '%,' + (l * 0.8).toFixed(0) + '%,0.015)');
+                            g.addColorStop(1, 'transparent');
+                            ctx.fillStyle = g; ctx.fillRect(-200, -200, 400, 400);
+                        });
+                    }
+                }
+
+                // 扩散光晕
+                for (var i = 0; i < 8; i++) {
+                    var cx = Math.random() * W, cy = Math.random() * H, rx = 600 + Math.random() * 1000, ry = 300 + Math.random() * 600, rot = Math.random() * Math.PI * 0.2, h = 200 + Math.random() * 160;
+                    dp(cx, cy, function (x, y) {
+                        ctx.translate(x, y); ctx.rotate(rot); ctx.scale(rx / 1000, ry / 600);
+                        var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 500);
+                        g.addColorStop(0, 'hsla(' + h + ',60%,50%,0.03)');
+                        g.addColorStop(0.3, 'hsla(' + h + ',55%,45%,0.02)');
+                        g.addColorStop(0.6, 'hsla(' + h + ',50%,40%,0.008)');
+                        g.addColorStop(1, 'transparent');
+                        ctx.fillStyle = g; ctx.fillRect(-500, -500, 1000, 1000);
+                    });
+                }
+
+                // 银河彩虹泛光层（与项目一致：200步 + 每步80颗子星星）
+                var continuousSteps = 200;
+                var coreCyMin = H * 0.40, coreCyMax = H * 0.60;
+                for (var i = 0; i < continuousSteps; i++) {
+                    var cx = (i / continuousSteps) * W, cy = coreCyMin + Math.random() * (coreCyMax - coreCyMin);
+                    var rx = 2800 + Math.random() * 2200, ry = 350 + Math.random() * 650, rot = Math.random() * Math.PI * 0.12;
+                    var angle = (cx / W) * Math.PI * 2, h = (angle * 180 / Math.PI + i * 2) % 360;
+                    dp(cx, cy, function (x, y) {
+                        ctx.translate(x, y); ctx.rotate(rot); ctx.scale(rx / 800, ry / 400);
+                        var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 400);
+                        g.addColorStop(0, 'hsla(' + h + ',85%,60%,0.008)');
+                        g.addColorStop(0.2, 'hsla(' + h + ',80%,55%,0.006)');
+                        g.addColorStop(0.45, 'hsla(' + h + ',75%,50%,0.0025)');
+                        g.addColorStop(0.75, 'hsla(' + h + ',70%,45%,0.0006)');
+                        g.addColorStop(1, 'transparent');
+                        ctx.fillStyle = g; ctx.fillRect(-400, -400, 800, 800);
+                    });
+                    // 彩虹带子星星（每步40颗）
+                    for (var j = 0; j < 40; j++) {
+                        var ox = (Math.random() - 0.5) * rx * 0.4, oy = (Math.random() - 0.5) * ry * 0.6;
+                        var cr = 140 + Math.random() * 280;
+                        dp(cx + ox, cy + oy, function (x, y) {
+                            ctx.translate(x, y); ctx.scale(cr / 200, cr / 200);
+                            var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 200);
+                            g.addColorStop(0, 'hsla(' + h + ',80%,60%,0.006)');
+                            g.addColorStop(0.35, 'hsla(' + h + ',75%,55%,0.003)');
+                            g.addColorStop(0.7, 'hsla(' + h + ',70%,50%,0.0008)');
+                            g.addColorStop(1, 'transparent');
+                            ctx.fillStyle = g; ctx.fillRect(-100, -100, 200, 200);
+                        });
+                    }
+                }
+
+                // 银河大型柔软扩散光晕
+                for (var i = 0; i < 20; i++) {
+                    var cx = Math.random() * W, cy = H * 0.40 + Math.random() * H * 0.20;
+                    var rx = 2500 + Math.random() * 2500, ry = 400 + Math.random() * 600, rot = Math.random() * Math.PI * 0.1, h = 200 + Math.random() * 140;
+                    dp(cx, cy, function (x, y) {
+                        ctx.translate(x, y); ctx.rotate(rot); ctx.scale(rx / 1200, ry / 600);
+                        var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 500);
+                        g.addColorStop(0, 'hsla(' + h + ',80%,60%,0.01)');
+                        g.addColorStop(0.4, 'hsla(' + h + ',70%,50%,0.004)');
+                        g.addColorStop(0.8, 'hsla(' + h + ',60%,40%,0.0005)');
+                        g.addColorStop(1, 'transparent');
+                        ctx.fillStyle = g; ctx.fillRect(-500, -500, 1000, 1000);
+                    });
+                }
+
+                // 上下边缘零星泛光
+                var scatterCount = 50;
+                for (var i = 0; i < scatterCount; i++) {
+                    var cx = Math.random() * W;
+                    var cy = (Math.random() < 0.5) ? H * 0.15 + Math.random() * H * 0.12 : H * 0.73 + Math.random() * H * 0.12;
+                    var rx = 800 + Math.random() * 1500, ry = 120 + Math.random() * 180, rot = Math.random() * Math.PI * 0.15;
+                    var angle = (cx / W) * Math.PI * 2, h = (angle * 180 / Math.PI + i * 8) % 360;
+                    dp(cx, cy, function (x, y) {
+                        ctx.translate(x, y); ctx.rotate(rot); ctx.scale(rx / 700, ry / 350);
+                        var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 300);
+                        g.addColorStop(0, 'hsla(' + h + ',85%,60%,0.06)');
+                        g.addColorStop(0.25, 'hsla(' + h + ',80%,55%,0.04)');
+                        g.addColorStop(0.55, 'hsla(' + h + ',75%,50%,0.015)');
+                        g.addColorStop(0.8, 'hsla(' + h + ',70%,45%,0.003)');
+                        g.addColorStop(1, 'transparent');
+                        ctx.fillStyle = g; ctx.fillRect(-300, -300, 600, 600);
+                    });
+                    for (var j = 0; j < 4; j++) {
+                        var offX = (Math.random() - 0.5) * rx * 0.4, offY = (Math.random() - 0.5) * ry * 0.5, cr = 100 + Math.random() * 220;
+                        dp(cx + offX, cy + offY, function (x, y) {
+                            ctx.translate(x, y); ctx.scale(cr / 300, cr / 300);
+                            var g = ctx.createRadialGradient(0, 0, 0, 0, 0, 150);
+                            g.addColorStop(0, 'hsla(' + h + ',80%,60%,0.04)');
+                            g.addColorStop(0.4, 'hsla(' + h + ',75%,55%,0.02)');
+                            g.addColorStop(0.75, 'hsla(' + h + ',70%,50%,0.003)');
+                            g.addColorStop(1, 'transparent');
+                            ctx.fillStyle = g; ctx.fillRect(-150, -150, 300, 300);
+                        });
+                    }
+                }
+
+                // 银河密集星星带
+                var gcy = H * 0.47, ghw = H * 0.25;
+                for (var i = 0; i < 60000; i++) {
+                    var cx = Math.random() * W, y = gcy + (Math.random() - 0.5) * ghw * 2;
+                    if (y < 0 || y > H) continue;
+                    var dfc = Math.abs(y - gcy) / ghw, ef = Math.max(0, 1 - dfc * 1.3), alpha = (Math.random() * 0.4 + 0.1) * ef;
+                    if (alpha < 0.02) continue;
+                    var h = (cx / W) * 360;
+                    dp(cx, y, function (x, y) {
+                        ctx.beginPath(); ctx.arc(x, y, Math.random() * 2 + 0.3, 0, Math.PI * 2);
+                        ctx.fillStyle = 'hsla(' + h + ',85%,' + (170 + Math.random() * 25).toFixed(0) + '%,' + alpha.toFixed(3) + ')';
+                        ctx.fill();
+                    });
+                }
+
+                // 3.5d 更密集、颜色鲜艳的中心亮星
+                var brightCoreY = H * 0.52, brightHalfHeight = H * 0.08;
+                for (var i = 0; i < 60000; i++) {
+                    var cx = Math.random() * W, y = brightCoreY + (Math.random() - 0.5) * brightHalfHeight * 2;
+                    if (y < 0 || y > H) continue;
+                    var dfc = Math.abs(y - brightCoreY) / brightHalfHeight, cf = Math.max(0, 1 - dfc * 1.4);
+                    var alpha = (Math.random() * 0.8 + 0.2) * cf;
+                    if (alpha < 0.15) continue;
+                    var h = Math.random() * 360;
+                    dp(cx, y, function (x, y) {
+                        ctx.beginPath(); ctx.arc(x, y, Math.random() * 2 + 0.6, 0, Math.PI * 2);
+                        ctx.fillStyle = 'hsla(' + h + ',' + (70 + Math.random() * 30).toFixed(0) + '%,' + (50 + Math.random() * 30).toFixed(0) + '%,' + alpha.toFixed(3) + ')';
+                        ctx.fill();
+                    });
+                }
+
+                // 散布亮星
+                for (var i = 0; i < 4000; i++) {
+                    var cx = Math.random() * W, cy = Math.random() * H, h = Math.random() * 360;
+                    dp(cx, cy, function (x, y) {
+                        ctx.beginPath(); ctx.arc(x, y, Math.random() * 1.5 + 0.5, 0, Math.PI * 2);
+                        ctx.fillStyle = 'hsla(' + h + ',' + (20 + Math.random() * 40).toFixed(0) + '%,' + (65 + Math.random() * 25).toFixed(0) + '%,' + (Math.random() * 0.9 + 0.1).toFixed(2) + ')';
+                        ctx.fill();
+                    });
+                }
+
+                // 暗星背景
+                for (var i = 0; i < 8000; i++) {
+                    var cx = Math.random() * W, cy = Math.random() * H;
+                    dp(cx, cy, function (x, y) {
+                        ctx.beginPath(); ctx.arc(x, y, Math.random() + 0.2, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(200,220,255,' + (Math.random() * 0.2 + 0.05).toFixed(2) + ')'; ctx.fill();
+                    });
+                }
+
+                // 巨型亮星十字光芒
+                for (var i = 0; i < 10; i++) {
+                    var cx = Math.random() * W, cy = Math.random() * H, ss = 80 + Math.random() * 120, h = (i * 30) % 360;
+                    dp(cx, cy, function (x, y) {
+                        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+                        var gh = ctx.createLinearGradient(x - ss, y, x + ss, y);
+                        gh.addColorStop(0, 'transparent'); gh.addColorStop(0.5, 'hsla(' + h + ',90%,80%,0.45)'); gh.addColorStop(1, 'transparent');
+                        ctx.fillStyle = gh; ctx.fillRect(x - ss, y - 3, ss * 2, 7);
+                        var gv = ctx.createLinearGradient(x, y - ss, x, y + ss);
+                        gv.addColorStop(0, 'transparent'); gv.addColorStop(0.5, 'hsla(' + h + ',90%,80%,0.45)'); gv.addColorStop(1, 'transparent');
+                        ctx.fillStyle = gv; ctx.fillRect(x - 3, y - ss, 7, ss * 2);
+                        ctx.restore();
+                    });
+                }
+
+                var tex = new THREE.CanvasTexture(c);
+                tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+                return tex;
+            }
+
+            // ──────────────────────────────────────
+            //  模块7: 场景初始化
+            // ──────────────────────────────────────
+            function createRadialStarField(count, rx, ry, rz, size, colorFn, center, falloff, glowTex) {
+                center = center || new THREE.Vector3(0, 0, 0); falloff = falloff || 120;
+                var g = new THREE.BufferGeometry(), p = [], c = [], tmp = new THREE.Vector3();
+                for (var i = 0; i < count; i++) {
+                    var x = (Math.random() - 0.5) * rx, y = (Math.random() - 0.5) * ry, z = (Math.random() - 0.5) * rz;
+                    p.push(x, y, z); tmp.set(x, y, z);
+                    var br = Math.max(0, 1 - center.distanceTo(tmp) / falloff), col = colorFn();
+                    c.push(col.r * br, col.g * br, col.b * br);
+                }
+                g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p), 3));
+                g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(c), 3));
+                var mat = new THREE.PointsMaterial({ size: size, map: glowTex, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+                return new THREE.Points(g, mat);
+            }
+
+            function initScene() {
+                renderer = new THREE.WebGLRenderer({
+                    canvas: canvas,
+                    antialias: true,
+                    alpha: false,
+                    powerPreference: 'high-performance',
+                    stencil: false,
+                    depth: true
+                });
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
+                renderer.outputColorSpace = THREE.SRGBColorSpace;
+                renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                renderer.toneMappingExposure = 1.0;
+                onResize();
+
+                scene = new THREE.Scene();
+                scene.fog = new THREE.FogExp2(0x030314, 0.004);
+
+                camera = new THREE.PerspectiveCamera(40, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+                camera.position.set(0, 4.5, 8);
+
+                // ── 鼠标拖拽视角控制（挂载到document，穿透所有层）──
+                var orbitTarget = new THREE.Vector3(0, 0, 0);
+                var isDragging = false, lastX = 0, lastY = 0;
+                var spherical = { theta: 0, phi: Math.PI / 3, radius: 12 };
+                function updateCameraFromSpherical() {
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                    camera.position.x = orbitTarget.x + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+                    camera.position.y = orbitTarget.y + spherical.radius * Math.cos(spherical.phi);
+                    camera.position.z = orbitTarget.z + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+                    camera.lookAt(orbitTarget);
+                }
+                function isTextElement(el) {
+                    if (!el || el === document.body || el === document.documentElement) return false;
+                    var tag = el.tagName.toLowerCase();
+                    if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'span', 'a', 'label', 'input', 'textarea', 'button', 'img'].indexOf(tag) !== -1) return true;
+                    if (el.classList.contains('intro-card') || el.classList.contains('feature-item') ||
+                        el.classList.contains('value-item') || el.classList.contains('tech-stack') ||
+                        el.classList.contains('tech-item') || el.classList.contains('section-header') ||
+                        el.classList.contains('hero-content') || el.classList.contains('card') ||
+                        el.classList.contains('panel') || el.classList.contains('cta-btn')) return true;
+                    return isTextElement(el.parentElement);
+                }
+                document.addEventListener('mousedown', function (e) {
+                    if (e.button !== 0) return;
+                    if (isTextElement(e.target)) return;
+                    isDragging = true; lastX = e.clientX; lastY = e.clientY;
+                    document.body.style.userSelect = 'none';
+                    e.preventDefault();
+                });
+                document.addEventListener('mousemove', function (e) {
+                    if (!isDragging) return;
+                    var dx = (e.clientX - lastX) * 0.005, dy = (e.clientY - lastY) * 0.005;
+                    lastX = e.clientX; lastY = e.clientY;
+                    spherical.theta -= dx; spherical.phi += dy;
+                    updateCameraFromSpherical();
+                });
+                document.addEventListener('mouseup', function () {
+                    isDragging = false;
+                    document.body.style.userSelect = '';
+                });
+                // 触摸支持
+                canvas.addEventListener('touchstart', function (e) {
+                    if (e.touches.length === 1) { isDragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
+                }, { passive: true });
+                canvas.addEventListener('touchmove', function (e) {
+                    if (!isDragging || e.touches.length !== 1) return;
+                    var dx = (e.touches[0].clientX - lastX) * 0.005, dy = (e.touches[0].clientY - lastY) * 0.005;
+                    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+                    spherical.theta -= dx; spherical.phi += dy;
+                    updateCameraFromSpherical();
+                }, { passive: true });
+                canvas.addEventListener('touchend', function () { isDragging = false; });
+
+                var glowTex = createGlowTexture();
+                var panoramaTex = createPanoramaTexture();
+
+                // 天空球
+                var skyGeo = new THREE.SphereGeometry(500, 64, 32);
+                var skyMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        textureMap: { value: panoramaTex }, transitionProgress: { value: 1 },
+                        hueShift: { value: 0 }, brightness: { value: 1 }, saturation: { value: 1 }
+                    },
+                    vertexShader: [
+                        'varying vec2 vUv;varying float vDistanceToPole;varying vec3 vNormal;',
+                        'void main(){vUv=uv;vNormal=normalize(normalMatrix*normal);',
+                        'vec3 pd=normalize(vec3(0.,1.,0.));vDistanceToPole=acos(dot(vNormal,pd))/3.1415926;',
+                        'gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}'
+                    ].join('\n'),
+                    fragmentShader: [
+                        'uniform sampler2D textureMap;uniform float transitionProgress;',
+                        'uniform float hueShift,brightness,saturation;',
+                        'varying vec2 vUv;varying float vDistanceToPole;',
+                        'vec3 hueShiftFn(vec3 col,float h){float a=h*6.2831853;float s=sin(a),c=cos(a);return vec3(',
+                        '(0.299+0.701*c+0.168*s)*col.r+(0.587-0.587*c+0.330*s)*col.g+(0.114-0.114*c-0.497*s)*col.b,',
+                        '(0.299-0.299*c-0.328*s)*col.r+(0.587+0.413*c+0.035*s)*col.g+(0.114-0.114*c+0.292*s)*col.b,',
+                        '(0.299-0.3*c+1.25*s)*col.r+(0.587-0.588*c-1.05*s)*col.g+(0.114+0.886*c-0.203*s)*col.b);}',
+                        'vec3 satFn(vec3 col,float s){float g=dot(col,vec3(0.299,0.587,0.114));return mix(vec3(g),col,s);}',
+                        'void main(){vec4 tc=texture2D(textureMap,vUv);vec3 col=hueShiftFn(tc.rgb,hueShift);',
+                        'col=satFn(col,saturation);col*=brightness;',
+                        // 抗摩尔纹：基于像素位置的微噪点抖动
+                        'float dither=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453);',
+                        'col+=((dither-0.5)*0.02);',
+                        'gl_FragColor=vec4(col,1.);}'
+                    ].join('\n'),
+                    side: THREE.BackSide, depthWrite: false, depthTest: true
+                });
+                skySphere = new THREE.Mesh(skyGeo, skyMat);
+                skySphere.renderOrder = -1; scene.add(skySphere);
+
+                // 星空粒子群（与 module7 一致）
+                var v0 = new THREE.Vector3(0, 0, 0);
+                var stars1 = createRadialStarField(4000, 300, 200, 120, 0.18, function () { return new THREE.Color().setRGB(0.8 + Math.random() * 0.2, 0.8 + Math.random() * 0.2, 0.9 + Math.random() * 0.1); }, v0, 150, glowTex);
+                var stars2 = createRadialStarField(2500, 250, 180, 100, 0.25, function () { return new THREE.Color().setHSL(0.55 + Math.random() * 0.3, 0.8, 0.7); }, v0, 140, glowTex);
+                var stars3 = createRadialStarField(1200, 220, 150, 80, 0.35, function () { return new THREE.Color().setHSL(0.1 + Math.random() * 0.2, 1.0, 0.7); }, v0, 130, glowTex);
+                var nebula1 = createRadialStarField(1500, 200, 150, 100, 0.45, function () { return new THREE.Color().setHSL(0.5 + Math.random() * 0.5, 1.0, 0.5); }, v0, 140, glowTex);
+                var nebula2 = createRadialStarField(800, 280, 180, 130, 0.6, function () { return new THREE.Color().setHSL(Math.random(), 1.0, 0.6); }, v0, 160, glowTex);
+                var galaxy1 = createRadialStarField(3000, 100, 60, 60, 0.35, function () { return new THREE.Color().setHSL(0.55 + Math.random() * 0.3, 1.0, 0.5 + Math.random() * 0.3); }, new THREE.Vector3(0, -15, 0), 80, glowTex);
+                var galaxy2 = createRadialStarField(2000, 120, 70, 70, 0.5, function () { return new THREE.Color().setHSL(0.6 + Math.random() * 0.2, 1.0, 0.6); }, new THREE.Vector3(0, -20, 0), 100, glowTex);
+
+                scene.add(stars1); scene.add(stars2); scene.add(stars3);
+                scene.add(nebula1); scene.add(nebula2);
+                scene.add(galaxy1); scene.add(galaxy2);
+
+                // 尘埃场
+                var dc = 1000, dg = new THREE.BufferGeometry(), dp = [], dc2 = [];
+                for (var i = 0; i < dc; i++) {
+                    var t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1), r = 15 + Math.random() * 60;
+                    dp.push(Math.sin(p) * Math.cos(t) * r, Math.sin(p) * Math.sin(t) * r * 0.6, Math.cos(p) * r);
+                    var c = new THREE.Color().setHSL(Math.random(), 0.9, 0.7 + Math.random() * 0.3);
+                    dc2.push(c.r, c.g, c.b);
+                }
+                dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dp), 3));
+                dg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(dc2), 3));
+                var dm = new THREE.PointsMaterial({ size: 0.12, map: glowTex, vertexColors: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true });
+                var dustField = new THREE.Points(dg, dm); scene.add(dustField);
+
+                // 彩虹场
+                var rc = 600, rg = new THREE.BufferGeometry(), rp = [], rc2 = [];
+                for (var i = 0; i < rc; i++) {
+                    var t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1), r = 80 + Math.random() * 100;
+                    rp.push(Math.sin(p) * Math.cos(t) * r, Math.sin(p) * Math.sin(t) * r * 0.5, Math.cos(p) * r);
+                    var c = new THREE.Color().setHSL(Math.random(), 1.0, 0.6); rc2.push(c.r, c.g, c.b);
+                }
+                rg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(rp), 3));
+                rg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(rc2), 3));
+                var rm = new THREE.PointsMaterial({ size: 0.25, map: glowTex, vertexColors: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true });
+                var rainbowField = new THREE.Points(rg, rm); scene.add(rainbowField);
+
+                // 闪烁星空（精简版）
+                var tc = 15000, tg = new THREE.BufferGeometry(), tp = [], tco = [];
+                for (var i = 0; i < tc; i++) {
+                    var th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), r = 40 + Math.random() * 150;
+                    tp.push(Math.sin(ph) * Math.cos(th) * r, Math.sin(ph) * Math.sin(th) * r * 0.7, Math.cos(ph) * r);
+                    var hu = Math.random() < 0.7 ? 0 : Math.random() < 0.5 ? 210 : 50;
+                    var co = new THREE.Color().setHSL(hu, 0.3, 0.8 + Math.random() * 0.2);
+                    tco.push(co.r, co.g, co.b);
+                }
+                tg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(tp), 3));
+                tg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(tco), 3));
+                var tm2 = new THREE.PointsMaterial({ size: 0.2, map: glowTex, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true, transparent: true, opacity: 0.75 });
+                var twinkleField = new THREE.Points(tg, tm2); scene.add(twinkleField);
+
+                // 流动场
+                var fc = 300, fg = new THREE.BufferGeometry(), fp = [], fc3 = [];
+                for (var i = 0; i < fc; i++) {
+                    var a = Math.random() * Math.PI * 2, r = 50 + Math.random() * 70;
+                    fp.push(Math.cos(a) * r, (Math.random() - 0.5) * 30 - 10, Math.sin(a) * r);
+                    var co = new THREE.Color().setHSL(Math.random(), 1.0, 0.7); fc3.push(co.r, co.g, co.b);
+                }
+                fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(fp), 3));
+                fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(fc3), 3));
+                var fm = new THREE.PointsMaterial({ size: 0.6, map: glowTex, vertexColors: true, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+                flowField = new THREE.Points(fg, fm); scene.add(flowField);
+
+                // 注册到动画组
+                starGroups.push(
+                    { points: twinkleField, baseOpacity: 0.75, phase: Math.random() * Math.PI * 2, speed: 1.5 },
+                    { points: dustField, baseOpacity: 0.7, phase: 0.8, speed: 0.6 },
+                    { points: rainbowField, baseOpacity: 0.5, phase: 1.5, speed: 0.4 },
+                    { points: stars1, baseOpacity: 0.9, phase: 0, speed: 1.2 },
+                    { points: stars2, baseOpacity: 0.9, phase: 0.5, speed: 1.5 },
+                    { points: stars3, baseOpacity: 0.9, phase: 1.0, speed: 1.8 },
+                    { points: flowField, baseOpacity: 0.35, phase: 0.3, speed: 2.0 },
+                    { points: nebula1, baseOpacity: 0.3, phase: 2.0, speed: 0.8 },
+                    { points: nebula2, baseOpacity: 0.25, phase: 2.5, speed: 0.9 },
+                    { points: galaxy1, baseOpacity: 0.4, phase: 1.2, speed: 0.7 },
+                    { points: galaxy2, baseOpacity: 0.35, phase: 1.8, speed: 0.6 }
+                );
+                nebulaFlowGroups.push(twinkleField, rainbowField, nebula1, nebula2, galaxy1, galaxy2);
+
+                // 灯光
+                scene.add(new THREE.AmbientLight(0x111a22));
+                var dl = new THREE.DirectionalLight(0xccddff, 0.7); dl.position.set(1, 2, 1); scene.add(dl);
+                var bl = new THREE.PointLight(0x33aacc, 0.6); bl.position.set(0, 0.5, -2.8); scene.add(bl);
+                var pl1 = new THREE.PointLight(0xff44aa, 0.5); pl1.position.set(2, 3, 2); scene.add(pl1);
+                var pl2 = new THREE.PointLight(0x44ffaa, 0.4); pl2.position.set(-2, 1.5, 3); scene.add(pl2);
+
+                console.log('[AstroKnot BG] 3D场景初始化完成 — ' + starGroups.length + '个动画组, ' + nebulaFlowGroups.length + '个色相偏移组');
+                animate();
+            }
+
+            // ──────────────────────────────────────
+            //  模块14: 动画循环
+            // ──────────────────────────────────────
+            function animate() {
+                requestAnimationFrame(animate);
+                if (document.hidden) return;
+                tm += 0.016;
+
+                // 天空球旋转 + 色相偏移
+                if (skySphere) {
+                    skySphere.rotation.y += 0.00015; skySphere.rotation.x += 0.00003; skySphere.rotation.z += 0.00001;
+                    if (skySphere.material.uniforms.hueShift)
+                        skySphere.material.uniforms.hueShift.value = (tm * 0.015) % 1;
+                }
+
+                // 粒子闪烁（与 module14 算法一致）
+                for (var i = 0; i < starGroups.length; i++) {
+                    var g = starGroups[i];
+                    if (!g.points || !g.points.visible) continue;
+                    var baseOp = g.baseOpacity * (0.85 + 0.15 * Math.sin(tm * g.speed + g.phase));
+                    var flicker = 0.55 + 0.45 * (
+                        Math.sin(tm * 0.05 + g.phase * 10) * 0.35 +
+                        Math.cos(tm * 0.07 + g.phase * 7) * 0.25 +
+                        Math.sin(tm * 0.01 + g.phase * 13) * 0.35 +
+                        Math.cos(tm * 1.0 + g.phase * 17) * 0.15 +
+                        Math.sin(tm * 1.5 + g.phase * 21) * 0.15 +
+                        Math.sin(tm * 2.8 + g.phase * 5) * Math.cos(tm * 9.7 + g.phase * 11) * 0.20
+                    );
+                    var op = Math.max(0.03, Math.min(1, baseOp * flicker));
+                    if (g.points.material.opacity !== undefined) g.points.material.opacity = op;
+                }
+
+                // 色相偏移
+                var hueShiftVal = tm * 0.015;
+                for (var i = 0; i < nebulaFlowGroups.length; i++) {
+                    var n = nebulaFlowGroups[i];
+                    if (n && n.material && n.material.uniforms && n.material.uniforms.uHueShift)
+                        n.material.uniforms.uHueShift.value = hueShiftVal;
+                }
+
+                // 流动场动画
+                if (flowField) {
+                    flowField.material.color.setHSL((tm * 0.03) % 1, 0.8, 0.6);
+                    flowField.rotation.y += 0.003; flowField.rotation.x += 0.001;
+                    flowField.position.y = Math.sin(tm * 0.4) * 2.5;
+                    flowField.scale.setScalar(1 + 0.04 * Math.sin(tm * 0.25));
+                }
+
+                // 银河旋转
+                if (starGroups[9] && starGroups[9].points) starGroups[9].points.rotation.y += 0.002;
+                if (starGroups[10] && starGroups[10].points) starGroups[10].points.rotation.y -= 0.0018;
+                if (nebulaFlowGroups[2]) nebulaFlowGroups[2].rotation.y += 0.0008;
+                if (nebulaFlowGroups[3]) nebulaFlowGroups[3].rotation.x += 0.0006;
+
+                renderer.render(scene, camera);
+            }
+
+            function onResize() {
+                var w = window.innerWidth, h = window.innerHeight;
+                if (renderer) renderer.setSize(w, h, false);
+                if (camera) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
+            }
+
+            window.addEventListener('resize', onResize);
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initScene);
+            else initScene();
+        })();
+    </script>
+
+    <!-- ============================================================
+     独立预览场景 — 3D/2D 双模式
+     3D: 七彩节点 + 螺旋连线 + 交互
+     2D: 树形思维导图 + 交互
+     ============================================================ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        (function () {
+            // ---------- 配置 ----------
+            const STORAGE_KEY = 'astroknot_preview_notes';
+            let is2DMode = false;
+            let zoomScale = 1;           // 2D模式的缩放比例
+
+            // ---------- 全局变量 ----------
+            let selectedNodeId = null;
+            let editingNodeId = null;
+            let nodeNotes = {};
+
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) nodeNotes = JSON.parse(saved);
+            } catch (e) { }
+
+            const container = document.getElementById('previewContainer');
+            const canvas3D = document.getElementById('previewCanvas');
+            if (!container || !canvas3D) return;
+
+            // ---------- 动态创建2D Canvas ----------
+            const canvas2D = document.createElement('canvas');
+            canvas2D.id = 'previewCanvas2D';
+            canvas2D.style.cssText = `
+            position: absolute;
+            top: 0; left: 0;
+            width: 100% !important;
+            height: 100% !important;
+            display: none;
+            border-radius: var(--panel-radius, 12px);
+            cursor: default;
+        `;
+            container.appendChild(canvas2D);
+
+            // 2D滚轮缩放
+            canvas2D.addEventListener('wheel', function (e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.08 : 0.08;
+                zoomScale = Math.max(0.3, Math.min(2.5, zoomScale + delta));
+                render2D();
+            }, { passive: false });
+            // ---------- 尺寸自适应 ----------
+            function getSize() {
+                const w = container.clientWidth || 800;
+                const h = container.clientHeight || 500;
+                return { w, h };
+            }
+
+            function resizeRenderer() {
+                const { w, h } = getSize();
+                canvas3D.width = w;
+                canvas3D.height = h;
+                renderer.setSize(w, h, false);
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                if (is2DMode) render2D();
+            }
+
+            // ---------- 3D 场景 ----------
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050a18);
+
+            const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(4, 3, 6);
+
+            const renderer = new THREE.WebGLRenderer({
+                canvas: canvas3D,
+                antialias: true,
+                alpha: false
+            });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            resizeRenderer();
+
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 1.6;
+            controls.target.set(0, 0.2, 0);
+            controls.enableDblClick = false;
+            controls.update();
+
+            canvas3D.addEventListener('mousedown', e => e.stopPropagation());
+            canvas3D.addEventListener('touchstart', e => e.stopPropagation());
+            container.addEventListener('mouseenter', () => { controls.autoRotate = false; });
+            container.addEventListener('mouseleave', () => { controls.autoRotate = true; });
+
+            // ---------- 灯光 ----------
+            scene.add(new THREE.AmbientLight(0x223344));
+            const dirLight = new THREE.DirectionalLight(0xccddff, 0.9);
+            dirLight.position.set(1, 2, 1);
+            scene.add(dirLight);
+            const pLight = new THREE.PointLight(0x33aacc, 0.7);
+            pLight.position.set(0, 1, -2);
+            scene.add(pLight);
+
+            // ---------- 发光纹理 ----------
+            function createGlowTexture() {
+                const c = document.createElement('canvas');
+                c.width = c.height = 64;
+                const ctx = c.getContext('2d');
+                const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                g.addColorStop(0, 'rgba(255,255,255,1)');
+                g.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+                g.addColorStop(0.7, 'rgba(255,255,255,0.2)');
+                g.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, 64, 64);
+                return new THREE.CanvasTexture(c);
+            }
+            const glowTex = createGlowTexture();
+
+            // ---------- 节点数据 ----------
+            let nodesData = [
+                { id: 'MOC', name: '学习方法', pos: [0, 0.4, 0] },
+                { id: 'Feynman', name: '费曼法', pos: [1.8, 1.0, 1.2] },
+                { id: 'Ebbinghaus', name: '艾宾浩斯', pos: [-1.5, -0.6, 1.8] },
+                { id: 'Mindmap', name: '思维导图', pos: [1.6, -0.2, -1.8] },
+                { id: 'Pomodoro', name: '番茄法', pos: [-1.9, 0.8, -1.5] },
+                { id: 'Zettelkasten', name: '卡片盒', pos: [0.2, 2.0, -0.5] }
+            ];
+
+            let edgePairs = [
+                ['MOC', 'Feynman'], ['MOC', 'Ebbinghaus'], ['MOC', 'Mindmap'],
+                ['MOC', 'Pomodoro'], ['MOC', 'Zettelkasten'],
+                ['Feynman', 'Zettelkasten'], ['Ebbinghaus', 'Mindmap'], ['Pomodoro', 'Feynman']
+            ];
+
+            // ---------- 核心数据结构 ----------
+            let nodeMap = new Map();
+            let spheres = [];
+            let sphereMap = new Map();
+            let lineItems = [];
+
+            // ---------- 工具函数 ----------
+            function generateId() {
+                return 'N' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4);
+            }
+
+            function saveNotesToStorage() {
+                const notes = {};
+                for (const [id, sphere] of sphereMap) {
+                    if (sphere.userData.note) notes[id] = sphere.userData.note;
+                }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+            }
+
+            function getNodeColor(id, time) {
+                let hash = 0;
+                for (let i = 0; i < id.length; i++) {
+                    hash = (hash + id.charCodeAt(i) * 31) & 0xFFFFFFFF;
+                }
+                const hue = (time * 0.04 + (hash % 100) / 100) % 1;
+                return { hue, color: `hsl(${hue * 360}, 85%, 55%)`, emissive: `hsl(${hue * 360}, 80%, 35%)` };
+            }
+
+            // ---------- 3D 节点创建 ----------
+            function createNodeMesh3D(n) {
+                const pos = new THREE.Vector3(...n.pos);
+                const mat = new THREE.MeshStandardMaterial({
+                    color: 0x88ccff,
+                    emissive: 0x4488ff,
+                    emissiveIntensity: 0.7,
+                    roughness: 0.3,
+                    metalness: 0.1
+                });
+                const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), mat);
+                sphere.position.copy(pos);
+                sphere.userData = { id: n.id, note: nodeNotes[n.id] || '' };
+                scene.add(sphere);
+                sphereMap.set(n.id, sphere);
+
+                const glowMat = new THREE.MeshBasicMaterial({
+                    map: glowTex,
+                    color: 0x88aaff,
+                    transparent: true,
+                    opacity: 0.5,
+                    side: THREE.BackSide,
+                    blending: THREE.AdditiveBlending
+                });
+                const glow = new THREE.Mesh(new THREE.SphereGeometry(0.33, 16, 16), glowMat);
+                sphere.add(glow);
+
+                const ring = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.34, 0.018, 16, 32),
+                    new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x2288aa, emissiveIntensity: 0.9 })
+                );
+                sphere.add(ring);
+                ring.userData = { speed: [0.5 + Math.random() * 0.6, 0.4 + Math.random() * 0.6, 0.6 + Math.random() * 0.6] };
+
+                const labelCanvas = document.createElement('canvas');
+                labelCanvas.width = 256;
+                labelCanvas.height = 80;
+                const ctx2 = labelCanvas.getContext('2d');
+                ctx2.fillStyle = 'rgba(8,20,30,0.7)';
+                ctx2.shadowColor = 'rgba(0,200,255,0.5)';
+                ctx2.shadowBlur = 20;
+                ctx2.beginPath();
+                ctx2.roundRect(10, 10, 236, 60, 30);
+                ctx2.fill();
+                ctx2.shadowBlur = 0;
+                ctx2.font = 'bold 28px "Segoe UI", "PingFang SC", sans-serif';
+                ctx2.fillStyle = '#f0faff';
+                ctx2.textAlign = 'center';
+                ctx2.textBaseline = 'middle';
+                ctx2.fillText(n.name, 128, 48);
+                const labelTexture = new THREE.CanvasTexture(labelCanvas);
+                const labelMat = new THREE.SpriteMaterial({ map: labelTexture, transparent: true, depthTest: false });
+                const label = new THREE.Sprite(labelMat);
+                label.position.set(pos.x, pos.y + 0.55, pos.z);
+                label.scale.set(0.8, 0.25, 1);
+                scene.add(label);
+                sphere.userData.label = label;
+                spheres.push(sphere);
+                nodeMap.set(n.id, n);
+                return sphere;
+            }
+
+            // ---------- 3D 螺旋连线 ----------
+            function SpiralFlowLine(start, end, phase) {
+                this.start = start.clone();
+                this.end = end.clone();
+                this.dir = new THREE.Vector3().subVectors(this.end, this.start).normalize();
+                const up = new THREE.Vector3(0, 1, 0);
+                if (Math.abs(this.dir.dot(up)) > 0.9999) up.set(1, 0, 0);
+                this.binormal = new THREE.Vector3().crossVectors(this.dir, up).normalize();
+                this.normal = new THREE.Vector3().crossVectors(this.binormal, this.dir).normalize();
+                this.length = this.start.distanceTo(this.end);
+
+                const curve = new THREE.CatmullRomCurve3([this.start, this.end]);
+                const tubeGeom = new THREE.TubeGeometry(curve, 28, 0.016, 6, false);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 1024;
+                canvas.height = 32;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                grad.addColorStop(0, '#ff0040');
+                grad.addColorStop(0.25, '#ff8000');
+                grad.addColorStop(0.5, '#ffff00');
+                grad.addColorStop(0.75, '#00ff80');
+                grad.addColorStop(1, '#00aaff');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                this.texture = new THREE.CanvasTexture(canvas);
+                this.texture.wrapS = THREE.RepeatWrapping;
+                const period = this.length * (2.2 + Math.random() * 0.8);
+                this.texture.repeat.set(this.length / period, 1);
+
+                this.mesh = new THREE.Mesh(tubeGeom, new THREE.MeshStandardMaterial({
+                    map: this.texture,
+                    emissive: 0x884466,
+                    emissiveIntensity: 0.6,
+                    transparent: true
+                }));
+                this.offsetPhase = phase || 0;
+                scene.add(this.mesh);
+
+                this.particles = [];
+                for (let i = 0; i < 6; i++) {
+                    const p = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.018, 6, 6),
+                        new THREE.MeshStandardMaterial({ color: 0xffaa88, emissive: 0xff66cc, emissiveIntensity: 15 })
+                    );
+                    scene.add(p);
+                    this.particles.push({
+                        mesh: p,
+                        t_offset: i / 6,
+                        angle_offset: Math.PI * 2 * (i / 6),
+                        speed_t: 0.5 + Math.random() * 0.5,
+                        speed_angle: 2 + Math.random() * 1.5
+                    });
+                }
+            }
+
+            SpiralFlowLine.prototype.update = function (time) {
+                const off = (time * 0.6 + this.offsetPhase) % 1;
+                this.texture.offset.x = off;
+                this.texture.needsUpdate = true;
+                this.mesh.material.emissiveIntensity = 0.6 + Math.sin(time * 1.2 + this.offsetPhase) * 0.3;
+
+                for (const p of this.particles) {
+                    const t = (time * p.speed_t * 0.2 + p.t_offset) % 1;
+                    const pos = this.start.clone().lerp(this.end, t);
+                    const angle = time * p.speed_angle + p.angle_offset;
+                    const r = 0.12;
+                    const offVec = this.normal.clone().multiplyScalar(Math.cos(angle) * r)
+                        .add(this.binormal.clone().multiplyScalar(Math.sin(angle) * r));
+                    const fp = pos.add(offVec);
+                    p.mesh.position.copy(fp);
+                    const hue = (time * 0.3 + p.t_offset) % 1;
+                    const col = new THREE.Color().setHSL(hue, 1, 0.65);
+                    p.mesh.material.color = col;
+                    p.mesh.material.emissive = col;
+                }
+            };
+
+            SpiralFlowLine.prototype.dispose = function () {
+                scene.remove(this.mesh);
+                this.mesh.geometry.dispose();
+                this.mesh.material.dispose();
+                this.texture.dispose();
+                for (const p of this.particles) {
+                    scene.remove(p.mesh);
+                    p.mesh.geometry.dispose();
+                    p.mesh.material.dispose();
+                }
+            };
+
+            // ---------- 重建3D场景 ----------
+            function buildScene3D() {
+                for (const sphere of spheres) {
+                    scene.remove(sphere);
+                    if (sphere.userData.label) scene.remove(sphere.userData.label);
+                    sphere.geometry.dispose();
+                    sphere.material.dispose();
+                }
+                for (const line of lineItems) line.dispose();
+                spheres = [];
+                sphereMap.clear();
+                lineItems = [];
+                nodeMap.clear();
+
+                for (const n of nodesData) {
+                    createNodeMesh3D(n);
+                }
+
+                for (const [fromId, toId] of edgePairs) {
+                    const from = nodeMap.get(fromId);
+                    const to = nodeMap.get(toId);
+                    if (from && to) {
+                        const start = new THREE.Vector3(...from.pos);
+                        const end = new THREE.Vector3(...to.pos);
+                        const line = new SpiralFlowLine(start, end, Math.random());
+                        lineItems.push(line);
+                    }
+                }
+            }
+
+            // ============================================================
+            //  2D 模式
+            // ============================================================
+
+            // ---------- 2D 布局计算（树形布局，从上到下） ----------
+            let layout2D = new Map(); // id -> {x, y}
+
+            function computeLayout2D(width, height) {
+                layout2D.clear();
+                const root = nodesData.find(n => n.id === 'MOC');
+                if (!root) return;
+
+                // 构建父子关系
+                const childrenMap = new Map();
+                const nodeMap2 = new Map();
+                for (const n of nodesData) {
+                    nodeMap2.set(n.id, n);
+                    childrenMap.set(n.id, []);
+                }
+                for (const [from, to] of edgePairs) {
+                    // 只添加树边（排除交叉边）
+                    if (childrenMap.has(from) && childrenMap.has(to)) {
+                        // 避免重复
+                        if (!childrenMap.get(from).includes(to)) {
+                            childrenMap.get(from).push(to);
+                        }
+                    }
+                }
+
+                // 计算每个节点的深度
+                const depthMap = new Map();
+                const queue = [{ id: 'MOC', depth: 0 }];
+                const order = [];
+                while (queue.length > 0) {
+                    const { id, depth } = queue.shift();
+                    depthMap.set(id, depth);
+                    order.push(id);
+                    for (const child of (childrenMap.get(id) || [])) {
+                        queue.push({ id: child, depth: depth + 1 });
+                    }
+                }
+
+                // 按深度分组
+                const depthGroups = new Map();
+                for (const [id, depth] of depthMap) {
+                    if (!depthGroups.has(depth)) depthGroups.set(depth, []);
+                    depthGroups.get(depth).push(id);
+                }
+
+                // 计算布局
+                const topMargin = 50;
+                const bottomMargin = 30;
+                const leftMargin = 40;
+                const rightMargin = 40;
+                const usableWidth = width - leftMargin - rightMargin;
+                const usableHeight = height - topMargin - bottomMargin;
+                const maxDepth = depthGroups.size > 0 ? depthGroups.size - 1 : 0;
+                const vGap = maxDepth > 0 ? usableHeight / maxDepth : 0;
+
+                // 按深度从浅到深处理
+                const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b);
+                for (const depth of sortedDepths) {
+                    const nodes = depthGroups.get(depth) || [];
+                    const count = nodes.length;
+                    const y = topMargin + depth * vGap;
+
+                    // 计算每个节点的x位置
+                    if (count === 1) {
+                        layout2D.set(nodes[0], { x: width / 2, y });
+                    } else {
+                        const hGap = usableWidth / (count + 1);
+                        for (let i = 0; i < count; i++) {
+                            const x = leftMargin + hGap * (i + 1);
+                            layout2D.set(nodes[i], { x, y });
+                        }
+                    }
+                }
+
+                // 微调：让子节点围绕父节点居中
+                for (const [id, children] of childrenMap) {
+                    if (children.length === 0) continue;
+                    const parentPos = layout2D.get(id);
+                    if (!parentPos) continue;
+                    const childPositions = children.map(cid => layout2D.get(cid)).filter(p => p);
+                    if (childPositions.length === 0) continue;
+                    const avgX = childPositions.reduce((s, p) => s + p.x, 0) / childPositions.length;
+                    const offset = parentPos.x - avgX;
+                    for (const cid of children) {
+                        const pos = layout2D.get(cid);
+                        if (pos) pos.x += offset * 0.5;
+                    }
+                }
+            }
+
+            // ---------- 2D 渲染 ----------
+            let time2D = 0;
+
+            function render2D() {
+                const { w, h } = getSize();
+                canvas2D.width = w;
+                canvas2D.height = h;
+                const ctx = canvas2D.getContext('2d');
+                // ---- 新增：缩放支持（以中心为原点） ----
+                ctx.save();
+                // 将缩放原点移到视口中心
+                const cx = w / 2;
+                const cy = h / 2;
+                ctx.translate(cx, cy);
+                ctx.scale(zoomScale, zoomScale);
+                ctx.translate(-cx, -cy);
+                // 清空
+                ctx.clearRect(0, 0, w, h);
+
+
+
+                // 计算布局
+                computeLayout2D(w, h);
+
+                // 收集所有节点位置
+                const positions = new Map();
+                for (const n of nodesData) {
+                    const pos = layout2D.get(n.id);
+                    if (pos) positions.set(n.id, pos);
+                }
+
+                // 绘制连线（先绘制，让节点在上层）
+                const nodeRadius = 22;
+
+                // 树边
+                const childrenMap2 = new Map();
+                for (const n of nodesData) childrenMap2.set(n.id, []);
+                for (const [from, to] of edgePairs) {
+                    if (childrenMap2.has(from) && childrenMap2.has(to)) {
+                        if (!childrenMap2.get(from).includes(to)) {
+                            childrenMap2.get(from).push(to);
+                        }
+                    }
+                }
+
+                // 绘制树边
+                for (const [fromId, children] of childrenMap2) {
+                    const fromPos = positions.get(fromId);
+                    if (!fromPos) continue;
+                    for (const toId of children) {
+                        const toPos = positions.get(toId);
+                        if (!toPos) continue;
+                        ctx.beginPath();
+                        ctx.moveTo(fromPos.x, fromPos.y);
+                        const cpY = (fromPos.y + toPos.y) / 2;
+                        ctx.quadraticCurveTo((fromPos.x + toPos.x) / 2, cpY, toPos.x, toPos.y);
+                        ctx.strokeStyle = 'rgba(100, 200, 255, 0.35)';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                }
+
+                // 绘制交叉边（虚线）
+                const treeEdges = new Set(edgePairs.map(([a, b]) => a + '-' + b));
+                for (const [fromId, toId] of edgePairs) {
+                    if (treeEdges.has(fromId + '-' + toId) || treeEdges.has(toId + '-' + fromId)) continue;
+                    const fromPos = positions.get(fromId);
+                    const toPos = positions.get(toId);
+                    if (!fromPos || !toPos) continue;
+                    ctx.beginPath();
+                    ctx.moveTo(fromPos.x, fromPos.y);
+                    const cpY = (fromPos.y + toPos.y) / 2 - 20;
+                    ctx.quadraticCurveTo((fromPos.x + toPos.x) / 2, cpY, toPos.x, toPos.y);
+                    ctx.strokeStyle = 'rgba(255, 170, 100, 0.4)';
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([6, 6]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // 绘制节点
+                const time = time2D;
+                for (const n of nodesData) {
+                    const pos = positions.get(n.id);
+                    if (!pos) continue;
+                    const isSelected = (selectedNodeId === n.id);
+                    const { hue, color } = getNodeColor(n.id, time);
+
+                    // 阴影（发光效果）
+                    ctx.shadowColor = isSelected ? 'rgba(255, 215, 0, 0.8)' : `hsla(${hue * 360}, 80%, 60%, 0.3)`;
+                    ctx.shadowBlur = isSelected ? 30 : 18;
+
+                    // 节点圆
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, nodeRadius, 0, Math.PI * 2);
+                    if (isSelected) {
+                        ctx.fillStyle = '#ffd700';
+                        ctx.shadowColor = 'rgba(255, 215, 0, 0.9)';
+                        ctx.shadowBlur = 40;
+                    } else {
+                        ctx.fillStyle = color;
+                    }
+                    ctx.fill();
+
+                    // 外发光环（所有节点）
+                    ctx.shadowBlur = 0;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, nodeRadius + 4, 0, Math.PI * 2);
+                    ctx.strokeStyle = isSelected ? 'rgba(255, 215, 0, 0.6)' : `hsla(${hue * 360}, 70%, 60%, 0.2)`;
+                    ctx.lineWidth = isSelected ? 3 : 1.5;
+                    ctx.stroke();
+
+                    // 标签
+                    ctx.shadowBlur = 0;
+                    ctx.font = isSelected ? 'bold 14px "Segoe UI", "PingFang SC", sans-serif' : '13px "Segoe UI", "PingFang SC", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    ctx.fillStyle = isSelected ? '#ffd700' : '#f0faff';
+                    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                    ctx.shadowBlur = 8;
+                    const labelY = pos.y + nodeRadius + 6;
+                    const maxWidth = 80;
+                    let label = n.name;
+                    if (ctx.measureText(label).width > maxWidth) {
+                        while (ctx.measureText(label + '…').width > maxWidth && label.length > 2) {
+                            label = label.slice(0, -1);
+                        }
+                        label += '…';
+                    }
+                    ctx.fillText(label, pos.x, labelY);
+                    ctx.shadowBlur = 0;
+
+                    // 保存位置信息用于点击检测
+                    n._2dPos = { x: pos.x, y: pos.y, radius: nodeRadius + 8 };
+                }
+
+                // 恢复阴影
+                ctx.shadowBlur = 0;
+                ctx.shadowColor = 'transparent';
+
+                // ---- 新增：恢复缩放 ----
+                ctx.restore();
+            }
+
+            // ---------- 2D 交互 ----------
+            // ---------- 2D 交互 ----------
+            function getIntersectedNode2D(event) {
+                const rect = canvas2D.getBoundingClientRect();
+                const scaleX = canvas2D.width / rect.width;
+                const scaleY = canvas2D.height / rect.height;
+                // 物理像素坐标
+                let mx = (event.clientX - rect.left) * scaleX;
+                let my = (event.clientY - rect.top) * scaleY;
+                // ⭐ 关键修复：转换为逻辑坐标（除以缩放）
+                mx /= zoomScale;
+                my /= zoomScale;
+
+                for (const n of nodesData) {
+                    if (!n._2dPos) continue;
+                    const dx = mx - n._2dPos.x;
+                    const dy = my - n._2dPos.y;
+                    if (dx * dx + dy * dy < n._2dPos.radius * n._2dPos.radius) {
+                        return n.id;
+                    }
+                }
+                return null;
+            }
+
+            // ============================================================
+            //  共享功能：高亮、编辑器、增删节点
+            // ============================================================
+
+            function setSelectedNode(nodeId) {
+                if (selectedNodeId) {
+                    // 清除旧高亮
+                }
+                selectedNodeId = nodeId;
+                if (is2DMode) {
+                    render2D();
+                }
+            }
+
+            // ---------- 编辑器 UI ----------
+            const editorDiv = document.createElement('div');
+            editorDiv.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 360px;
+            max-width: 90%;
+            background: rgba(10, 22, 34, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 255, 255, 0.6);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            z-index: 20;
+            display: none;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #eef;
+        `;
+            editorDiv.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <span style="font-size:16px; font-weight:600; color:#0ff;">📝 编辑笔记</span>
+                <button id="closeEditorBtn" style="background:transparent; border:none; color:#aac; font-size:20px; cursor:pointer; padding:0 8px;">✕</button>
+            </div>
+            <div style="font-size:13px; color:#aac; margin-bottom:8px;">节点：<span id="editorNodeName"></span></div>
+            <textarea id="editorTextarea" style="width:100%; height:120px; background:#07161f; border:1px solid #2c6e7e; color:#eef; border-radius:8px; padding:8px; font-size:14px; resize:vertical; box-sizing:border-box;"></textarea>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button id="saveNoteBtn" style="flex:1; background:#1a6e7e; border:none; color:white; padding:8px 0; border-radius:8px; cursor:pointer; font-weight:600;">💾 保存</button>
+                <button id="cancelNoteBtn" style="flex:1; background:#3a4a5a; border:none; color:#ccc; padding:8px 0; border-radius:8px; cursor:pointer;">取消</button>
+            </div>
+        `;
+            container.style.position = 'relative';
+            container.appendChild(editorDiv);
+
+            const editorTextarea = document.getElementById('editorTextarea');
+            const editorNodeName = document.getElementById('editorNodeName');
+            const closeEditorBtn = document.getElementById('closeEditorBtn');
+            const saveNoteBtn = document.getElementById('saveNoteBtn');
+            const cancelNoteBtn = document.getElementById('cancelNoteBtn');
+
+            function openEditor(nodeId) {
+                const node = nodesData.find(n => n.id === nodeId);
+                if (!node) return;
+                editingNodeId = nodeId;
+                editorNodeName.textContent = node.name;
+                const note = nodeNotes[nodeId] || '';
+                editorTextarea.value = note;
+                editorDiv.style.display = 'block';
+                controls.autoRotate = false;
+                setSelectedNode(nodeId);
+            }
+
+            function closeEditor() {
+                editorDiv.style.display = 'none';
+                editingNodeId = null;
+                controls.autoRotate = true;
+            }
+
+            function saveNote() {
+                if (editingNodeId) {
+                    nodeNotes[editingNodeId] = editorTextarea.value;
+                    // 同步到3D节点
+                    const sphere = sphereMap.get(editingNodeId);
+                    if (sphere) sphere.userData.note = editorTextarea.value;
+                    saveNotesToStorage();
+                }
+                closeEditor();
+            }
+
+            closeEditorBtn.addEventListener('click', closeEditor);
+            cancelNoteBtn.addEventListener('click', closeEditor);
+            saveNoteBtn.addEventListener('click', saveNote);
+
+            // ---------- 添加/删除节点 ----------
+            function addNode() {
+                const parentId = selectedNodeId || 'MOC';
+                const parent = nodesData.find(n => n.id === parentId);
+                if (!parent) return;
+
+                const newId = generateId();
+                const angle1 = Math.random() * Math.PI * 2;
+                const angle2 = Math.random() * Math.PI * 2;
+                const dist = 1.2 + Math.random() * 0.8;
+                const pos = [
+                    parent.pos[0] + Math.sin(angle1) * Math.cos(angle2) * dist,
+                    parent.pos[1] + Math.sin(angle1) * Math.sin(angle2) * dist * 0.7,
+                    parent.pos[2] + Math.cos(angle1) * dist
+                ];
+
+                const newNode = {
+                    id: newId,
+                    name: '新节点 ' + (nodesData.length),
+                    pos: pos
+                };
+                nodesData.push(newNode);
+                nodeNotes[newId] = '';
+                edgePairs.push([parentId, newId]);
+
+                buildScene3D();
+                setSelectedNode(newId);
+                saveNotesToStorage();
+                if (is2DMode) render2D();
+            }
+
+            function deleteNode() {
+                if (!selectedNodeId || selectedNodeId === 'MOC') {
+                    alert('根节点不可删除，请选择其他节点');
+                    return;
+                }
+                const node = nodesData.find(n => n.id === selectedNodeId);
+                if (!confirm(`确定要删除节点 "${node?.name}" 及其所有连线吗？`)) return;
+
+                const id = selectedNodeId;
+                nodesData = nodesData.filter(n => n.id !== id);
+                edgePairs = edgePairs.filter(([a, b]) => a !== id && b !== id);
+                delete nodeNotes[id];
+
+                setSelectedNode(null);
+                buildScene3D();
+                saveNotesToStorage();
+                if (is2DMode) render2D();
+            }
+
+            // ---------- 工具栏 ----------
+            const toolbarDiv = document.createElement('div');
+            toolbarDiv.style.cssText = `
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            background: rgba(8, 18, 28, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 8px 12px;
+            border-radius: 40px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            pointer-events: auto;
+        `;
+            toolbarDiv.innerHTML = `
+            <button id="addNodeBtn" style="background:#1a5e5e; border:none; color:white; padding:6px 14px; border-radius:30px; cursor:pointer; font-size:14px; font-weight:600;">➕ 添加</button>
+            <button id="deleteNodeBtn" style="background:#6a2c2c; border:none; color:white; padding:6px 14px; border-radius:30px; cursor:pointer; font-size:14px; font-weight:600;">❌ 删除</button>
+            <button id="resetViewBtn" style="background:#2c4a6a; border:none; color:white; padding:6px 14px; border-radius:30px; cursor:pointer; font-size:14px; font-weight:600;">⟲ 重置</button>
+            <button id="toggleRotateBtn" style="background:#3a4a5a; border:none; color:white; padding:6px 14px; border-radius:30px; cursor:pointer; font-size:14px; font-weight:600;">⏸️</button>
+            <button id="toggleModeBtn" style="background:#2a5a6a; border:none; color:white; padding:6px 14px; border-radius:30px; cursor:pointer; font-size:14px; font-weight:600;">🌳 2D</button>
+        `;
+            container.appendChild(toolbarDiv);
+
+            document.getElementById('addNodeBtn').addEventListener('click', addNode);
+            document.getElementById('deleteNodeBtn').addEventListener('click', deleteNode);
+
+            document.getElementById('resetViewBtn').addEventListener('click', function () {
+                if (is2DMode) {
+                    render2D();
+                } else {
+                    camera.position.set(4, 3, 6);
+                    controls.target.set(0, 0.2, 0);
+                    controls.update();
+                }
+            });
+
+            document.getElementById('toggleRotateBtn').addEventListener('click', function () {
+                controls.autoRotate = !controls.autoRotate;
+                this.textContent = controls.autoRotate ? '⏸️' : '▶️';
+            });
+
+            // ---------- 模式切换 ----------
+            document.getElementById('toggleModeBtn').addEventListener('click', function () {
+                is2DMode = !is2DMode;
+                this.textContent = is2DMode ? '✨ 3D' : '🌳 2D';
+
+                if (is2DMode) {
+                    canvas3D.style.display = 'none';
+                    canvas2D.style.display = 'block';
+                    controls.autoRotate = false;
+                    document.getElementById('toggleRotateBtn').textContent = '▶️';
+                    render2D();
+                } else {
+                    canvas3D.style.display = 'block';
+                    canvas2D.style.display = 'none';
+                    controls.autoRotate = true;
+                    document.getElementById('toggleRotateBtn').textContent = '⏸️';
+                    // 触发3D渲染继续
+                }
+            });
+
+            // ---------- 交互事件（统一处理） ----------
+            function handleCanvasClick(event) {
+                if (editorDiv.style.display === 'block') return;
+
+                let nodeId = null;
+                if (is2DMode) {
+                    nodeId = getIntersectedNode2D(event);
+                } else {
+                    // 3D 点击检测
+                    const rect = canvas3D.getBoundingClientRect();
+                    const pointer = new THREE.Vector2();
+                    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                    const raycaster = new THREE.Raycaster();
+                    raycaster.setFromCamera(pointer, camera);
+                    const intersects = raycaster.intersectObjects(spheres);
+                    if (intersects.length > 0) {
+                        nodeId = intersects[0].object.userData.id;
+                    }
+                }
+
+                if (nodeId) {
+                    // 双击检测
+                    if (window._clickTimer) {
+                        clearTimeout(window._clickTimer);
+                        window._clickTimer = null;
+                        // 双击：打开编辑器
+                        openEditor(nodeId);
+                        return;
+                    }
+                    window._clickTimer = setTimeout(() => {
+                        window._clickTimer = null;
+                        // 单击：高亮
+                        setSelectedNode(nodeId);
+                        if (is2DMode) render2D();
+                    }, 300);
+                } else {
+                    setSelectedNode(null);
+                    if (is2DMode) render2D();
+                }
+            }
+
+            container.addEventListener('click', handleCanvasClick);
+
+            // ---------- 3D 动画循环 ----------
+            let time3D = 0;
+
+            function animate3D() {
+                requestAnimationFrame(animate3D);
+                if (is2DMode) {
+                    // 2D模式：只更新2D动画
+                    time2D += 0.016;
+                    // 每秒刷新2D（七彩变化）
+                    if (Math.floor(time2D * 60) % 2 === 0) {
+                        render2D();
+                    }
+                    return;
+                }
+
+                time3D += 0.016;
+
+                for (const line of lineItems) line.update(time3D);
+
+                for (const sphere of spheres) {
+                    const id = sphere.userData.id;
+                    if (id === selectedNodeId) {
+                        sphere.material.color.setHex(0xffd700);
+                        sphere.material.emissive.setHex(0xffaa33);
+                        sphere.material.emissiveIntensity = 1.5;
+                        continue;
+                    }
+                    const { hue } = getNodeColor(id, time3D);
+                    const color = new THREE.Color().setHSL(hue, 0.85, 0.55);
+                    const emissive = new THREE.Color().setHSL(hue, 0.8, 0.35);
+                    sphere.material.color.set(color);
+                    sphere.material.emissive.set(emissive);
+                    sphere.material.emissiveIntensity = 0.7 + Math.sin(time3D * 1.2 + parseInt(id.slice(-4), 36)) * 0.2;
+                }
+
+                for (const sphere of spheres) {
+                    const ring = sphere.children.find(c => c.isMesh && c.geometry.type === 'TorusGeometry');
+                    if (ring) {
+                        const s = ring.userData.speed;
+                        ring.rotation.x += s[0] * 0.02;
+                        ring.rotation.y += s[1] * 0.02;
+                        ring.rotation.z += s[2] * 0.02;
+                    }
+                }
+
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+            // ---------- 窗口自适应 ----------
+            function onResize() {
+                const { w, h } = getSize();
+                canvas3D.width = w;
+                canvas3D.height = h;
+                canvas2D.width = w;
+                canvas2D.height = h;
+                renderer.setSize(w, h, false);
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                if (is2DMode) render2D();
+            }
+
+            window.addEventListener('resize', onResize);
+            if (window.ResizeObserver) {
+                const ro = new ResizeObserver(() => onResize());
+                ro.observe(container);
+            }
+
+            // ---------- 清理 ----------
+            window.addEventListener('beforeunload', () => {
+                for (const line of lineItems) line.dispose();
+                renderer.dispose();
+            });
+
+            // ---------- 启动 ----------
+            buildScene3D();
+            animate3D();
+
+            console.log('[AstroKnot Preview] ✅ 3D/2D 双模式已启动');
+        })();
+    </script>
+
+</body>
+
+</html>

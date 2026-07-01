@@ -1,0 +1,2098 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AstroKnot</title>
+
+    <!-- 第三方库：MathJax（LaTeX 渲染）、MathLive（WYSIWYG公式编辑器）、highlight.js（代码高亮）、html2canvas（截图） -->
+
+    <!-- 手写公式识别引擎 ink-on 的 import map -->
+    <!-- 开发用 CDN（零配置），打包时 build 脚本会替换为本地 lib/ 路径 -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "./lib/three/three.module.js",
+        "three/addons/": "./lib/three/examples/",
+        "@soundtouchjs/audio-worklet": "./lib/soundtouch-processor.js",
+        "@ffmpeg/ffmpeg": "./lib/ffmpeg-wasm/index.js",
+        "@ffmpeg/util": "./lib/ffmpeg-util/index.js",
+        "pdfjs-dist": "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs",
+        "pdfjs-dist/build/pdf.worker.mjs": "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs"
+      }
+    }
+    </script>
+
+    <script>
+        window.MathJax = {
+            tex: {
+                macros: {
+                    oiint: ['\\mathop{\\unicode{x222F}\\vphantom{\\oint}}\\limits'],
+                    oiiint: ['\\mathop{\\unicode{x2230}\\vphantom{\\oint}}\\limits']
+                }
+            },
+            startup: {
+                ready() {
+                    MathJax.startup.defaultReady();
+                    // 将 KaTeX 字体路径指向本地
+                    MathJax.config.chtml.fontURL = './lib/katex-fonts/';
+                }
+            }
+        };
+    </script>
+    <script src="./lib/mathjax-tex-chtml.js" id="MathJax-script" async></script>
+    <script src="./lib/html2canvas.min.js"></script>
+    <script defer src="./lib/mathlive.min.js"></script>
+    <script>if(window.MathfieldElement) window.MathfieldElement.fontsDirectory = './lib/mathlive-fonts/';</script>
+    <link rel="stylesheet" href="./lib/highlight-atom-one-dark.css">
+    <script src="./lib/highlight.min.js"></script>
+
+    <!-- 主样式表（拆分） -->
+    <link rel="stylesheet" href="style/base.css">
+    <link rel="stylesheet" href="modules/UI/style.css">
+    <link rel="stylesheet" href="modules/2DView/style.css">
+    <link rel="stylesheet" href="modules/richEditor/style.css">
+    <link rel="stylesheet" href="modules/Guide/style.css">
+
+    <!-- TinyMCE 7 自托管版（从 jsDelivr CDN 加载，MIT/GPL 许可证） -->
+    <script src="./lib/tinymce.min.js"></script>
+
+    <!-- WaveSurfer.js 7 音频波形编辑器（BSD-3-Clause 许可证） -->
+    <script src="./lib/wavesurfer.min.js"></script>
+    <script src="./lib/wavesurfer-regions.min.js"></script>
+
+    <!-- 拼音标注库 pinyin-pro -->
+    <script src="./lib/pinyin-pro.js"></script>
+
+    <!-- 简繁转换库 opencc-js -->
+    <script src="./lib/opencc-js.min.js"></script>
+
+    <!-- 图片裁剪库 Cropper.js (MIT) -->
+    <link rel="stylesheet" href="./lib/cropper.min.css">
+    <script src="./lib/cropper.min.js"></script>
+
+    <!-- ECharts 图表库 (Apache-2.0) -->
+    <script src="./lib/echarts.min.js"></script>
+
+    <!-- Reveal.js 幻灯片演示 (MIT) -->
+    <link rel="stylesheet" href="./lib/reveal.css">
+    <link rel="stylesheet" href="./lib/reveal-theme-black.css">
+    <script src="./lib/reveal.min.js"></script>
+
+    <!-- Swiper.js 内嵌幻灯片/轮播 (MIT) -->
+    <link rel="stylesheet" href="./lib/swiper-bundle.min.css">
+    <script src="./lib/swiper-bundle.min.js"></script>
+
+    <!-- Univer 表格编辑器 (Apache-2.0) — 全部本地化 -->
+    <script src="./lib/react.production.min.js"></script>
+    <script src="./lib/react-dom.production.min.js"></script>
+    <script src="./lib/rxjs.umd.min.js"></script>
+    <script src="./lib/univer/presets/index.js"></script>
+    <script src="./lib/univer/preset-sheets-core/index.js"></script>
+    <script src="./lib/univer/preset-sheets-core/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-filter/index.js"></script>
+    <script src="./lib/univer/preset-sheets-filter/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-sort/index.js"></script>
+    <script src="./lib/univer/preset-sheets-sort/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-find-replace/index.js"></script>
+    <script src="./lib/univer/preset-sheets-find-replace/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-conditional-formatting/index.js"></script>
+    <script src="./lib/univer/preset-sheets-conditional-formatting/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-data-validation/index.js"></script>
+    <script src="./lib/univer/preset-sheets-data-validation/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-drawing/index.js"></script>
+    <script src="./lib/univer/preset-sheets-drawing/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-hyper-link/index.js"></script>
+    <script src="./lib/univer/preset-sheets-hyper-link/locales/zh-CN.js"></script>
+    <script src="./lib/univer/preset-sheets-thread-comment/index.js"></script>
+    <script src="./lib/univer/preset-sheets-thread-comment/locales/zh-CN.js"></script>
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-core/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-sort/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-filter/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-conditional-formatting/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-data-validation/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-drawing/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-hyper-link/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-find-replace/index.css">
+    <link rel="stylesheet" href="./lib/univer/preset-sheets-thread-comment/index.css">
+
+    <!-- docx-preview Word文档预览 (MIT) -->
+    <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
+</head>
+
+<body>
+
+    <!-- ==================== 启动闪屏 ==================== -->
+    <div id="appSplash">
+        <div class="splash-content">
+            <img src="assets/icon.png" alt="" class="splash-icon">
+            <span class="splash-text">AstroKnot</span>
+        </div>
+    </div>
+
+    <!-- ==================== 自定义标题栏（无边框窗口） ==================== -->
+    <div id="appTitleBar">
+        <img class="titlebar-icon" src="assets/icon.png" alt="AstroKnot">
+        <span class="titlebar-text">AstroKnot</span>
+        <span class="titlebar-spacer"></span>
+        <button class="titlebar-btn" id="tbMinBtn" title="最小化">─</button>
+        <button class="titlebar-btn" id="tbMaxBtn" title="最大化">☐</button>
+        <button class="titlebar-btn titlebar-close-btn" id="tbCloseBtn" title="关闭">✕</button>
+        <!-- 右键菜单 -->
+        <div id="titlebarContextMenu" class="titlebar-context-menu" style="display:none;">
+            <button id="tcmRestore">还原</button>
+            <button id="tcmMove">移动</button>
+            <button id="tcmSize">大小</button>
+            <button id="tcmMinimize">最小化</button>
+            <button id="tcmMaximize">最大化</button>
+            <button class="titlebar-menu-sep"></button>
+            <button id="tcmClose" class="tcm-close-btn">关闭</button>
+        </div>
+    </div>
+
+    <!-- ==================== 底部固定任务栏 ==================== -->
+    <div id="taskbar">
+        <div class="taskbar-left">
+            <button id="astroKnotBtn" class="control-btn" title="AstroKnot 菜单"><img src="assets/icon.png" alt=""
+                    class="taskbar-icon"></button>
+            <div class="taskbar-search-container" id="taskbarSearchContainer">
+                <input type="text" id="searchInput" placeholder="🔍 搜索节点名称..." autocomplete="off">
+                <div id="searchDropdown" class="search-dropdown"></div>
+            </div>
+            <button id="fullscreenBtn" class="control-btn" title="全屏/窗口切换(Esc)">⛶</button>
+            <button class="control-btn" id="resetView">⟲</button>
+            <button class="control-btn" id="modeToggleBtn">🌦 2D</button>
+            <div id="arrangeWrap" style="position:relative;display:flex;align-items:center;height:100%;">
+                <button id="arrangeBtn" class="control-btn" title="自动排列">Auto</button>
+                <div id="arrangePopup" class="arrange-popup">
+                    <div class="arrange-category">2D 模式</div>
+                    <button class="arrange-tree-btn" id="arrangeTreeBtn">自动排列</button>
+                    <button class="arrange-tree-btn" id="arrangeAllLayersBtn">所有图层自动排列</button>
+                    <div class="arrange-divider"></div>
+                    <div class="arrange-category">3D 模式</div>
+                    <button class="arrange-tree-btn" id="arrange3DDefaultBtn">默认排列</button>
+                    <button class="arrange-tree-btn" id="arrange3D2DBtn">2D模式排列</button>
+                </div>
+            </div>
+        </div>
+        <div class="taskbar-tabs" id="taskbarTabs"></div>
+        <div class="taskbar-right">
+            <button id="aiTaskbarBtn" class="control-btn" title="AI 助手">🤖</button>
+            <div id="zoomToggleWrap" style="position:relative;display:flex;align-items:center;height:100%;">
+                <button id="toggleZoomPanelBtn" class="control-btn" title="缩放控制">🔼</button>
+                <div id="zoomPopup" class="zoom-popup">
+                    <button class="control-btn" id="zoomIn">+</button>
+                    <button class="control-btn" id="zoomOut">−</button>
+                    <button class="control-btn" id="toggleLabelsBtn" title="显示/隐藏连线标签">🏷️</button>
+                </div>
+            </div>
+            <span id="taskbarClock">
+                <span id="taskbarWeather">
+                    <span id="weatherIcon">🌅⛅</span>
+                    <span id="weatherTemp">--°C</span>
+                </span>
+                <span class="clock-time-date">
+                    <span id="clockTime">00:00</span>
+                    <span id="clockDate">周一 2026/1/1</span>
+                </span>
+            </span>
+        </div>
+    </div>
+
+    <!-- ==================== AstroKnot 弹出菜单 ==================== -->
+    <div id="astroKnotMenu">
+        <div class="menu-top-bar">
+            <div id="globalSearchContainer">
+                <input type="text" id="globalSearchInput" placeholder="🔍 全局搜索节点..." autocomplete="off">
+                <div id="globalSearchDropdown" class="global-search-dropdown"></div>
+            </div>
+        </div>
+        <div class="panel-accent-line"></div>
+        <div id="astroKnotMenuBody">
+            <div class="project-panel" id="projectPanel">
+                <div class="project-header">
+                    <h4>网络项目</h4>
+                    <div class="header-btns">
+                        <button id="saveNetworkBtn" title="保存网络">💾</button>
+                        <button id="loadNetworkBtn" title="加载网络">📂</button>
+                        <button id="importMarkdownBtn" title="导入Markdown文件">📝</button>
+                        <button id="newProjectBtn" title="新建项目">+</button>
+                    </div>
+                </div>
+                <div class="panel-accent-line"></div>
+                <div class="project-search" style="padding: 8px 10px;">
+                    <input type="text" id="projectSearchInput" placeholder="🔍 搜索项目名称..." autocomplete="off" />
+                </div>
+                <div class="project-list" id="projectList"></div>
+            </div>
+            <div class="menu-panel-divider" id="menuLeftDivider"></div>
+            <div id="quickNotesBar">
+                <div class="quick-header">
+                    <h4>快速笔记</h4>
+                    <div class="header-btns">
+                        <button id="newQuickNoteBtn" title="新建笔记">+</button>
+                    </div>
+                </div>
+                <div class="panel-accent-line"></div>
+                <div class="quick-search" style="padding: 8px 10px;">
+                    <input type="text" id="quickNoteSearchInput" placeholder="🔍 搜索笔记..." autocomplete="off" />
+                </div>
+                <div class="quick-list" id="quickNotesList"></div>
+            </div>
+        </div>
+        <div class="menu-bottom-bar">
+            <button id="toggleNodeGlowBtn" class="menu-bottom-btn" title="设置">⚙️</button>
+            <div class="menu-bottom-spacer"></div>
+            <button id="closeAstroKnotMenuBtn" class="menu-bottom-btn menu-close-btn" title="关闭应用">⏻</button>
+        </div>
+    </div>
+
+    <!-- ==================== AI 对话框浮窗 ==================== -->
+    <div id="aiFloatingDialog" class="minimized">
+        <div class="ai-drag-header">
+            <h4>🤻 AI 助手</h4>
+            <div class="ai-header-buttons">
+                <button id="aiSettingsBtn" class="ai-header-btn" title="API 设置">⚙️</button>
+                <button id="aiExportBtn" class="ai-header-btn" title="导出当前对话">⤴️</button>
+                <button id="aiHistoryBtn" class="ai-header-btn" title="历史对话">🕜</button>
+                <button id="aiNewChatBtn" class="ai-header-btn" title="新建对话">+</button>
+            </div>
+        </div>
+        <div class="panel-accent-line"></div>
+        <div class="ai-chat-body" id="aiChatBody">
+            <div class="ai-chat-messages" id="aiChatMessages">
+                <div class="ai-message system">你好！我是AI助手，有什么可以帮你？</div>
+                <div class="ai-message system" style="border-left:3px solid #f0a030;background:rgba(240,160,48,0.08);padding:8px 12px;margin-top:6px;border-radius:4px;">
+                    🚧 <b>AI 助手正在开发中</b> 
+                </div>
+            </div>
+            <div class="ai-input-toolbar">
+                <select id="aiAgentSelect" class="ai-toolbar-select">
+                    <option value="">🤁 选择智能体</option>
+                </select>
+            </div>
+            <div class="ai-chat-input">
+                <textarea id="aiChatInput" placeholder="输入消息..." rows="3"></textarea>
+                <div class="ai-input-footer">
+                    <select id="aiModelSelect" class="ai-model-select">
+                        <option value="">🝥 选择模型</option>
+                    </select>
+                    <button id="aiSendBtn" class="ai-send-btn">发送</button>
+                </div>
+            </div>
+        </div>
+        <div class="floating-resize-handle" data-handle="n"></div>
+        <div class="floating-resize-handle" data-handle="s"></div>
+        <div class="floating-resize-handle" data-handle="e"></div>
+        <div class="floating-resize-handle" data-handle="w"></div>
+        <div class="floating-resize-handle" data-handle="ne"></div>
+        <div class="floating-resize-handle" data-handle="nw"></div>
+        <div class="floating-resize-handle" data-handle="se"></div>
+        <div class="floating-resize-handle" data-handle="sw"></div>
+    </div>
+
+    <!-- ==================== 2D 视图画布（预留） ==================== -->
+    <div id="view2dContainer"><canvas id="view2dCanvas"></canvas></div>
+
+    <!-- 图层管理按钮（2D/3D 通用） -->
+    <button id="layerIconBtn" class="layer-icon-btn" title="图层管理">🗂️</button>
+
+    <!-- ==================== 公式编辑器弹窗（全局共享） ==================== -->
+    <div id="formulaEditorModal"
+        style="display: none; position: fixed; z-index: 3000; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--panel-bg); backdrop-filter: blur(12px); border: 1px solid var(--panel-border); border-radius: var(--panel-radius); box-shadow: var(--panel-shadow); width: 720px; max-height: 85vh; overflow: visible; min-width: 500px; min-height: 300px;">
+        <!-- 标题栏（可拖动） -->
+        <div id="formulaModalHeader"
+            style="padding: 12px 16px; border-bottom: 1px solid #2c6e7e; display: flex; justify-content: space-between; align-items: center; cursor: move;">
+            <span style="color: #0ff; font-size: 16px; font-weight: bold;">公式编辑器</span>
+            <div style="display: flex; align-items: center;">
+                <button id="closeFormulaModalBtn"
+                    style="background: none; border: none; color: #aaa; font-size: 14px; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">×</button>
+            </div>
+        </div>
+        <!-- 分类工具栏 -->
+        <div
+            style="padding:4px 8px;display:flex;flex-direction:column;gap:2px;position:relative;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);background:var(--input-bg);">
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+
+                <!-- 运算符 -->
+                <div class="symbol-category">
+                    <button id="operatorBtn" class="category-btn">± 运算符</button>
+                    <div id="operatorPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="common-bin">常用二元</button>
+                                <button class="tab-btn" data-tab="common-rel">常用关系</button>
+                                <button class="tab-btn" data-tab="nary">基本n元</button>
+                                <button class="tab-btn" data-tab="adv-bin">高级二元</button>
+                                <button class="tab-btn" data-tab="adv-rel">高级关系</button>
+                                <button class="tab-btn" data-tab="neg-rel">求反关系</button>
+                            </div>
+                            <div class="symbol-grid common-bin-tab" style="grid-template-columns:repeat(7,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="+">+</button>
+                                <button class="popup-symbol-btn" data-symbol="-">−</button>
+                                <button class="popup-symbol-btn" data-symbol="\times">×</button>
+                                <button class="popup-symbol-btn" data-symbol="\div">÷</button>
+                                <button class="popup-symbol-btn" data-symbol="\pm">±</button>
+                                <button class="popup-symbol-btn" data-symbol="\mp">∓</button>
+                                <button class="popup-symbol-btn" data-symbol="\cdot">·</button>
+                                <button class="popup-symbol-btn" data-symbol="\ast">∗</button>
+                                <button class="popup-symbol-btn" data-symbol="\circ">∘</button>
+                                <button class="popup-symbol-btn" data-symbol="\bullet">∙</button>
+                                <button class="popup-symbol-btn" data-symbol="\oplus">⊕</button>
+                                <button class="popup-symbol-btn" data-symbol="\ominus">⊖</button>
+                                <button class="popup-symbol-btn" data-symbol="\otimes">⊗</button>
+                                <button class="popup-symbol-btn" data-symbol="\oslash">⊘</button>
+                                <button class="popup-symbol-btn" data-symbol="\odot">⊙</button>
+                                <button class="popup-symbol-btn" data-symbol="\star">⋆</button>
+                                <button class="popup-symbol-btn" data-symbol="\vee">∨</button>
+                                <button class="popup-symbol-btn" data-symbol="\wedge">∧</button>
+                                <button class="popup-symbol-btn" data-symbol="\cap">∩</button>
+                                <button class="popup-symbol-btn" data-symbol="\cup">∪</button>
+                                <button class="popup-symbol-btn" data-symbol="\sqcap">⊓</button>
+                                <button class="popup-symbol-btn" data-symbol="\sqcup">⊔</button>
+                                <button class="popup-symbol-btn" data-symbol="\wr">≀</button>
+                                <button class="popup-symbol-btn" data-symbol="\setminus">∖</button>
+                                <button class="popup-symbol-btn" data-symbol="\uplus">⊎</button>
+                                <button class="popup-symbol-btn" data-symbol="\dotplus">∔</button>
+                                <button class="popup-symbol-btn" data-symbol="\barwedge">⌅</button>
+                                <button class="popup-symbol-btn" data-symbol="\veebar">⊻</button>
+                                <button class="popup-symbol-btn" data-symbol="\diamond">⋄</button>
+                                <button class="popup-symbol-btn" data-symbol="\dagger">†</button>
+                                <button class="popup-symbol-btn" data-symbol="\ddagger">‡</button>
+                            </div>
+                            <div class="symbol-grid common-rel-tab"
+                                style="display:none;grid-template-columns:repeat(7,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="=">=</button>
+                                <button class="popup-symbol-btn" data-symbol="\neq">≠</button>
+                                <button class="popup-symbol-btn" data-symbol="\approx">≈</button>
+                                <button class="popup-symbol-btn" data-symbol="\equiv">≡</button>
+                                <button class="popup-symbol-btn" data-symbol="\sim">∼</button>
+                                <button class="popup-symbol-btn" data-symbol="\simeq">≃</button>
+                                <button class="popup-symbol-btn" data-symbol="\cong">≅</button>
+                                <button class="popup-symbol-btn" data-symbol="\propto">∝</button>
+                                <button class="popup-symbol-btn" data-symbol="\doteq">≐</button>
+                                <button class="popup-symbol-btn" data-symbol="\fallingdotseq">≒</button>
+                                <button class="popup-symbol-btn" data-symbol="\risingdotseq">≓</button>
+                                <button class="popup-symbol-btn" data-symbol="\lt">&lt;</button>
+                                <button class="popup-symbol-btn" data-symbol="\gt">&gt;</button>
+                                <button class="popup-symbol-btn" data-symbol="\le">≤</button>
+                                <button class="popup-symbol-btn" data-symbol="\ge">≥</button>
+                                <button class="popup-symbol-btn" data-symbol="\ll">≪</button>
+                                <button class="popup-symbol-btn" data-symbol="\gg">≫</button>
+                                <button class="popup-symbol-btn" data-symbol="\asymp">≍</button>
+                                <button class="popup-symbol-btn" data-symbol="\bowtie">⋈</button>
+                                <button class="popup-symbol-btn" data-symbol="\smile">⌣</button>
+                                <button class="popup-symbol-btn" data-symbol="\frown">⌢</button>
+                                <button class="popup-symbol-btn" data-symbol="\mid">∣</button>
+                                <button class="popup-symbol-btn" data-symbol="\parallel">∥</button>
+                                <button class="popup-symbol-btn" data-symbol="\perp">⟂</button>
+                                <button class="popup-symbol-btn" data-symbol="\bumpeq">≎</button>
+                                <button class="popup-symbol-btn" data-symbol="\Bumpeq">≏</button>
+                                <button class="popup-symbol-btn" data-symbol="\eqcirc">≖</button>
+                                <button class="popup-symbol-btn" data-symbol="\circeq">≗</button>
+                                <button class="popup-symbol-btn" data-symbol="\triangleq">≜</button>
+                                <button class="popup-symbol-btn" data-symbol="\between">≬</button>
+                                <button class="popup-symbol-btn" data-symbol="\pitchfork">⋔</button>
+                                <button class="popup-symbol-btn" data-symbol="\lesseqgtr">⋚</button>
+                                <button class="popup-symbol-btn" data-symbol="\gtreqless">⋛</button>
+                                <button class="popup-symbol-btn" data-symbol="\doteqdot">≑</button>
+                            </div>
+                            <div class="symbol-grid nary-tab" style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\sum">∑</button>
+                                <button class="popup-symbol-btn" data-symbol="\prod">∏</button>
+                                <button class="popup-symbol-btn" data-symbol="\coprod">∐</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigcup">⋃</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigcap">⋂</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigvee">⋁</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigwedge">⋀</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigoplus">⨁</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigotimes">⨂</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigodot">⨀</button>
+                                <button class="popup-symbol-btn" data-symbol="\biguplus">⨄</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigsqcup">⨆</button>
+                                <button class="popup-symbol-btn" data-symbol="\int">∫</button>
+                                <button class="popup-symbol-btn" data-symbol="\iint">∬</button>
+                                <button class="popup-symbol-btn" data-symbol="\iiint">∭</button>
+                                <button class="popup-symbol-btn" data-symbol="\oint">∮</button>
+                                <button class="popup-symbol-btn" data-symbol="\oiint">∯</button>
+                                <button class="popup-symbol-btn" data-symbol="\oiiint">∰</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigtimes">⨉</button>
+                            </div>
+                            <div class="symbol-grid adv-bin-tab"
+                                style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\ltimes">⋉</button>
+                                <button class="popup-symbol-btn" data-symbol="\rtimes">⋊</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftthreetimes">⋋</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightthreetimes">⋌</button>
+                                <button class="popup-symbol-btn" data-symbol="\diamond">⋄</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxminus">⊟</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxtimes">⊠</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxdot">⊡</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxplus">⊞</button>
+                                <button class="popup-symbol-btn" data-symbol="\divideontimes">⋇</button>
+                                <button class="popup-symbol-btn" data-symbol="\curlyvee">⋎</button>
+                                <button class="popup-symbol-btn" data-symbol="\curlywedge">⋏</button>
+                                <button class="popup-symbol-btn" data-symbol="\intercal">⊺</button>
+                                <button class="popup-symbol-btn" data-symbol="\amalg">∐</button>
+                                <button class="popup-symbol-btn" data-symbol="\Cap">⋒</button>
+                                <button class="popup-symbol-btn" data-symbol="\Cup">⋓</button>
+                                <button class="popup-symbol-btn" data-symbol="\circledcirc">⊚</button>
+                                <button class="popup-symbol-btn" data-symbol="\circledast">⊛</button>
+                                <button class="popup-symbol-btn" data-symbol="\circleddash">⊝</button>
+                                <button class="popup-symbol-btn" data-symbol="\therefore">∴</button>
+                                <button class="popup-symbol-btn" data-symbol="\because">∵</button>
+                                <button class="popup-symbol-btn" data-symbol="\doublebarwedge">⌆</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigcirc">◯</button>
+                                <button class="popup-symbol-btn" data-symbol="\barwedge">⌅</button>
+                            </div>
+                            <div class="symbol-grid adv-rel-tab"
+                                style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\sqsubset">⊏</button>
+                                <button class="popup-symbol-btn" data-symbol="\sqsupset">⊐</button>
+                                <button class="popup-symbol-btn" data-symbol="\sqsubseteq">⊑</button>
+                                <button class="popup-symbol-btn" data-symbol="\sqsupseteq">⊒</button>
+                                <button class="popup-symbol-btn" data-symbol="\lhd">⊲</button>
+                                <button class="popup-symbol-btn" data-symbol="\rhd">⊳</button>
+                                <button class="popup-symbol-btn" data-symbol="\unlhd">⊴</button>
+                                <button class="popup-symbol-btn" data-symbol="\unrhd">⊵</button>
+                                <button class="popup-symbol-btn" data-symbol="\subset">⊂</button>
+                                <button class="popup-symbol-btn" data-symbol="\supset">⊃</button>
+                                <button class="popup-symbol-btn" data-symbol="\subseteq">⊆</button>
+                                <button class="popup-symbol-btn" data-symbol="\supseteq">⊇</button>
+                                <button class="popup-symbol-btn" data-symbol="\prec">≺</button>
+                                <button class="popup-symbol-btn" data-symbol="\succ">≻</button>
+                                <button class="popup-symbol-btn" data-symbol="\preceq">≼</button>
+                                <button class="popup-symbol-btn" data-symbol="\succeq">≽</button>
+                                <button class="popup-symbol-btn" data-symbol="\Subset">⋐</button>
+                                <button class="popup-symbol-btn" data-symbol="\Supset">⋑</button>
+                                <button class="popup-symbol-btn" data-symbol="\approxeq">≊</button>
+                                <button class="popup-symbol-btn" data-symbol="\backsim">∽</button>
+                                <button class="popup-symbol-btn" data-symbol="\eqsim">≂</button>
+                                <button class="popup-symbol-btn" data-symbol="\lessdot">⋖</button>
+                                <button class="popup-symbol-btn" data-symbol="\gtrdot">⋗</button>
+                                <button class="popup-symbol-btn" data-symbol="\lll">⋘</button>
+                                <button class="popup-symbol-btn" data-symbol="\ggg">⋙</button>
+                                <button class="popup-symbol-btn" data-symbol="\lesssim">≲</button>
+                            </div>
+                            <div class="symbol-grid neg-rel-tab"
+                                style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\neq">≠</button>
+                                <button class="popup-symbol-btn" data-symbol="\nless">≮</button>
+                                <button class="popup-symbol-btn" data-symbol="\ngtr">≯</button>
+                                <button class="popup-symbol-btn" data-symbol="\nleq">≰</button>
+                                <button class="popup-symbol-btn" data-symbol="\ngeq">≱</button>
+                                <button class="popup-symbol-btn" data-symbol="\lneq">⪇</button>
+                                <button class="popup-symbol-btn" data-symbol="\gneq">⪈</button>
+                                <button class="popup-symbol-btn" data-symbol="\lneqq">≨</button>
+                                <button class="popup-symbol-btn" data-symbol="\gneqq">≩</button>
+                                <button class="popup-symbol-btn" data-symbol="\nsim">≁</button>
+                                <button class="popup-symbol-btn" data-symbol="\ncong">≇</button>
+                                <button class="popup-symbol-btn" data-symbol="\napprox">≉</button>
+                                <button class="popup-symbol-btn" data-symbol="\nequiv">≢</button>
+                                <button class="popup-symbol-btn" data-symbol="\nmid">∤</button>
+                                <button class="popup-symbol-btn" data-symbol="\nparallel">∦</button>
+                                <button class="popup-symbol-btn" data-symbol="\nprec">⊀</button>
+                                <button class="popup-symbol-btn" data-symbol="\nsucc">⊁</button>
+                                <button class="popup-symbol-btn" data-symbol="\npreceq">⋠</button>
+                                <button class="popup-symbol-btn" data-symbol="\nsucceq">⋡</button>
+                                <button class="popup-symbol-btn" data-symbol="\nsubset">⊄</button>
+                                <button class="popup-symbol-btn" data-symbol="\nsupset">⊅</button>
+                                <button class="popup-symbol-btn" data-symbol="\nsubseteq">⊈</button>
+                                <button class="popup-symbol-btn" data-symbol="\nsupseteq">⊉</button>
+                                <button class="popup-symbol-btn" data-symbol="\subsetneq">⊊</button>
+                                <button class="popup-symbol-btn" data-symbol="\supsetneq">⊋</button>
+                                <button class="popup-symbol-btn" data-symbol="\notin">∉</button>
+                                <button class="popup-symbol-btn" data-symbol="\not\ni">∌</button>
+                                <button class="popup-symbol-btn" data-symbol="\nleftarrow">↚</button>
+                                <button class="popup-symbol-btn" data-symbol="\nrightarrow">↛</button>
+                                <button class="popup-symbol-btn" data-symbol="\nleftrightarrow">↮</button>
+                                <button class="popup-symbol-btn" data-symbol="\nLeftarrow">⇍</button>
+                                <button class="popup-symbol-btn" data-symbol="\nRightarrow">⇏</button>
+                                <button class="popup-symbol-btn" data-symbol="\nLeftrightarrow">⇎</button>
+                                <button class="popup-symbol-btn" data-symbol="\ntriangleleft">⋪</button>
+                                <button class="popup-symbol-btn" data-symbol="\ntriangleright">⋫</button>
+                                <button class="popup-symbol-btn" data-symbol="\ntrianglelefteq">⋬</button>
+                                <button class="popup-symbol-btn" data-symbol="\ntrianglerighteq">⋭</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 希腊字母 -->
+                <div class="symbol-category">
+                    <button id="greekBtn" class="category-btn">α 希腊字母</button>
+                    <div id="greekPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="lower">小写</button>
+                                <button class="tab-btn" data-tab="upper">大写</button>
+                            </div>
+                            <div class="symbol-grid lower-tab" style="grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\alpha">α</button>
+                                <button class="popup-symbol-btn" data-symbol="\beta">β</button>
+                                <button class="popup-symbol-btn" data-symbol="\gamma">γ</button>
+                                <button class="popup-symbol-btn" data-symbol="\delta">δ</button>
+                                <button class="popup-symbol-btn" data-symbol="\epsilon">ε</button>
+                                <button class="popup-symbol-btn" data-symbol="\varepsilon">ϵ</button>
+                                <button class="popup-symbol-btn" data-symbol="\zeta">ζ</button>
+                                <button class="popup-symbol-btn" data-symbol="\eta">η</button>
+                                <button class="popup-symbol-btn" data-symbol="\theta">θ</button>
+                                <button class="popup-symbol-btn" data-symbol="\vartheta">ϑ</button>
+                                <button class="popup-symbol-btn" data-symbol="\iota">ι</button>
+                                <button class="popup-symbol-btn" data-symbol="\kappa">κ</button>
+                                <button class="popup-symbol-btn" data-symbol="\lambda">λ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mu">μ</button>
+                                <button class="popup-symbol-btn" data-symbol="\nu">ν</button>
+                                <button class="popup-symbol-btn" data-symbol="\xi">ξ</button>
+                                <button class="popup-symbol-btn" data-symbol="\omicron">ο</button>
+                                <button class="popup-symbol-btn" data-symbol="\pi">π</button>
+                                <button class="popup-symbol-btn" data-symbol="\varpi">ϖ</button>
+                                <button class="popup-symbol-btn" data-symbol="\rho">ρ</button>
+                                <button class="popup-symbol-btn" data-symbol="\varrho">ϱ</button>
+                                <button class="popup-symbol-btn" data-symbol="\sigma">σ</button>
+                                <button class="popup-symbol-btn" data-symbol="\varsigma">ς</button>
+                                <button class="popup-symbol-btn" data-symbol="\tau">τ</button>
+                                <button class="popup-symbol-btn" data-symbol="\upsilon">υ</button>
+                                <button class="popup-symbol-btn" data-symbol="\phi">φ</button>
+                                <button class="popup-symbol-btn" data-symbol="\varphi">ϕ</button>
+                                <button class="popup-symbol-btn" data-symbol="\chi">χ</button>
+                                <button class="popup-symbol-btn" data-symbol="\psi">ψ</button>
+                                <button class="popup-symbol-btn" data-symbol="\omega">ω</button>
+                            </div>
+                            <div class="symbol-grid upper-tab"
+                                style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\Alpha">Α</button>
+                                <button class="popup-symbol-btn" data-symbol="\Beta">Β</button>
+                                <button class="popup-symbol-btn" data-symbol="\Gamma">Γ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Delta">Δ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Epsilon">Ε</button>
+                                <button class="popup-symbol-btn" data-symbol="\Zeta">Ζ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Eta">Η</button>
+                                <button class="popup-symbol-btn" data-symbol="\Theta">Θ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Iota">Ι</button>
+                                <button class="popup-symbol-btn" data-symbol="\Kappa">Κ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Lambda">Λ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Mu">Μ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Nu">Ν</button>
+                                <button class="popup-symbol-btn" data-symbol="\Xi">Ξ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Omicron">Ο</button>
+                                <button class="popup-symbol-btn" data-symbol="\Pi">Π</button>
+                                <button class="popup-symbol-btn" data-symbol="\Rho">Ρ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Sigma">Σ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Tau">Τ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Upsilon">Υ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Phi">Φ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Chi">Χ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Psi">Ψ</button>
+                                <button class="popup-symbol-btn" data-symbol="\Omega">Ω</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 希伯来字母 -->
+                <div class="symbol-category">
+                    <button id="hebrewBtn" class="category-btn">א 希伯来字母</button>
+                    <div id="hebrewPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="standard">标准</button>
+                                <button class="tab-btn" data-tab="final">终形</button>
+                            </div>
+                            <div class="symbol-grid standard-tab"
+                                style="grid-template-columns:repeat(6,1fr);font-family:'Times New Roman',serif;">
+                                <button class="popup-symbol-btn" data-symbol="\aleph">א</button>
+                                <button class="popup-symbol-btn" data-symbol="\beth">ב</button>
+                                <button class="popup-symbol-btn" data-symbol="\gimel">ג</button>
+                                <button class="popup-symbol-btn" data-symbol="\daleth">ד</button>
+                                <button class="popup-symbol-btn" data-symbol="ה">ה</button>
+                                <button class="popup-symbol-btn" data-symbol="ו">ו</button>
+                                <button class="popup-symbol-btn" data-symbol="ז">ז</button>
+                                <button class="popup-symbol-btn" data-symbol="ח">ח</button>
+                                <button class="popup-symbol-btn" data-symbol="ט">ט</button>
+                                <button class="popup-symbol-btn" data-symbol="י">י</button>
+                                <button class="popup-symbol-btn" data-symbol="כ">כ</button>
+                                <button class="popup-symbol-btn" data-symbol="ל">ל</button>
+                                <button class="popup-symbol-btn" data-symbol="מ">מ</button>
+                                <button class="popup-symbol-btn" data-symbol="נ">נ</button>
+                                <button class="popup-symbol-btn" data-symbol="ס">ס</button>
+                                <button class="popup-symbol-btn" data-symbol="ע">ע</button>
+                                <button class="popup-symbol-btn" data-symbol="פ">פ</button>
+                                <button class="popup-symbol-btn" data-symbol="צ">צ</button>
+                                <button class="popup-symbol-btn" data-symbol="ק">ק</button>
+                                <button class="popup-symbol-btn" data-symbol="ר">ר</button>
+                                <button class="popup-symbol-btn" data-symbol="ש">ש</button>
+                                <button class="popup-symbol-btn" data-symbol="ת">ת</button>
+                            </div>
+                            <div class="symbol-grid final-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);font-family:'Times New Roman',serif;">
+                                <button class="popup-symbol-btn" data-symbol="ך">ך</button>
+                                <button class="popup-symbol-btn" data-symbol="ם">ם</button>
+                                <button class="popup-symbol-btn" data-symbol="ן">ן</button>
+                                <button class="popup-symbol-btn" data-symbol="ף">ף</button>
+                                <button class="popup-symbol-btn" data-symbol="ץ">ץ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 手写体 -->
+                <div class="symbol-category">
+                    <button id="scriptLettersBtn" class="category-btn">𝓐 手写体</button>
+                    <div id="scriptLettersPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="cal">花体</button>
+                                <button class="tab-btn" data-tab="frak">哥特体</button>
+                                <button class="tab-btn" data-tab="bb">双线体</button>
+                            </div>
+                            <div class="symbol-grid cal-tab"
+                                style="grid-template-columns:repeat(7,1fr);font-family:'CommercialScript BT','CommercialScript BT Regular',cursive;font-style:normal;">
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{A}}"
+                                    style="font-family:inherit;font-style:inherit;">A</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{B}}"
+                                    style="font-family:inherit;font-style:inherit;">B</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{C}}"
+                                    style="font-family:inherit;font-style:inherit;">C</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{D}}"
+                                    style="font-family:inherit;font-style:inherit;">D</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{E}}"
+                                    style="font-family:inherit;font-style:inherit;">E</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{F}}"
+                                    style="font-family:inherit;font-style:inherit;">F</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{G}}"
+                                    style="font-family:inherit;font-style:inherit;">G</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{H}}"
+                                    style="font-family:inherit;font-style:inherit;">H</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{I}}"
+                                    style="font-family:inherit;font-style:inherit;">I</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{J}}"
+                                    style="font-family:inherit;font-style:inherit;">J</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{K}}"
+                                    style="font-family:inherit;font-style:inherit;">K</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{L}}"
+                                    style="font-family:inherit;font-style:inherit;">L</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{M}}"
+                                    style="font-family:inherit;font-style:inherit;">M</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{N}}"
+                                    style="font-family:inherit;font-style:inherit;">N</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{O}}"
+                                    style="font-family:inherit;font-style:inherit;">O</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{P}}"
+                                    style="font-family:inherit;font-style:inherit;">P</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{Q}}"
+                                    style="font-family:inherit;font-style:inherit;">Q</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{R}}"
+                                    style="font-family:inherit;font-style:inherit;">R</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{S}}"
+                                    style="font-family:inherit;font-style:inherit;">S</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{T}}"
+                                    style="font-family:inherit;font-style:inherit;">T</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{U}}"
+                                    style="font-family:inherit;font-style:inherit;">U</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{V}}"
+                                    style="font-family:inherit;font-style:inherit;">V</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{W}}"
+                                    style="font-family:inherit;font-style:inherit;">W</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{X}}"
+                                    style="font-family:inherit;font-style:inherit;">X</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{Y}}"
+                                    style="font-family:inherit;font-style:inherit;">Y</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{Z}}"
+                                    style="font-family:inherit;font-style:inherit;">Z</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{a}}"
+                                    style="font-family:inherit;font-style:inherit;">a</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{b}}"
+                                    style="font-family:inherit;font-style:inherit;">b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{c}}"
+                                    style="font-family:inherit;font-style:inherit;">c</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{d}}"
+                                    style="font-family:inherit;font-style:inherit;">d</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{e}}"
+                                    style="font-family:inherit;font-style:inherit;">e</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{f}}"
+                                    style="font-family:inherit;font-style:inherit;">f</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{g}}"
+                                    style="font-family:inherit;font-style:inherit;">g</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{h}}"
+                                    style="font-family:inherit;font-style:inherit;">h</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{i}}"
+                                    style="font-family:inherit;font-style:inherit;">i</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{j}}"
+                                    style="font-family:inherit;font-style:inherit;">j</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{k}}"
+                                    style="font-family:inherit;font-style:inherit;">k</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{l}}"
+                                    style="font-family:inherit;font-style:inherit;">l</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{m}}"
+                                    style="font-family:inherit;font-style:inherit;">m</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{n}}"
+                                    style="font-family:inherit;font-style:inherit;">n</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{o}}"
+                                    style="font-family:inherit;font-style:inherit;">o</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{p}}"
+                                    style="font-family:inherit;font-style:inherit;">p</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{q}}"
+                                    style="font-family:inherit;font-style:inherit;">q</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{r}}"
+                                    style="font-family:inherit;font-style:inherit;">r</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{s}}"
+                                    style="font-family:inherit;font-style:inherit;">s</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{t}}"
+                                    style="font-family:inherit;font-style:inherit;">t</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{u}}"
+                                    style="font-family:inherit;font-style:inherit;">u</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{v}}"
+                                    style="font-family:inherit;font-style:inherit;">v</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{w}}"
+                                    style="font-family:inherit;font-style:inherit;">w</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{x}}"
+                                    style="font-family:inherit;font-style:inherit;">x</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{y}}"
+                                    style="font-family:inherit;font-style:inherit;">y</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\style{font-family:CommercialScript BT}{\text{z}}"
+                                    style="font-family:inherit;font-style:inherit;">z</button>
+                            </div>
+                            <div class="symbol-grid frak-tab" style="display:none;grid-template-columns:repeat(7,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{A}">𝔄</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{B}">𝔅</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{C}">ℭ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{D}">𝔇</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{E}">𝔈</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{F}">𝔉</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{G}">𝔊</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{H}">ℌ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{I}">ℑ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{J}">𝔍</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{K}">𝔎</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{L}">𝔏</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{M}">𝔐</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{N}">𝔑</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{O}">𝔒</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{P}">𝔓</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{Q}">𝔔</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{R}">ℜ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{S}">𝔖</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{T}">𝔗</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{U}">𝔘</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{V}">𝔙</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{W}">𝔚</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{X}">𝔛</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{Y}">𝔜</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{Z}">ℨ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{a}">𝔞</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{b}">𝔟</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{c}">𝔠</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{d}">𝔡</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{e}">𝔢</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{f}">𝔣</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{g}">𝔤</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{h}">𝔥</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{i}">𝔦</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{j}">𝔧</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{k}">𝔨</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{l}">𝔩</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{m}">𝔪</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{n}">𝔫</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{o}">𝔬</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{p}">𝔭</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{q}">𝔮</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{r}">𝔯</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{s}">𝔰</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{t}">𝔱</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{u}">𝔲</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{v}">𝔳</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{w}">𝔴</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{x}">𝔵</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{y}">𝔶</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathfrak{z}">𝔷</button>
+                            </div>
+                            <div class="symbol-grid bb-tab" style="display:none;grid-template-columns:repeat(7,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{A}">𝔸</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{B}">𝔹</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{C}">ℂ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{D}">𝔻</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{E}">𝔼</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{F}">𝔽</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{G}">𝔾</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{H}">ℍ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{I}">𝕀</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{J}">𝕁</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{K}">𝕂</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{L}">𝕃</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{M}">𝕄</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{N}">ℕ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{O}">𝕆</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{P}">ℙ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{Q}">ℚ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{R}">ℝ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{S}">𝕊</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{T}">𝕋</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{U}">𝕌</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{V}">𝕍</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{W}">𝕎</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{X}">𝕏</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{Y}">𝕐</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{Z}">ℤ</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{a}">𝕒</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{b}">𝕓</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{c}">𝕔</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{d}">𝕕</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{e}">𝕖</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{f}">𝕗</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{g}">𝕘</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{h}">𝕙</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{i}">𝕚</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{j}">𝕛</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{k}">𝕜</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{l}">𝕝</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{m}">𝕞</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{n}">𝕟</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{o}">𝕠</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{p}">𝕡</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{q}">𝕢</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{r}">𝕣</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{s}">𝕤</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{t}">𝕥</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{u}">𝕦</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{v}">𝕧</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{w}">𝕨</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{x}">𝕩</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{y}">𝕪</button>
+                                <button class="popup-symbol-btn" data-symbol="\mathbb{z}">𝕫</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 箭头 -->
+                <div class="symbol-category">
+                    <button id="arrowBtn" class="category-btn">→ 箭头</button>
+                    <div id="arrowPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="single-arrow">单箭头</button>
+                                <button class="tab-btn" data-tab="double-arrow">双箭头</button>
+                                <button class="tab-btn" data-tab="long-arrow">长箭头</button>
+                            </div>
+                            <div class="symbol-grid single-arrow-tab" style="grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\rightarrow">→</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftarrow">←</button>
+                                <button class="popup-symbol-btn" data-symbol="\uparrow">↑</button>
+                                <button class="popup-symbol-btn" data-symbol="\downarrow">↓</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftrightarrow">↔</button>
+                                <button class="popup-symbol-btn" data-symbol="\updownarrow">↕</button>
+                                <button class="popup-symbol-btn" data-symbol="\nearrow">↗</button>
+                                <button class="popup-symbol-btn" data-symbol="\searrow">↘</button>
+                                <button class="popup-symbol-btn" data-symbol="\nwarrow">↖</button>
+                                <button class="popup-symbol-btn" data-symbol="\swarrow">↙</button>
+                                <button class="popup-symbol-btn" data-symbol="\mapsto">↦</button>
+                                <button class="popup-symbol-btn" data-symbol="\longmapsto">⟼</button>
+                                <button class="popup-symbol-btn" data-symbol="\hookrightarrow">↪</button>
+                                <button class="popup-symbol-btn" data-symbol="\hookleftarrow">↩</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightleftharpoons">⇌</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftrightharpoons">⇋</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftharpoonup">↼</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftharpoondown">↽</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightharpoonup">⇀</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightharpoondown">⇁</button>
+                                <button class="popup-symbol-btn" data-symbol="\twoheadrightarrow">↠</button>
+                                <button class="popup-symbol-btn" data-symbol="\twoheadleftarrow">↞</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightarrowtail">↣</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftarrowtail">↢</button>
+                                <button class="popup-symbol-btn" data-symbol="\looparrowright">↬</button>
+                                <button class="popup-symbol-btn" data-symbol="\looparrowleft">↫</button>
+                                <button class="popup-symbol-btn" data-symbol="\curvearrowright">↷</button>
+                                <button class="popup-symbol-btn" data-symbol="\curvearrowleft">↶</button>
+                                <button class="popup-symbol-btn" data-symbol="\circlearrowright">↻</button>
+                                <button class="popup-symbol-btn" data-symbol="\circlearrowleft">↺</button>
+                                <button class="popup-symbol-btn" data-symbol="\upharpoonright">↾</button>
+                                <button class="popup-symbol-btn" data-symbol="\upharpoonleft">↿</button>
+                                <button class="popup-symbol-btn" data-symbol="\downharpoonright">⇂</button>
+                                <button class="popup-symbol-btn" data-symbol="\downharpoonleft">⇃</button>
+                                <button class="popup-symbol-btn" data-symbol="\multimap">⊸</button>
+                            </div>
+                            <div class="symbol-grid double-arrow-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\Rightarrow">⇒</button>
+                                <button class="popup-symbol-btn" data-symbol="\Leftarrow">⇐</button>
+                                <button class="popup-symbol-btn" data-symbol="\Uparrow">⇑</button>
+                                <button class="popup-symbol-btn" data-symbol="\Downarrow">⇓</button>
+                                <button class="popup-symbol-btn" data-symbol="\Leftrightarrow">⇔</button>
+                                <button class="popup-symbol-btn" data-symbol="\Updownarrow">⇕</button>
+                                <button class="popup-symbol-btn" data-symbol="\dashrightarrow">⇢</button>
+                                <button class="popup-symbol-btn" data-symbol="\dashleftarrow">⇠</button>
+                                <button class="popup-symbol-btn" data-symbol="\Lleftarrow">⇚</button>
+                                <button class="popup-symbol-btn" data-symbol="\Rrightarrow">⇛</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftleftarrows">⇇</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightrightarrows">⇉</button>
+                                <button class="popup-symbol-btn" data-symbol="\upuparrows">⇈</button>
+                                <button class="popup-symbol-btn" data-symbol="\downdownarrows">⇊</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftrightarrows">⇆</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightleftarrows">⇄</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightsquigarrow">⇝</button>
+                                <button class="popup-symbol-btn" data-symbol="\leftrightsquigarrow">↭</button>
+                                <button class="popup-symbol-btn" data-symbol="\nLeftarrow">⇍</button>
+                                <button class="popup-symbol-btn" data-symbol="\nRightarrow">⇏</button>
+                                <button class="popup-symbol-btn" data-symbol="\nLeftrightarrow">⇎</button>
+                            </div>
+                            <div class="symbol-grid long-arrow-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\longrightarrow">⟶</button>
+                                <button class="popup-symbol-btn" data-symbol="\longleftarrow">⟵</button>
+                                <button class="popup-symbol-btn" data-symbol="\longleftrightarrow">⟷</button>
+                                <button class="popup-symbol-btn" data-symbol="\Longrightarrow">⟹</button>
+                                <button class="popup-symbol-btn" data-symbol="\Longleftarrow">⟸</button>
+                                <button class="popup-symbol-btn" data-symbol="\Longleftrightarrow">⟺</button>
+                                <button class="popup-symbol-btn" data-symbol="\iff">⟺</button>
+                                <button class="popup-symbol-btn" data-symbol="\implies">⟹</button>
+                                <button class="popup-symbol-btn" data-symbol="\impliedby">⟸</button>
+                                <button class="popup-symbol-btn" data-symbol="\longmapsto">⟼</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 几何图形 -->
+                <div class="symbol-category">
+                    <button id="geometryBtn" class="category-btn">△ 几何图形</button>
+                    <div id="geometryPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="shapes">形状</button>
+                                <button class="tab-btn" data-tab="angles">角度</button>
+                                <button class="tab-btn" data-tab="triangles">三角形</button>
+                                <button class="tab-btn" data-tab="quad">四边形</button>
+                            </div>
+                            <div class="symbol-grid shapes-tab" style="grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\circ">○</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigcirc">◯</button>
+                                <button class="popup-symbol-btn" data-symbol="\bullet">●</button>
+                                <button class="popup-symbol-btn" data-symbol="\square">□</button>
+                                <button class="popup-symbol-btn" data-symbol="\blacksquare">■</button>
+                                <button class="popup-symbol-btn" data-symbol="\triangle">△</button>
+                                <button class="popup-symbol-btn" data-symbol="\blacktriangle">▲</button>
+                                <button class="popup-symbol-btn" data-symbol="\triangledown">▽</button>
+                                <button class="popup-symbol-btn" data-symbol="\blacktriangledown">▼</button>
+                                <button class="popup-symbol-btn" data-symbol="\diamond">◇</button>
+                                <button class="popup-symbol-btn" data-symbol="\blackdiamond">◆</button>
+                                <button class="popup-symbol-btn" data-symbol="\star">★</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigstar">★</button>
+                                <button class="popup-symbol-btn" data-symbol="\spadesuit">♠</button>
+                                <button class="popup-symbol-btn" data-symbol="\heartsuit">♣</button>
+                                <button class="popup-symbol-btn" data-symbol="\diamondsuit">◆</button>
+                                <button class="popup-symbol-btn" data-symbol="\clubsuit">♣</button>
+                                <button class="popup-symbol-btn" data-symbol="\lozenge">◊</button>
+                                <button class="popup-symbol-btn" data-symbol="\circledcirc">⊚</button>
+                                <button class="popup-symbol-btn" data-symbol="\circledast">⊛</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigodot">⊙</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigoplus">⊕</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigotimes">⊗</button>
+                                <button class="popup-symbol-btn" data-symbol="\circleddash">⊝</button>
+                            </div>
+                            <div class="symbol-grid angles-tab"
+                                style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\angle">∠</button>
+                                <button class="popup-symbol-btn" data-symbol="\measuredangle">∡</button>
+                                <button class="popup-symbol-btn" data-symbol="\sphericalangle">∢</button>
+                                <button class="popup-symbol-btn" data-symbol="\rightangle">∟</button>
+                                <button class="popup-symbol-btn" data-symbol="\angle ABC">∠ABC</button>
+                                <button class="popup-symbol-btn" data-symbol="\triangleangle">⊾</button>
+                                <button class="popup-symbol-btn" data-symbol="\perp">⟂</button>
+                                <button class="popup-symbol-btn" data-symbol="\parallel">∥</button>
+                                <button class="popup-symbol-btn" data-symbol="\nparallel">∦</button>
+                                <button class="popup-symbol-btn" data-symbol="\measuredangle">∡</button>
+                                <button class="popup-symbol-btn" data-symbol="\angle ABC">∠ABC</button>
+                                <button class="popup-symbol-btn" data-symbol="\sphericalangle">∢</button>
+                            </div>
+                            <div class="symbol-grid triangles-tab"
+                                style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\triangle">△</button>
+                                <button class="popup-symbol-btn" data-symbol="\triangleright">▷</button>
+                                <button class="popup-symbol-btn" data-symbol="\triangleleft">◁</button>
+                                <button class="popup-symbol-btn" data-symbol="\blacktriangle">▲</button>
+                                <button class="popup-symbol-btn" data-symbol="\blacktriangleright">▶</button>
+                                <button class="popup-symbol-btn" data-symbol="\blacktriangleleft">◀</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigtriangleup">△</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigtriangledown">▽</button>
+                                <button class="popup-symbol-btn" data-symbol="\vartriangleright">⊳</button>
+                                <button class="popup-symbol-btn" data-symbol="\vartriangleleft">⊲</button>
+                                <button class="popup-symbol-btn" data-symbol="\trianglerighteq">⊵</button>
+                                <button class="popup-symbol-btn" data-symbol="\trianglelefteq">⊴</button>
+                            </div>
+                            <div class="symbol-grid quad-tab" style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\square">□</button>
+                                <button class="popup-symbol-btn" data-symbol="\blacksquare">■</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxminus">⊟</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxplus">⊞</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxtimes">⊠</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxdot">⊡</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxminus">⊟</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxplus">⊞</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxtimes">⊠</button>
+                                <button class="popup-symbol-btn" data-symbol="\boxdot">⊡</button>
+                                <button class="popup-symbol-btn" data-symbol="\diamond">◇</button>
+                                <button class="popup-symbol-btn" data-symbol="\blackdiamond">◆</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 其他符号 -->
+                <div class="symbol-category">
+                    <button id="otherSymbolsBtn" class="category-btn">∞ 其他符号</button>
+                    <div id="otherSymbolsPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="units">单位</button>
+                                <button class="tab-btn" data-tab="infinity">无穷与极限</button>
+                                <button class="tab-btn" data-tab="misc">杂项</button>
+                            </div>
+                            <div class="symbol-grid units-tab" style="grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="^{\circ}">°</button>
+                                <button class="popup-symbol-btn" data-symbol="^{\prime}">′</button>
+                                <button class="popup-symbol-btn" data-symbol="^{\prime\prime}">″</button>
+                                <button class="popup-symbol-btn" data-symbol="\%">%</button>
+                                <button class="popup-symbol-btn" data-symbol="\permil">‰</button>
+                                <button class="popup-symbol-btn" data-symbol="\angle">∠</button>
+                                <button class="popup-symbol-btn" data-symbol="\measuredangle">∡</button>
+                                <button class="popup-symbol-btn" data-symbol="\sphericalangle">∢</button>
+                                <button class="popup-symbol-btn" data-symbol="\degree">°</button>
+                                <button class="popup-symbol-btn" data-symbol="\celsius">℃</button>
+                                <button class="popup-symbol-btn" data-symbol="\infty">∞</button>
+                                <button class="popup-symbol-btn" data-symbol="\partial">∂</button>
+                            </div>
+                            <div class="symbol-grid infinity-tab"
+                                style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\infty">∞</button>
+                                <button class="popup-symbol-btn" data-symbol="\aleph">ℵ</button>
+                                <button class="popup-symbol-btn" data-symbol="\beth">ℶ</button>
+                                <button class="popup-symbol-btn" data-symbol="\gimel">ℷ</button>
+                                <button class="popup-symbol-btn" data-symbol="\daleth">ℸ</button>
+                                <button class="popup-symbol-btn" data-symbol="\partial">∂</button>
+                                <button class="popup-symbol-btn" data-symbol="\nabla">∇</button>
+                                <button class="popup-symbol-btn" data-symbol="\hbar">ℏ</button>
+                                <button class="popup-symbol-btn" data-symbol="\hslash">ℏ</button>
+                                <button class="popup-symbol-btn" data-symbol="\ell">ℓ</button>
+                                <button class="popup-symbol-btn" data-symbol="\eth">ð</button>
+                                <button class="popup-symbol-btn" data-symbol="\wp">℘</button>
+                            </div>
+                            <div class="symbol-grid misc-tab" style="display:none;grid-template-columns:repeat(6,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\therefore">∴</button>
+                                <button class="popup-symbol-btn" data-symbol="\because">∵</button>
+                                <button class="popup-symbol-btn" data-symbol="\Box">□</button>
+                                <button class="popup-symbol-btn" data-symbol="\Diamond">◇</button>
+                                <button class="popup-symbol-btn" data-symbol="\lozenge">◊</button>
+                                <button class="popup-symbol-btn" data-symbol="\pounds">£</button>
+                                <button class="popup-symbol-btn" data-symbol="\yen">¥</button>
+                                <button class="popup-symbol-btn" data-symbol="\surd">√</button>
+                                <button class="popup-symbol-btn" data-symbol="\flat">♭</button>
+                                <button class="popup-symbol-btn" data-symbol="\natural">♮</button>
+                                <button class="popup-symbol-btn" data-symbol="\sharp">♯</button>
+                                <button class="popup-symbol-btn" data-symbol="\mho">℧</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+
+                <!-- 上下标/脚本 -->
+                <div class="symbol-category">
+                    <button id="scriptBtn" class="category-btn">x² 上下标</button>
+                    <div id="scriptPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="six-dim">六维上下标</button>
+                                <button class="tab-btn" data-tab="sup">右上标</button>
+                                <button class="tab-btn" data-tab="sub">右下标</button>
+                                <button class="tab-btn" data-tab="left-super">左上标</button>
+                                <button class="tab-btn" data-tab="left-sub">左下标</button>
+                                <button class="tab-btn" data-tab="top-super">正上标</button>
+                                <button class="tab-btn" data-tab="bottom-sub">正下标</button>
+                            </div>
+                            <div class="symbol-grid six-dim-tab" style="grid-template-columns:repeat(3,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="{}_{a}^{b}X_{c}^{d}">ₐᵇX_c^d</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\overset{a}{\underset{b}{X}}">X̅a̅b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="{}_{a}^{b}\overset{c}{\underset{d}{X}}_{e}^{f}">六维模板</button>
+                            </div>
+                            <div class="symbol-grid sup-tab" style="grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="x^{2}">x²</button>
+                                <button class="popup-symbol-btn" data-symbol="x^{3}">x³</button>
+                                <button class="popup-symbol-btn" data-symbol="x^{n}">xⁿ</button>
+                                <button class="popup-symbol-btn" data-symbol="e^{x}">eˣ</button>
+                                <button class="popup-symbol-btn" data-symbol="e^{i\theta}">e^(iθ)</button>
+                                <button class="popup-symbol-btn" data-symbol="a^{b}">aᵇ</button>
+                                <button class="popup-symbol-btn" data-symbol="x^{\frac{1}{2}}">x^(½)</button>
+                                <button class="popup-symbol-btn" data-symbol="^{n}C_{k}">ⁿCₖ</button>
+                                <button class="popup-symbol-btn" data-symbol="x^{\prime}">x′</button>
+                                <button class="popup-symbol-btn" data-symbol="x^{\prime\prime}">x″</button>
+                            </div>
+                            <div class="symbol-grid sub-tab" style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="x_{1}">x₁</button>
+                                <button class="popup-symbol-btn" data-symbol="x_{2}">x₂</button>
+                                <button class="popup-symbol-btn" data-symbol="x_{n}">xₙ</button>
+                                <button class="popup-symbol-btn" data-symbol="a_{i}">aᵢ</button>
+                                <button class="popup-symbol-btn" data-symbol="a_{ij}">aᵢⱼ</button>
+                                <button class="popup-symbol-btn" data-symbol="\lim_{x \to a}">lim→</button>
+                                <button class="popup-symbol-btn" data-symbol="\sum_{i=1}^{n}">∑</button>
+                                <button class="popup-symbol-btn" data-symbol="\prod_{i=1}^{n}">∏</button>
+                                <button class="popup-symbol-btn" data-symbol="f_{n}">fₙ</button>
+                                <button class="popup-symbol-btn" data-symbol="y_{k}">yₖ</button>
+                            </div>
+                            <div class="symbol-grid left-super-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="{}^{x}y">ʸx</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{n}y">ⁿy</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{a}b">ᵇa</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{k}x">ˣk</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{m+n}x">ˣ⁺ⁿm</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{2}x">ˣ²</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{3}x">ˣ³</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{i}x">ˣⁱ</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{j}x">ˣʲ</button>
+                                <button class="popup-symbol-btn" data-symbol="{}^{t}x">ˣᵗ</button>
+                            </div>
+                            <div class="symbol-grid left-sub-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="{}_{x}y">ₓy</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{n}y">ₙy</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{a}b">ₐb</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{k}x">ₖx</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{i}x">ᵢx</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{j}x">ⱼx</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{m}x">ₘx</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{n}x">ₙx</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{p}x">ₚx</button>
+                                <button class="popup-symbol-btn" data-symbol="{}_{r}x">ᵣx</button>
+                            </div>
+                            <div class="symbol-grid top-super-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\overset{x}{y}">x̅y</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{a}{b}">a̅b</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{n}{x}">n̅x</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{\rightarrow}{x}">x⃗</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{\leftarrow}{x}">x⃖</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{\leftrightarrow}{x}">x⃡</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{\cdot}{x}">ẋ</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{\ddot}{x}">ẍ</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{\hat}{x}">x̂</button>
+                                <button class="popup-symbol-btn" data-symbol="\overset{\tilde}{x}">x̃</button>
+                            </div>
+                            <div class="symbol-grid bottom-sub-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\underset{x}{y}">y̱x</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{a}{b}">ḇa</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{n}{x}">x̱n</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{i=1}{x}">x̱ᵢ₌₁</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{0}{x}">x̱₀</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{\infty}{x}">x̱∞</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{a}{lim}">lim̱ₐ</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{x\to 0}{y}">y̱ₓ→₀</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{1}{x}">x̱₁</button>
+                                <button class="popup-symbol-btn" data-symbol="\underset{ij}{x}">x̱ᵢⱼ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 分数（直接插入模板） -->
+                <div class="symbol-category">
+                    <button id="fractionBtn" class="category-btn">a/b 分数</button>
+                </div>
+
+                <!-- 指数 -->
+                <div class="symbol-category">
+                    <button id="exponentBtn" class="category-btn">x² 指数</button>
+                </div>
+
+                <!-- 对数 -->
+                <div class="symbol-category">
+                    <button id="logarithmBtn" class="category-btn">log 对数</button>
+                    <div id="logarithmPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="symbol-grid" style="grid-template-columns:repeat(4,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\log">log</button>
+                                <button class="popup-symbol-btn" data-symbol="\ln">ln</button>
+                                <button class="popup-symbol-btn" data-symbol="\lg">lg</button>
+                                <button class="popup-symbol-btn" data-symbol="\log_{a}">logₐ</button>
+
+
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 根号 -->
+                <div class="symbol-category">
+                    <button id="radicalBtn" class="category-btn">√ 根号</button>
+                </div>
+
+                <!-- 积分 -->
+                <div class="symbol-category">
+                    <button id="integralBtn" class="category-btn">∫ 积分</button>
+                    <div id="integralPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="int-reg">普通积分</button>
+                                <button class="tab-btn" data-tab="int-cont">围道积分</button>
+                            </div>
+                            <div class="symbol-grid int-reg-tab" style="grid-template-columns:repeat(3,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\int">∫</button>
+                                <button class="popup-symbol-btn" data-symbol="\int_{a}^{b}">∫_a^b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\int\limits_{a}^{b}">∫^b_a(stacked)</button>
+                                <button class="popup-symbol-btn" data-symbol="\iint">∬</button>
+                                <button class="popup-symbol-btn" data-symbol="\iint_{a}^{b}">∬_a^b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\iint\limits_{a}^{b}">∬^b_a(stacked)</button>
+                                <button class="popup-symbol-btn" data-symbol="\iiint">∭</button>
+                                <button class="popup-symbol-btn" data-symbol="\iiint_{a}^{b}">∭_a^b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\iiint\limits_{a}^{b}">∭^b_a(stacked)</button>
+                            </div>
+                            <div class="symbol-grid int-cont-tab"
+                                style="display:none;grid-template-columns:repeat(3,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\oint">∮</button>
+                                <button class="popup-symbol-btn" data-symbol="\oint_{a}^{b}">∮_a^b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\oint\limits_{a}^{b}">∮^b_a(stacked)</button>
+                                <button class="popup-symbol-btn" data-symbol="\oiint">∯</button>
+                                <button class="popup-symbol-btn" data-symbol="\oiint_{a}^{b}">∯_a^b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\oiint\limits_{a}^{b}">∯^b_a(stacked)</button>
+                                <button class="popup-symbol-btn" data-symbol="\oiiint">∰</button>
+                                <button class="popup-symbol-btn" data-symbol="\oiiint_{a}^{b}">∰_a^b</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\oiiint\limits_{a}^{b}">∰^b_a(stacked)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 极限 -->
+                <div class="symbol-category">
+                    <button id="limitBtn" class="category-btn">lim 极限</button>
+                </div>
+
+                <!-- 矩阵 -->
+                <div class="symbol-category">
+                    <button id="matrixBtn" class="category-btn">⊞ 矩阵</button>
+                    <div id="matrixPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div id="matrixGridSelector" style="padding:10px;">
+                                <table id="matrixGridTable" style="border-collapse:collapse;margin:0 auto;"></table>
+                                <div id="matrixGridLabel"
+                                    style="text-align:center;color:#aef0ff;margin-top:6px;font-size:12px;">1x1 矩阵</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 括号 -->
+                <div class="symbol-category">
+                    <button id="bracketBtn" class="category-btn">( ) 括号</button>
+                    <div id="bracketPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="symbol-grid" style="grid-template-columns:repeat(4,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\left( x \right)">(x)</button>
+                                <button class="popup-symbol-btn" data-symbol="\left[ x \right]">[x]</button>
+                                <button class="popup-symbol-btn" data-symbol="\left\{ x \right\}">{x}</button>
+                                <button class="popup-symbol-btn" data-symbol="\left| x \right|">|x|</button>
+                                <button class="popup-symbol-btn" data-symbol="\left\| x \right\|">‖x‖</button>
+                                <button class="popup-symbol-btn" data-symbol="\langle x \rangle">⟨x⟩</button>
+                                <button class="popup-symbol-btn" data-symbol="\lceil x \rceil">⌈x⌉</button>
+                                <button class="popup-symbol-btn" data-symbol="\lfloor x \rfloor">⌊x⌋</button>
+                                <button class="popup-symbol-btn" data-symbol="\left( \frac{a}{b} \right)">(a/b)</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\left\{ \begin{matrix} a \\ b \end{matrix} \right\}">{a\\b}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 大运算符 -->
+                <div class="symbol-category">
+                    <button id="largeOpBtn" class="category-btn">∑ 大运算符</button>
+                    <div id="largeOpPopup" class="symbol-popup" style="display:none;">
+                        <div class="popup-content">
+                            <div class="popup-tabs">
+                                <button class="tab-btn active" data-tab="sum">求和</button>
+                                <button class="tab-btn" data-tab="prod">乘积和副积</button>
+                                <button class="tab-btn" data-tab="union">并集和交集</button>
+                                <button class="tab-btn" data-tab="other">其他大运算符</button>
+                            </div>
+                            <div class="symbol-grid sum-tab" style="grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\sum">∑</button>
+                                <button class="popup-symbol-btn" data-symbol="\sum_{i=1}^{n}">∑_{i=1}^n</button>
+                                <button class="popup-symbol-btn" data-symbol="\sum\limits_{i=1}^{n}">∑^n_{i=1}</button>
+                                <button class="popup-symbol-btn" data-symbol="\sum_{i=1}^{\infty}">∑_{i=1}^∞</button>
+                                <button class="popup-symbol-btn"
+                                    data-symbol="\sum\limits_{i=1}^{\infty}">∑^∞_{i=1}</button>
+                            </div>
+                            <div class="symbol-grid prod-tab" style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\prod">∏</button>
+                                <button class="popup-symbol-btn" data-symbol="\prod_{i=1}^{n}">∏_{i=1}^n</button>
+
+                                <button class="popup-symbol-btn" data-symbol="\coprod">∐</button>
+                                <button class="popup-symbol-btn" data-symbol="\coprod_{i=1}^{n}">∐_{i=1}^n</button>
+
+                                <button class="popup-symbol-btn" data-symbol="\bigotimes">⨂</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigoplus">⨁</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigodot">⨀</button>
+
+                            </div>
+                            <div class="symbol-grid union-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\bigcup">⋃</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigcup_{i=1}^{n}">⋃_{i=1}^n</button>
+
+                                <button class="popup-symbol-btn" data-symbol="\bigcap">⋂</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigcap_{i=1}^{n}">⋂_{i=1}^n</button>
+
+                                <button class="popup-symbol-btn" data-symbol="\biguplus">⨄</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigsqcup">⨆</button>
+
+                            </div>
+                            <div class="symbol-grid other-tab"
+                                style="display:none;grid-template-columns:repeat(5,1fr);">
+                                <button class="popup-symbol-btn" data-symbol="\bigvee">⋁</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigvee_{i=1}^{n}">⋁_{i=1}^n</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigwedge">⋀</button>
+                                <button class="popup-symbol-btn" data-symbol="\bigwedge_{i=1}^{n}">⋀_{i=1}^n</button>
+                                <button class="popup-symbol-btn" data-symbol="\max">max</button>
+                                <button class="popup-symbol-btn" data-symbol="\min">min</button>
+                                <button class="popup-symbol-btn" data-symbol="\sup">sup</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 更多符号 -->
+                <div class="symbol-category">
+
+                </div>
+
+            </div>
+        </div>
+        <!-- 公式编辑区 -->
+        <div style="padding: 12px 16px 4px;">
+            <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+                <math-field id="formulaMathfield"
+                    style="flex:1;min-height:60px;background:#07161f;border:1px solid #2c6e7e;border-radius:8px;padding:8px;color:#eef;font-size:18px;"></math-field>
+                <input id="formulaColorPicker" type="color" value="#eef"
+                    style="width:36px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent;padding:0;flex-shrink:0;"
+                    title="公式颜色">
+            </div>
+        </div>
+        <!-- 操作按钮 -->
+        <div
+            style="padding: 8px 16px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #1a3a4a;">
+            <button id="cancelFormulaBtn"
+                style="background:#3a2a2a;color:#aaa;border:none;border-radius:10px;padding:6px 18px;cursor:pointer;font-size:13px;">取消</button>
+            <button id="confirmFormulaBtn"
+                style="background:#2c6e7e;color:white;border:none;border-radius:10px;padding:6px 18px;cursor:pointer;font-size:13px;">插入</button>
+        </div>
+        <!-- 缩放手柄 -->
+        <div id="formulaResizeHandle"
+            style="position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:se-resize;background:linear-gradient(135deg,transparent 50%,#2c6e7e 50%,#2c6e7e 55%,transparent 55%,transparent 60%,#2c6e7e 60%,#2c6e7e 65%,transparent 65%);border-bottom-right-radius:16px;">
+        </div>
+    </div>
+
+    <!-- ==================== MDI 编辑器窗口模板 ==================== -->
+    <template id="editorWindowTemplate">
+        <div class="editor-window"
+            style="position:absolute;display:flex;flex-direction:column;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--panel-radius);box-shadow:var(--panel-shadow);overflow:hidden;min-width:320px;min-height:200px;">
+            <div class="editor-window-header"
+                style="display:flex;align-items:center;background:var(--header-bg);padding:0 8px;cursor:default;flex-shrink:0;height:36px;user-select:none;">
+                <div class="editor-window-title"
+                    style="flex:1;font-size:13px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;cursor:move;">
+                    节点标题</div>
+                <div class="editor-window-caption-buttons" style="display:flex;gap:4px;flex-shrink:0;">
+                    <button class="win-btn win-btn-minimize" title="最小化"
+                        style="background:none;border:none;color:#8af;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;">─</button>
+                    <button class="win-btn win-btn-maximize" title="最大化"
+                        style="background:none;border:none;color:#8af;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;">□</button>
+                    <button class="win-btn win-btn-close" title="关闭"
+                        style="background:none;border:none;color:#f66;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;">×</button>
+                </div>
+            </div>
+            <div class="editor-window-toolbar" style="flex-shrink:0;position:relative;background:var(--header-bg);">
+            </div>
+            <div class="editor-window-body" style="flex:1;display:flex;overflow:hidden;position:relative;">
+                <div class="editor-window-tree-sidebar"
+                    style="width:200px;flex-shrink:0;border-right:1px solid var(--divider);display:flex;flex-direction:column;background:var(--input-bg);">
+                    <div style="padding:6px 8px;">
+                        <input type="text" class="editor-window-tree-search" placeholder="🔍 搜索节点..."
+                            style="width:100%;background:#07161f;border:1px solid #2c6e7e;color:#eef;border-radius:16px;padding:4px 10px;font-size:12px;outline:none;"
+                            autocomplete="off">
+                    </div>
+                    <div class="editor-window-tree-container" style="flex:1;overflow:hidden;position:relative;">
+                        <canvas class="editor-window-tree-canvas"
+                            style="width:100%;height:100%;display:block;"></canvas>
+                    </div>
+                </div>
+                <div class="editor-window-resize-handle"
+                    style="width:4px;cursor:col-resize;background:transparent;flex-shrink:0;"></div>
+                <div class="editor-window-edit-area" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+                    <div class="editor-window-toolbar-dock" style="flex-shrink:0;position:relative;"></div>
+                    <div class="editor-window-content" style="flex:1;display:flex;overflow:hidden;position:relative;">
+                        <textarea class="editor-window-textarea" style="display:none;"></textarea>
+                    </div>
+                    <div class="editor-window-statusbar"
+                        style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:2px 8px;background:var(--header-bg);border-top:1px solid var(--divider);font-size:11px;color:var(--text-secondary);">
+                        <span class="editor-window-wordcount">0 字</span>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span style="font-size:10px;color:#4a7a8a;">缩放</span>
+                            <input type="range" class="editor-window-zoom" min="0.5" max="2" step="0.1" value="1"
+                                style="width:60px;height:4px;">
+                            <span class="editor-window-zoom-value" style="min-width:24px;text-align:right;">100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 窗口缩放手柄 -->
+            <div class="win-resize-handle" data-handle="n"
+                style="position:absolute;top:-2px;left:4px;right:4px;height:4px;cursor:n-resize;z-index:10;"></div>
+            <div class="win-resize-handle" data-handle="s"
+                style="position:absolute;bottom:-2px;left:4px;right:4px;height:4px;cursor:s-resize;z-index:10;"></div>
+            <div class="win-resize-handle" data-handle="e"
+                style="position:absolute;right:-2px;top:4px;bottom:4px;width:4px;cursor:e-resize;z-index:10;"></div>
+            <div class="win-resize-handle" data-handle="w"
+                style="position:absolute;left:-2px;top:4px;bottom:4px;width:4px;cursor:w-resize;z-index:10;"></div>
+            <div class="win-resize-handle" data-handle="se"
+                style="position:absolute;right:-4px;bottom:-4px;width:8px;height:8px;cursor:se-resize;z-index:11;">
+            </div>
+            <div class="win-resize-handle" data-handle="sw"
+                style="position:absolute;left:-4px;bottom:-4px;width:8px;height:8px;cursor:sw-resize;z-index:11;"></div>
+            <div class="win-resize-handle" data-handle="ne"
+                style="position:absolute;right:-4px;top:-4px;width:8px;height:8px;cursor:ne-resize;z-index:11;"></div>
+            <div class="win-resize-handle" data-handle="nw"
+                style="position:absolute;left:-4px;top:-4px;width:8px;height:8px;cursor:nw-resize;z-index:11;"></div>
+        </div>
+    </template>
+
+    <!-- ==================== 富文本编辑器模态框 ==================== -->
+    <div id="richEditorModal" class="rich-modal">
+        <div class="rich-modal-content">
+            <div class="rich-modal-header">
+                <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                    <h2 id="modalNodeTitle">📘 编辑笔记</h2>
+                    <button id="renameModalTitleBtn" title="重命名"
+                        style="background:none; border:none; color:#0ff; font-size:14px; cursor:pointer; padding:0 4px; width:auto; height:auto; margin-left:4px; display:none;">✏️</button>
+                </div>
+                <div class="caption-buttons">
+                    <button id="minimizeModalBtn" class="caption-btn" title="最小化">
+                        <svg viewBox="0 0 10 10">
+                            <line x1="2" y1="5" x2="8" y2="5" />
+                        </svg>
+                    </button>
+                    <button id="maximizeModalBtn" class="caption-btn" title="最大化">
+                        <svg viewBox="0 0 10 10">
+                            <rect x="2" y="2" width="6" height="6" rx="0" />
+                        </svg>
+                    </button>
+                    <button id="closeModalBtn" class="caption-btn close" title="关闭">
+                        <svg viewBox="0 0 10 10">
+                            <line x1="2" y1="2" x2="8" y2="8" />
+                            <line x1="8" y1="2" x2="2" y2="8" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="panel-accent-line"></div>
+            <div id="editorTabBar" class="editor-tab-bar" style="display:none;"></div>
+            <div class="rich-editor-body">
+                <!-- 左侧节点树 -->
+                <div class="tree-sidebar" id="treeSidebar">
+                    <div class="tree-search">
+                        <input type="text" id="treeSearchInput" placeholder="🔍 搜索节点..." autocomplete="off">
+                    </div>
+                    <div class="tree-container" id="treeContainer">
+                        <div class="layer-strip" id="treeLayerStrip"></div>
+                        <canvas id="tree2dCanvas" style="width:100%;height:100%;display:block;"></canvas>
+                    </div>
+                    <button class="tree-collapse-btn" id="toggleTreeBtn">◀</button>
+                </div>
+                <!-- 拖拽分割线 -->
+                <div class="resize-handle" id="treeResizeHandle"></div>
+                <!-- 编辑区域 -->
+                <div class="edit-area-wrapper">
+                    <div id="richToolbar" style="flex-shrink:0; position:relative;">
+                        <div id="toolbarDock"></div>
+                    </div>
+                    <div id="editPanelsWrapper" style="display:flex; flex:1; overflow:hidden; position:relative;">
+                        <div id="editPanelA"
+                            style="flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative;">
+                            <div id="ckEditorContainer"
+                                style="flex:1; display:flex; flex-direction:column; overflow:hidden; background:#0d1b23;">
+                                <div id="tinymce-editor-textarea" style="display:none;"></div>
+                            </div>
+                        </div>
+                        <div id="splitDivider"
+                            style="display:none; width:6px; background:#1a3a4a; cursor:col-resize; flex-shrink:0; position:relative; z-index:10;">
+                            <div
+                                style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:2px; height:32px; background:#2c6e7e; border-radius:1px;">
+                            </div>
+                            <div id="splitSwapBtn" title="交换位置"
+                                style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:20px;height:20px;background:#1a3a4a;border:1px solid #2c6e7e;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;"
+                                onmouseenter="this.style.background='#2c6e7e'"
+                                onmouseleave="this.style.background='#1a3a4a'">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#aef0ff"
+                                    stroke-width="1.5" stroke-linecap="round">
+                                    <path d="M2 4h8M10 4l-2-2M10 4l-2 2" />
+                                    <path d="M10 8H2M2 8l2-2M2 8l2 2" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div id="editPanelB"
+                            style="display:none; flex:1; flex-direction:column; overflow:hidden; position:relative; background:#0d1b23;">
+                        </div>
+                    </div>
+                    <div
+                        style="flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:2px 8px; background:var(--header-bg); border-top:1px solid var(--divider); font-size:11px; color:var(--text-secondary);">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-size:10px; color:#4a7a8a;">🔍</span>
+                            <input type="range" id="editorZoomSlider" min="25" max="300" step="5" value="100"
+                                style="width:60px; height:4px; cursor:pointer;">
+                            <input type="text" id="editorZoomInput" value="100"
+                                style="width:32px; background:#07161f; border:1px solid #1a3a4a; color:#8af; text-align:center; font-size:10px; border-radius:2px; padding:1px 0; outline:none;">
+                            <span style="font-size:10px; color:#4a7a8a;">%</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button id="toggleToolbarBtn"
+                                style="background:none; border:none; color:#8af; font-size:12px; cursor:pointer; padding:2px 6px;">🔽</button>
+                            <button id="saveRichContentBtn"
+                                style="background:none; border:none; color:#8af; font-size:12px; cursor:pointer; padding:2px 6px;">💾
+                                保存</button>
+                            <button id="exportWordBtn"
+                                style="background:none; border:none; color:#8af; font-size:12px; cursor:pointer; padding:2px 6px;">📄
+                                导出</button>
+                            <button id="clearFormatBtn"
+                                style="background:none; border:none; color:#8af; font-size:12px; cursor:pointer; padding:2px 6px;">🧹
+                                清除格式</button>
+                            <span style="width:1px; height:14px; background:#1a3a4a; margin:0 2px;"></span>
+                            <button id="wcBtn"
+                                style="background:none; border:none; color:#8af; font-size:12px; cursor:pointer; padding:2px 6px; position:relative;">0
+                                字</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 字数统计弹出框 ==================== -->
+    <div id="wcPopup"
+        style="display:none; position:fixed; z-index:3000; background:var(--panel-bg); backdrop-filter:blur(12px); border:1px solid var(--panel-border); border-radius:var(--panel-radius); padding:12px 16px; box-shadow:var(--panel-shadow); min-width:180px; font-size:12px; color:var(--accent-light);">
+        <table style="width:100%; border-collapse:collapse;">
+            <tr>
+                <td style="padding:4px 8px; color:#4a7a8a;">总字数</td>
+                <td id="wcTotal" style="padding:4px 8px; text-align:right; color:#ccd;">0</td>
+            </tr>
+            <tr>
+                <td style="padding:4px 8px; color:#4a7a8a;">中文字数</td>
+                <td id="wcChinese" style="padding:4px 8px; text-align:right; color:#ccd;">0</td>
+            </tr>
+            <tr>
+                <td style="padding:4px 8px; color:#4a7a8a;">非中文字数</td>
+                <td id="wcNonChinese" style="padding:4px 8px; text-align:right; color:#ccd;">0</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 右键菜单（节点专用） ==================== -->
+    <div id="nodeContextMenu">
+        <div class="menu-title" style="display:flex; align-items:center; gap:6px;">
+            <span id="contextNodeName">节点名称</span>
+            <button id="contextRenameToggleBtn"
+                style="background:none; border:none; color:#0ff; font-size:14px; cursor:pointer; padding:0 4px; width:auto; height:auto; margin:0;"
+                title="重命名">✏️</button>
+            <input type="text" id="contextRenameInput" placeholder="新名称" autocomplete="off"
+                style="display:none; flex:1; background:#07161f; border:1px solid #2c6e7e; color:#eef; padding:2px 4px; border-radius:12px; font-size:13px; min-width:120px;">
+        </div>
+        <div id="crossLayerSection"
+            style="display:none; border-top:1px solid var(--panel-border); padding-top:6px; margin-bottom:4px;">
+            <div style="font-weight:bold; color:#8af; font-size:12px; margin-bottom:4px;">跨图层连接</div>
+            <div id="crossLayerSourceList" style="display:flex; flex-direction:column; gap:3px; margin-bottom:3px;">
+                <div style="color:#6af;font-size:11px;">← 源节点</div>
+            </div>
+            <div id="crossLayerTargetList" style="display:flex; flex-direction:column; gap:3px;">
+                <div style="color:#fa6;font-size:11px;">→ 目标节点</div>
+            </div>
+        </div>
+        <div class="menu-row">
+            <label>节点大小</label>
+            <input type="range" id="nodeSizeSlider" min="0.3" max="3" step="0.1" value="1">
+            <span id="nodeSizeValue">1.0</span>
+        </div>
+        <div class="menu-row">
+            <label>光环速度</label>
+            <input type="range" id="ringSpeedSlider" min="0" max="5" step="0.1" value="1">
+            <span id="ringSpeedValue">1.0</span>
+        </div>
+        <div class="menu-row">
+            <label>固定颜色</label>
+            <input type="color" id="nodeFixedColorPicker" value="#ffffff">
+            <button id="clearFixedColorBtn">清除</button>
+        </div>
+        <div class="menu-row">
+            <label>2D节点图形</label>
+            <select id="nodeShapeSelect"
+                style="flex:1; background:#07161f; border:1px solid #2c6e7e; color:#eef; padding:3px 6px; border-radius:8px; font-size:12px;">
+                <option value="roundedRect">圆角长方形</option>
+                <option value="diamond">扁菱形</option>
+                <option value="ellipse">椭圆形</option>
+                <option value="stadium">跑道形</option>
+            </select>
+        </div>
+        <div class="menu-row">
+            <label>3D节点形状</label>
+            <select id="node3DShapeSelect"
+                style="flex:1; background:#07161f; border:1px solid #2c6e7e; color:#eef; padding:3px 6px; border-radius:8px; font-size:12px;">
+                <option value="sphere">球体</option>
+                <option value="box">立方体</option>
+                <option value="cylinder">圆柱体</option>
+                <option value="cone">圆锥</option>
+                <option value="torus">圆环</option>
+                <option value="octahedron">八面体</option>
+                <option value="icosahedron">二十面体</option>
+            </select>
+        </div>
+        <button id="resetNodeDefaultsBtn">🔄 恢复默认</button>
+        <div class="menu-row" id="alignSection" style="display:none;">
+            <span style="color:#8af;font-size:12px;width:100%;text-align:center;">━━ 对齐 ━━</span>
+        </div>
+        <div class="menu-row" id="alignRowHorizontal" style="display:none;">
+            <span style="color:#aaa;font-size:11px;">横向</span>
+            <button id="alignTopBtn" style="background:#2c4a6e;font-size:12px;">⬆ 上对齐</button>
+            <button id="alignHCenterBtn" style="background:#2c4a6e;font-size:12px;">- 水平居中</button>
+            <button id="alignBottomBtn" style="background:#2c4a6e;font-size:12px;">⬇ 下对齐</button>
+        </div>
+        <div class="menu-row" id="alignRowVertical" style="display:none;">
+            <span style="color:#aaa;font-size:11px;">纵向</span>
+            <button id="alignLeftBtn" style="background:#2c5a5e;font-size:12px;">⬅ 左对齐</button>
+            <button id="alignVCenterBtn" style="background:#2c5a5e;font-size:12px;">- 垂直居中</button>
+            <button id="alignRightBtn" style="background:#2c5a5e;font-size:12px;">➡ 右对齐</button>
+        </div>
+        <div class="menu-row" id="groupRow" style="display:none;">
+            <button id="groupNodesBtn" style="background:#4a3c7e;font-size:12px;"> 新建群组</button>
+        </div>
+        <div class="menu-row">
+            <button id="addChildNodeBtn" style="background:#2c6e7e;">＋ 新建子节点</button>
+            <button id="addNextNodeBtn" style="background:#2c7a6e;">⬇ 新建下一步节点</button>
+        </div>
+
+        <div class="menu-row">
+            <button id="toggleChildrenContextBtn" style="background:#2c6e7e;">折叠/展开子节点</button>
+            <button id="locateOtherViewBtn" style="background:#2c6e7e;">定位</button>
+        </div>
+        <div class="menu-row" id="splitScreenRow" style="display:none;">
+            <button id="splitScreenBtn" style="background:#2c5a6e;">分屏显示</button>
+        </div>
+        <div class="menu-row">
+            <button id="addConnectionContextBtn" style="background:#2c6e7e;">添加连线</button>
+            <button id="removeConnectionContextBtn" style="background:#6a3c3c;">删除连线</button>
+        </div>
+        <div class="menu-row">
+            <button id="moveNodeBtn" style="background:#2c6e7e;">移动节点</button>
+            <button id="copyNodeBtn" style="background:#2c5a7e;">复制节点</button>
+            <button id="deleteNodeContextBtn" style="background:#6a2c2c;">删除该节点</button>
+        </div>
+    </div>
+
+    <!-- ==================== 空白区域右键菜单 ==================== -->
+    <div id="blankContextMenu"
+        style="position:absolute;background:var(--panel-bg);backdrop-filter:blur(16px);border:1px solid var(--panel-border);border-radius:var(--panel-radius);padding:8px;z-index:4000;display:none;flex-direction:column;gap:4px;min-width:200px;box-shadow:var(--panel-shadow);color:var(--text-primary);font-family:system-ui,sans-serif;font-size:13px;">
+        <div class="panel-accent-line" style="margin-bottom:4px;"></div>
+        <div class="menu-row">
+            <button id="addRootNodeBtn" style="background:rgba(44,122,110,0.6);">＋ 新建文本节点</button>
+        </div>
+        <div class="menu-row">
+            <button id="addStepRootNodeBtn" style="background:rgba(106,60,122,0.6);">⬆ 新建文本步骤节点</button>
+        </div>
+        <div class="menu-row" style="border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">
+            <button id="undoBtn" title="撤销 (Ctrl+Z)" style="background:rgba(255,255,255,0.06);flex:1;">↩ 撤销</button>
+            <button id="redoBtn" title="重做 (Ctrl+Y)" style="background:rgba(255,255,255,0.06);flex:1;">↪ 重做</button>
+        </div>
+        <div class="menu-row">
+            <button id="pasteNodeBtn" style="background:rgba(44,90,126,0.6);">📋 粘贴节点</button>
+        </div>
+        <div class="menu-row" style="border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">
+            <button id="blankSettingsBtn" style="background:rgba(0,255,255,0.12);">⚙️ 设置</button>
+        </div>
+    </div>
+
+    <!-- ==================== 群组矩形右键菜单 ==================== -->
+    <div id="groupContextMenu"
+        style="position:absolute;background:var(--panel-bg);backdrop-filter:blur(16px);border:1px solid var(--panel-border);border-radius:var(--panel-radius);padding:8px;z-index:4000;display:none;flex-direction:column;gap:12px;min-width:220px;box-shadow:var(--panel-shadow);color:var(--text-primary);font-family:system-ui,sans-serif;font-size:13px;">
+        <div class="panel-accent-line" style="margin-bottom:4px;"></div>
+        <div class="menu-title"
+            style="color:#b088ff;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:6px;text-align:center;">
+            ⬆ 群组设置
+        </div>
+        <div class="menu-row">
+            <label>群组名称</label>
+            <input type="text" id="groupNameInput" placeholder="输入群组名称" autocomplete="off"
+                style="flex:1;background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);padding:3px 6px;border-radius:8px;font-size:12px;">
+        </div>
+        <div class="menu-row">
+            <label>填充颜色</label>
+            <input type="color" id="groupFillColorPicker" value="#4a3c7e">
+        </div>
+        <div class="menu-row">
+            <label>边框颜色</label>
+            <input type="color" id="groupBorderColorPicker" value="#7a6aae">
+        </div>
+        <div class="menu-row">
+            <label>边框粗细</label>
+            <input type="range" id="groupLineWidthSlider" min="0.5" max="4" step="0.5" value="1.5">
+            <span id="groupLineWidthValue">1.5</span>
+        </div>
+        <div class="menu-row">
+            <label>边框样式</label>
+            <select id="groupLineStyleSelect"
+                style="flex:1;background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:8px;padding:2px 6px;font-size:12px;">
+                <option value="solid">实线</option>
+                <option value="dashed" selected>虚线</option>
+                <option value="dotted">点线</option>
+            </select>
+        </div>
+        <div class="menu-row">
+            <label>圆角</label>
+            <select id="groupBorderRadiusSelect"
+                style="flex:1;background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-primary);border-radius:8px;padding:2px 6px;font-size:12px;">
+                <option value="0" selected>直角</option>
+                <option value="8">小圆角</option>
+                <option value="16">中圆角</option>
+                <option value="30">大圆角</option>
+            </select>
+        </div>
+        <div class="menu-row" style="border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;">
+            <button id="deleteGroupRectBtn" style="background:rgba(106,44,44,0.6);flex:1;">🗑️ 删除群组</button>
+        </div>
+    </div>
+
+    <!-- ==================== 节点移动模式控制栏 ==================== -->
+    <div id="moveControlBar">
+        <button id="moveConfirmBtn">✅ 确定</button>
+        <button id="moveCancelBtn">❌ 取消</button>
+    </div>
+
+    <!-- ==================== 帮助模态框 ==================== -->
+    <div id="helpModal" class="help-modal">
+        <div class="help-modal-content">
+            <div class="help-modal-header">
+                <h2>使用帮助</h2>
+                <button id="closeHelpBtn">❌ 关闭</button>
+            </div>
+            <div class="panel-accent-line"></div>
+            <div class="help-modal-body">
+                <h3>底部任务栏(按照从左到右的顺序)</h3>
+                <ul>
+                    <li>左下角AstroKnot菜单，点击展开显示当前状态所有的网络项目和系统内所有的快速笔记</li>
+                    <ul>
+                        <li>全局搜索栏：输入节点名称/节点笔记关键字，弹出下拉选项框，点击后会自动聚焦匹配的节点，并打开对应节点文本编辑器并聚焦到关键字所在位置，</li>
+                        <li>网络项目：当前打开的网络项目，标题框的按钮从左到右依次为:批量保存网络项目列表内所有的项目，加载项目，导入markdown文件，新建项目类。
+                            点击列表的项目可切换到其他对应的项目，右键支持重命名，复制，删除项目</li>
+                        <li>快速笔记：系统所有快速笔记，“+”为新建快速笔记，点击打开对应的快速笔记，右键支持重命名，复制，删除笔记</li>
+                        <li>设置（左下角的齿轮）：设置3D场景参数，2D网格背景颜色，主题色，文件保存位置</li>
+                        <li>关闭应用（右下角的电源符号）</li>
+                    </ul>
+                    <li>节点搜索栏，输入节点名字可弹出上拉选项框，点击节点选项后相机聚焦该节点</li>
+                    <li>全屏/窗口化切换按钮，快捷键：F11</li>
+                    <li>2/3D模式切换按钮</li>
+                    <li>Auto：自动布局按钮，点击后会自动布局所有节点</li>
+                    <ul>
+                        <li>自动排列：自动布局当前选中图层的所有节点</li>
+                        <li>所有图层自动排列：自动布局所有图层图层的所有节点</li>
+                        <li>默认排列：3D模式下，随机布局所有节点</li>
+                        <li>2D模式排列：3D模式下，按照2d模式的布局排列节点，不同图层的节点会按照图层管理列表的由上到下的顺序在3d模式中由下到上堆叠排列</li>
+                    </ul>
+                    <li>机器人按钮：AI对话框（目前还在开发...）</li>
+                    <li>蓝色向上箭头按钮：里面包含放大/缩小视角按钮和连线标签显示隐藏切换按钮</li>
+                    <li>天气按钮：显示当前的天气信息，悬浮则弹出详细的天气信息，左键单击刷新天气信息，右键弹出选项框可重新定位和手动定位(弹出地址输入栏弹出框)</li>
+                    <li>日期时间：悬浮可显示农历和时辰</li>
+                </ul>
+                <h3>右键空白区域菜单</h3>
+                <li>新建根节点/新建步骤节点（随后在2D模式解释二者区别）</li>
+                <li>撤销/重做对节点连线的所有操作（Ctrl+Z / Ctrl+Y）</li>
+                <li>粘贴节点：粘贴在复制的所有节点</li>
+                <h3>3D 模式操作</h3>
+                <ul>
+                    <li>鼠标左键长按拖拽空白区域 → 旋转视角</li>
+                    <li>鼠标滚轮 → 缩放视距</li>
+                    <li>WASD / 空格 / ctrl → 平移视角（3D模式）</li>
+                    <li>左键双击节点，进入该节点的文本编辑器</li>
+                    <li>右键节点 → 打开该节点的属性菜单</li>
+                    <ul>
+                        <h3>节点管理</h3>
+                        <li>点击节点名称旁边的铅笔符号，对节点重命名，enter回车确认</li>
+                        <li>通过滑动条调整节点大小，圆环转动速度</li>
+                        <li>可设置节点球体固定颜色，点击清除固定颜色，球体在3D华丽模式下恢复到色相变换，极简模式下默认为浅蓝色</li>
+                        <li>新建子节点：点击"新建子节点"按钮，在当前节点下新建一个子节点</li>
+                        <li>添加下一步节点：点击"新建下一步节点"按钮，在当前节点下新建一个下一步节点（随后在2D模式介绍中说明两种节点的关系）</li>
+                        <h3>连线管理</h3>
+                        <ul>
+                            <li>"添加连线"→ 左键点击目标节点完成连线，两个节点之间支持多条连线</li>
+                            <li>"删除连线"→ 左键点击目标节点，多条连线时可多选删除，或者点击对应连线弹出连线标签框，点击“删除此连线”</li>
+                            <li>右键取消 / Esc 退出连线模式</li>
+                            <li>树形连线由父子关系自动生成</li>
+                        </ul>
+                        <li>"折叠/展开子节点"按钮可显示/隐藏该节点的所有后代节点</li>
+                        <li>定位到2/3D视图：可自动切换到2d模式该节点所在图层（或者切换到3D模式），并聚焦到该节点所在位置</li>
+                        <li>移动节点：进入移动模式，可拖拽移动所有节点的位置，点击"确定"按钮完成移动，点击"取消"按钮取消移动</li>
+                        <li>复制节点：复制该节点及其所有子孙节点，右键单击空白区域，弹出选项框，点击“粘贴节点”即完成复制粘贴操作</li>
+                        <li>删除该节点：删除该节点及其所有子孙节点</li>
+                    </ul>
+                </ul>
+                <h3>2D 模式操作</h3>
+                <li>点击底部"2D模式"按钮切换</li>
+                <li>滚轮 → 缩放</li>
+                <li>右键空白区域菜单和节点的属性菜单同3D模式</li>
+                <li>支持直接拖拽移动节点</li>
+                <li>上下左右平移移动是WASD/↑↓←→，拖拽空白区域为框选多个节点，或者按住ctrl选择多个节点</li>
+                <ul>    
+                    <li>框选节点后，可批量对框选的节点调整大小，圆环转速，节点颜色，2/3D形状，设置节点对齐方式（只框主一个节点则不显示）以及移动、复制和删除</li>
+                    <li>  框选节点后，可建立群组，即生成一个和框选区域位置大小相同的半透明边框，</li>
+                </ul>
+                <ul>
+                    <ul>
+                        <h3>步骤节点和一般节点的区别</h3>
+                        <li>一般子节点是从根节点开始的从左到右的树状图，一般用于思维导图，</li>
+                        <li>下一步节点是从根节点开始的从上到下的树状图，一般用于流程图，</li>
+                        <li>本软件支持同时存在两种类型的节点，并且混合使用，即步骤节点可有从左到右的后代节点，一般节点可有从上到下的后代节点</li>
+                    </ul>
+                </ul>
+                <ul>
+                    <ul>
+                        <h3>多图层管理</h3>
+                        <li>2D 模式支持多个图层，每个图层可以独立放置和管理节点，方便对复杂知识图谱进行分层组织（如按主题、模块或阶段分类）</li>
+                        <li><strong>创建图层</strong>：右键空白区域 → 新建图层，或在图层面板中点击"新建图层"按钮，输入图层名称即可创建新图层</li>
+                        <li><strong>切换图层</strong>：点击底部任务栏的图层标签，或在图层面板中选择目标图层进行切换；当前激活的图层会高亮显示，只有当前图层的节点可见和可操作</li>
+                        <li><strong>重命名/删除图层</strong>：在图层面板中右键图层名称可重命名或删除空图层；删除非空图层前需先移动或删除其中的所有节点</li>
+                        <li><strong>跨图层复制粘贴</strong>：在一个图层选中节点 → 复制 → 切换到另一图层 → 粘贴，节点会被粘贴到目标图层并保留原有属性和内容</li>
+                    </ul>
+                </ul>
+                <ul>
+                    <ul>
+                        <h3>跨图层连线</h3>
+                        <li>不同图层之间的节点也可以建立连接关系，形成跨图层的知识关联网络</li>
+                        <li><strong>添加跨图层连线</strong>：在任意图层中右键某个节点 → 选择"添加连线" → 切换到目标图层（点击底部图层标签）→ 点击目标节点完成连线；输入连线标签后确认即可建立跨图层连接</li>
+                        <li><strong>查看跨图层连线</strong>：在 2D 视图中，跨图层连线以虚线或特殊颜色显示，与同层内的普通连线区分开；连线的两端分别指向两个不同图层中的节点</li>
+                        <li><strong>删除跨图层连线</strong>：右键已连线的节点 → 选择"删除连线" → 点击跨图层连线对应的目标节点即可移除该连接</li>
+                        <li><strong>呼吸光效提示</strong>：当两个跨图层节点之间存在连线时，选中任一节点后会显示呼吸光效（青色或紫色脉冲光环），直观提示该节点的跨图层关联状态</li>
+                        <li><strong>应用场景举例</strong>：如将"理论学习"放在一个图层、"实践项目"放在另一个图层，通过跨图层连线将理论知识点与对应的实践任务关联起来，形成理论与实践的映射关系</li>
+                    </ul>
+                </ul>
+                <h3>富文本笔记</h3>
+                <ul>
+                    <li><strong>打开方式</strong>：右键点击节点 → 选择"编辑内容"，或双击节点打开富文本编辑器</li>
+                    <li><strong>字体格式</strong>：支持加粗、斜体、下划线、删除线、着重号、上标/下标；可设置文字颜色和背景色；支持中英文字体切换（cnfontfamily / enfontfamily）及字号调节（fontplus / fontminus）；支持繁简转换（fan2jian / jian2fan）、拼音标注</li>
+                    <li><strong>段落排版</strong>：支持标题级别、行高（lineheight）、段落间距（paraspacing）、对齐方式（左/中/右/两端/分散对齐）、首字下沉（dropcap）、引用块（blockquote）、水平分割线（hr）；支持有序/无序列表缩进调整（outdent / indent）</li>
+                    <li><strong>插入元素</strong>
+                        <ul>
+                            <li><strong>图片</strong>：支持从本地选择图片插入，插入后可拖拽缩放、调整透明度和对齐方式（左/居中/右），右键图片可进行格式设置</li>
+                            <li><strong>表格</strong>：通过网格选择器快速创建表格，支持行列合并等操作</li>
+                            <li><strong>链接</strong>：插入超链接，支持外部 URL 和本地文件路径</li>
+                            <li><strong>LaTeX 公式</strong>：点击 Σ 按钮打开公式编辑器，支持数学公式渲染</li>
+                            <li><strong>代码块</strong>：点击 # 按钮插入代码块，支持语法高亮显示</li>
+                            <li><strong>Excel 表格</strong>：点击 Excel 按钮嵌入在线 Excel 表格（需网络连接）</li>
+                            <li><strong>图表</strong>：点击 Chart 按钮插入 ECharts 图表（折线图/柱状图/饼图等）</li>
+                            <li><strong>PPT 幻灯片</strong>：点击 PPT 按钮嵌入演示文稿预览</li>
+                            <li><strong>音频/视频</strong>：支持插入本地或在线音视频文件</li>
+                            <li><strong>其他</strong>：特殊字符（charmap）、表情符号（emoticons）、日期时间（datetime）、分页符（pagebreak）</li>
+                        </ul>
+                    </li>
+                    <li><strong>绘图功能</strong>：工具栏提供画笔（drawPen）、铅笔（drawPencil）、荧光笔（drawHighlighter）、橡皮擦（drawEraser）、彩虹笔（drawRainbow），可调节颜色和线条粗细，支持撤销/重做/清空/保存绘图</li>
+                    <li><strong>图形与形状</strong>：支持插入形状（shapeformatInsertShape）、文本框（shapeformatInsertTextbox），可设置填充色、边框、阴影、透明度、旋转角度、层级关系；支持艺术字（WordArt）效果</li>
+                    <li><strong>覆盖层块</strong>：通过 insertOverlayBlock 插入浮动内容块，可在笔记上层叠加展示额外信息</li>
+                    <li><strong>视图模式</strong>：支持页面视图（viewPageBtn）、网页视图（viewWebBtn）、暗黑模式（viewDarkMode）三种查看模式；可全屏编辑（fullscreen）</li>
+                    <li><strong>搜索与替换</strong>：内置 searchreplace 功能，支持在长文档中查找和替换文本</li>
+                    <li><strong>目录导航</strong>：自动根据标题生成目录（TOC），方便长文档跳转浏览</li>
+                    <li><strong>实时统计</strong>：底部实时显示当前字数统计</li>
+                    <li><strong>自动保存</strong>：编辑内容自动保存到节点数据中，关闭编辑器后自动持久化</li>
+                    <li><strong>快捷键</strong>：Ctrl+B 加粗 / Ctrl+I 斜体 / Ctrl+U 下划线 / Ctrl+S 保存 / Ctrl+F 查找</li>
+                </ul>
+                <h3>其他快捷键</h3>
+                <ul>
+                    <li>F1→ 切换隐藏/显示所有UI面板</li>
+                    <li>F2→ 切换3D华丽/极简模式</li>
+                    <li>F11→ 切换全屏/窗口化</li>
+                    <li>Esc → 关闭右键菜单 / 关闭帮助弹窗 </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 表格网格选择器 -->
+    <div id="tableGridSelector"
+        style="display:none; position:absolute; background:var(--panel-bg); backdrop-filter:blur(10px); border:1px solid var(--panel-border); border-radius:var(--panel-radius); padding:10px; z-index:9999; box-shadow:var(--panel-shadow);">
+        <table id="tableGridTable" style="border-collapse:collapse; margin:0 auto;"></table>
+        <div id="tableGridLabel" style="text-align:center; color:var(--accent-light); margin-top:6px; font-size:12px;">
+            2x3 表格</div>
+    </div>
+
+    <!-- 图片右键菜单 -->
+    <div id="imgContextMenu"
+        style="display:none; position:absolute; background:var(--panel-bg); backdrop-filter:blur(10px); border:1px solid var(--panel-border); border-radius:var(--panel-radius); padding:10px; z-index:9999; flex-direction:column; gap:8px; min-width:180px; box-shadow:var(--panel-shadow); color:var(--text-primary); font-size:12px;">
+        <div style="display:flex; gap:4px;">
+            <button class="img-align-btn" data-align="left" title="左对齐">⬆ 左对齐</button>
+            <button class="img-align-btn" data-align="center" title="居中">⬆ 居中</button>
+            <button class="img-align-btn" data-align="right" title="右对齐">➡ 右对齐</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span>透明度</span>
+            <input type="range" id="imgOpacitySlider" min="0.1" max="1" step="0.1" value="1" style="flex:1;">
+            <span id="imgOpacityValue">1.0</span>
+        </div>
+        <div style="display:flex; gap:4px;">
+            <button id="imgBringToFront" title="置于顶层">顶层</button>
+            <button id="imgSendToBack" title="置于底层">底层</button>
+        </div>
+        <div style="display:flex; justify-content:center;">
+            <button id="imgDeleteBtn"
+                style="background:#6a2c2c; color:white; border:none; padding:4px 12px; border-radius:10px; cursor:pointer;">🗑️
+                删除</button>
+        </div>
+    </div>
+
+    <!-- 文件右键菜单 -->
+    <div id="fileContextMenu"
+        style="display:none; position:absolute; background:var(--panel-bg); backdrop-filter:blur(10px); border:1px solid var(--panel-border); border-radius:var(--panel-radius); padding:10px; z-index:9999; flex-direction:column; gap:8px; min-width:140px; box-shadow:var(--panel-shadow); color:var(--text-primary); font-size:12px;">
+        <div style="display:flex; justify-content:center;">
+            <button id="fileCiteBtn"
+                style="background:#2c6e7e; color:white; border:none; padding:4px 12px; border-radius:10px; cursor:pointer; font-size:12px;">📸
+                引用</button>
+        </div>
+        <div style="display:flex; justify-content:center;">
+            <button id="fileOpenLocationBtn"
+                style="background:#2c4a5a; color:white; border:none; padding:4px 12px; border-radius:10px; cursor:pointer; font-size:12px;">📨
+                打开位置</button>
+        </div>
+    </div>
+
+    <!-- 表格边框右键菜单 -->
+
+    <!-- ==================== 图层管理浮动面板 ==================== -->
+    <div id="layerManagerModal" class="layer-panel" style="display:none;">
+        <div class="layer-panel-header" id="layerPanelHeader">
+            <span class="layer-panel-drag-handle">⠿</span>
+            <span class="layer-panel-title">🗂️ 图层管理</span>
+            <div class="layer-panel-header-btns">
+                <button id="addLayerBtn" class="layer-header-btn">＋ 新建图层</button>
+                <button id="overviewLayersBtn" class="layer-header-btn layer-ghost-btn" title="图层总览">📑</button>
+                <button id="closeLayerModalBtn" class="layer-header-btn layer-close-btn" title="关闭">✕</button>
+            </div>
+        </div>
+        <div class="panel-accent-line"></div>
+        <div class="layer-list" id="layerList"></div>
+    </div>
+
+    <!-- 图层右键菜单 -->
+    <div id="layerContextMenu" class="layer-context-menu">
+        <button id="renameLayerBtn" class="layer-menu-btn">✏️ 重命名</button>
+        <button id="addLayerBelowBtn" class="layer-menu-btn">➕ 在本图层下新建</button>
+        <button id="deleteLayerBtn" class="layer-menu-btn layer-delete-btn">🗑️ 删除</button>
+    </div>
+
+    <!-- ==================== 图层总览（全屏3D层叠视图） ==================== -->
+    <div id="layerOverview" class="layer-overview" style="display:none;">
+        <div class="layer-overview-bg"></div>
+        <div class="layer-overview-content">
+            <div class="layer-overview-title">📑 图层总览</div>
+            <div class="layer-overview-hint">左键进入图层 · 右键更多操作 · <span class="layer-overview-esc">ESC 返回</span></div>
+            <div class="layer-overview-cards" id="layerOverviewCards"></div>
+        </div>
+    </div>
+
+    <!-- ==================== 脚本加载区 ==================== -->
+    <!-- ==================== 边缘悬浮 Dock（外部程序快捷方式） ==================== -->
+    <div id="dockPanel" class="dock-panel">
+        <div class="dock-panel-header">
+            <span class="dock-panel-title">快捷启动</span>
+            <div class="dock-header-actions">
+                <button id="dockPanelPinBtn" class="dock-pin-btn" title="固定面板">📌</button>
+                <button id="dockPanelAddBtn" class="dock-panel-add-btn" title="添加外部程序">➕</button>
+            </div>
+        </div>
+        <div id="dockPanelItems" class="dock-panel-items"></div>
+    </div>
+
+    <!-- 浏览器兼容层：非 Electron 环境模拟 window.api -->
+    <script src="web-api-shim.js"></script>
+    <script type="module" src="AstroKnot.js"></script>
+
+    <!-- Web 环境适配：隐藏 Electron 标题栏 -->
+    <script>
+        if (!window.__ELECTRON__) {
+            document.documentElement.classList.add('web-env');
+        }
+    </script>
+    <style>
+        /* Web 环境：隐藏自定义标题栏，调整布局 */
+        html.web-env #appTitleBar { display: none !important; }
+        html.web-env body { padding-top: 0 !important; }
+        html.web-env { --titlebar-height: 0px; }
+    </style>
+
+</body>
+
+</html>
