@@ -9,7 +9,6 @@
     "build:win": "electron-builder --win --x64",
     "build:mac": "electron-builder --mac --x64",
     "build:linux": "electron-builder --linux --x64",
-    "build:all": "electron-builder --win --mac --linux --x64",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -22,7 +21,11 @@
     "knowledge-management",
     "rich-text-editor"
   ],
-  "author": "星移三秋",
+  "author": {
+    "name": "星移三秋",
+    "email": "your.email@example.com"
+  },
+  "homepage": "https://gitee.com/星移三秋/astroknot",
   "license": "ISC",
   "type": "commonjs",
   "repository": {
@@ -53,6 +56,7 @@
       "!startAstroKnot-*.sh",
       "!startAstroKnot-*.vbs",
       "!startAstroKnot-*.command",
+      "!AstroKnot-*.command",
       "!AstroKnot-*.desktop",
       "!AstroKnot-*.lnk"
     ],
@@ -99,6 +103,7 @@
       ],
       "icon": "assets/icon.png",
       "category": "Education;Productivity",
+      "maintainer": "星移三秋 <your.email@example.com>",
       "files": [
         "!icon.ico"
       ]

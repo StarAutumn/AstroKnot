@@ -367,4 +367,4 @@ AstroKnot 提供两个版本：
 
 ## License
 
-ISC
+MIT
