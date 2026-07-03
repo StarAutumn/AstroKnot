@@ -289,7 +289,16 @@ function renderDock() {
 function addApp() {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.exe,.lnk,.bat,.cmd,.url,.com';
+
+  // ── 跨平台文件类型适配 ──
+  const platform = window._platform || 'win32'; // 从 preload.js 获取平台信息
+  const acceptTypes = {
+    win32: '.exe,.lnk,.bat,.cmd,.url,.com',
+    darwin: '.app,.command,.sh,.workflow',
+    linux: '.desktop,.sh,.bin'
+  };
+  input.accept = acceptTypes[platform] || acceptTypes.win32;
+
   input.multiple = true;
   input.style.display = 'none';
   document.body.appendChild(input);
@@ -301,8 +310,16 @@ function addApp() {
     const items = getSavedItems();
     let changed = false;
 
+    // ── 跨平台扩展名移除 ──
+    const extPatterns = {
+      win32: /\.(exe|lnk|bat|cmd|url|com)$/i,
+      darwin: /\.(app|command|sh|workflow)$/i,
+      linux: /\.(desktop|sh|bin)$/i
+    };
+    const extRegex = extPatterns[platform] || extPatterns.win32;
+
     for (const file of files) {
-      const name = file.name.replace(/\.(exe|lnk|bat|cmd|url|com)$/i, '');
+      const name = file.name.replace(extRegex, '');
       const path = file.path;
       if (!items.some(i => i.path === path)) {
         items.push({ name, path });

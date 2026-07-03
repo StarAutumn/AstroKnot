@@ -8,7 +8,7 @@ import { showPrompt, showConfirm } from './module4_Confirm.js';
 import { showLineTooltip, hideLineTooltip } from './MoveMode/LineTooltip.js';
 import { clearSelected, setSelectedNode, getPrimarySelectedId, updateSelectionUI, deleteSelectedNodes, toggleChildren, startAddConnectionMode, startRemoveConnectionMode, cancelConnectionMode, showToast } from './module5_SelectAndEdit.js';
 import { withHistory } from './module3_History.js';
-import { activateSplitScreen } from './richEditor/content-io.js';
+import { activateSplitScreen } from './richEditor/content-io/index.js';
 
 let contextMenuEventsBound = false;
 
@@ -606,6 +606,17 @@ export function bindContextMenuEvents() {
     if (!id) return;
     hideContextMenu();
     activateSplitScreen(id);
+  });
+
+  document.getElementById('openHtmlEditorBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    let id = appState.contextTargetId;
+    if (!id) return;
+    hideContextMenu();
+    if (window.openHtmlSandboxEditor) {
+      window.openHtmlSandboxEditor(id);
+    }
   });
 
   const convertToTextRootBtn = document.getElementById('convertToTextRootBtn');

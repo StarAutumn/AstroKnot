@@ -114,6 +114,33 @@ function applyLoadedData(data, folderName, folderPath) {
     }
   }
 
+  // 7b2. 恢复 HTML 沙盒源码
+  if (data.nodeHtmlSources) {
+    for (let [id, hs] of Object.entries(data.nodeHtmlSources)) {
+      if (appState.nodeMap.has(id)) {
+        appState.nodeMap.get(id).htmlSource = hs;
+      }
+    }
+  }
+
+  // 7b3. 恢复虚拟文件系统
+  if (data.nodeFileSystems) {
+    for (let [id, fs] of Object.entries(data.nodeFileSystems)) {
+      if (appState.nodeMap.has(id)) {
+        appState.nodeMap.get(id).fileSystem = fs;
+      }
+    }
+  }
+
+  // 7b4. 恢复沙盒历史记录
+  if (data.nodeSandboxHistories) {
+    for (let [id, hist] of Object.entries(data.nodeSandboxHistories)) {
+      if (appState.nodeMap.has(id)) {
+        appState.nodeMap.get(id).sandboxHistory = hist;
+      }
+    }
+  }
+
   // 7c. 恢复树连线标签后备存储
   appState.treeEdgeLabels = new Map();
   if (data.treeEdgeLabels) {
@@ -160,6 +187,24 @@ export async function saveNetworkToFile() {
   let overlay = {};
   for (let [id, node] of appState.nodeMap.entries()) {
     if (node.overlayImages && node.overlayImages.length > 0) overlay[id] = node.overlayImages;
+  }
+
+  // 收集 HTML 沙盒源码
+  let htmlSources = {};
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (node.htmlSource) htmlSources[id] = node.htmlSource;
+  }
+
+  // 收集虚拟文件系统
+  let fileSystems = {};
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (node.fileSystem) fileSystems[id] = node.fileSystem;
+  }
+
+  // 收集沙盒历史记录
+  let sandboxHistories = {};
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (node.sandboxHistory) sandboxHistories[id] = node.sandboxHistory;
   }
 
   // 收集位置信息（转换为普通对象，便于 JSON 序列化）
@@ -209,6 +254,9 @@ export async function saveNetworkToFile() {
     currentLayerId: appState.currentLayerId,
     nodeRichContents: rich,
     overlayImages: overlay,
+    nodeHtmlSources: htmlSources,
+    nodeFileSystems: fileSystems,
+    nodeSandboxHistories: sandboxHistories,
     treeEdgeLabels: tel,
     savePath: appState.currentProjectSavePath,
     cameraView: {
@@ -299,6 +347,9 @@ export async function saveAllProjects() {
       currentLayerId: data.currentLayerId,
       nodeRichContents: data.nodeRichContents || {},
       overlayImages: data.nodeOverlayImages || {},
+      nodeHtmlSources: data.nodeHtmlSources || {},
+      nodeFileSystems: data.nodeFileSystems || {},
+      nodeSandboxHistories: data.nodeSandboxHistories || {},
       treeEdgeLabels: data.treeEdgeLabels || {},
       savePath: parentPath,
       cameraView: data.cameraView || {

@@ -1,0 +1,180 @@
+/* ============================================================
+   公式编辑器符号按钮样式
+   ============================================================ */
+.symbol-btn {
+    width: 28px;
+    height: 28px;
+    background: var(--btn-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-family: 'Times New Roman', serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.symbol-btn:hover {
+    background: var(--btn-hover);
+    border-color: var(--accent);
+    color: var(--text-primary);
+    transform: scale(1.1);
+}
+
+.symbol-btn:active {
+    transform: scale(0.95);
+}
+
+/* ============================================================
+   公式编辑器分类按钮和弹出框样式
+   ============================================================ */
+.symbol-category {
+    position: relative;
+}
+
+.category-btn {
+    padding: 6px 12px;
+    background: var(--btn-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.category-btn:hover {
+    background: var(--btn-hover);
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
+
+.category-btn:active {
+    transform: scale(0.98);
+}
+
+.symbol-popup {
+    position: absolute;
+    z-index: 4000;
+    top: 100%;
+    left: 0;
+    margin-top: 6px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+    min-width: 300px;
+    max-height: 400px;
+    overflow: hidden;
+}
+
+.popup-content {
+    padding: 16px;
+}
+
+.popup-title {
+    color: #ccd;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.popup-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.tab-btn {
+    padding: 4px 12px;
+    background: #1a3a44;
+    border: 1px solid #2c6e7e;
+    border-radius: 6px;
+    color: #ccd;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn.active {
+    background: #2c6e7e;
+    color: #fff;
+}
+
+.tab-btn:hover {
+    background: #2c6e7e;
+    color: #fff;
+}
+
+.symbol-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.popup-symbol-btn {
+    width: 40px;
+    height: 32px;
+    background: #1a3a44;
+    border: 1px solid #2c6e7e;
+    border-radius: 6px;
+    color: #ccd;
+    font-size: 14px;
+    font-style: italic;
+    font-family: 'Times New Roman', serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.popup-symbol-btn:hover {
+    background: #2c6e7e;
+    border-color: #5ab;
+    color: #fff;
+    transform: scale(1.05);
+}
+
+.popup-symbol-btn:active {
+    transform: scale(0.95);
+}
+
+/* 花体字母使用 CommercialScript BT 字体（面板按钮 + MathJax 输出） */
+.cal-tab .popup-symbol-btn,
+mjx-container [mathvariant="calligraphic"],
+mjx-mi[mathvariant="calligraphic"] {
+    font-family: 'CommercialScript BT', 'CommercialScript BT Regular', cursive;
+}
+
+/* 运算符分类区域样式 */
+.symbol-section {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.symbol-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.section-title {
+    color: #88aacc;
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    padding-left: 4px;
+}

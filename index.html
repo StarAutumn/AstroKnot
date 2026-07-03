@@ -1624,6 +1624,9 @@
                             <span style="font-size:10px; color:#4a7a8a;">%</span>
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
+                            <button id="editSandboxCodeBtn"
+                                style="display:none; background:none; border:1px solid #0ff; color:#0ff; font-size:12px; cursor:pointer; padding:2px 8px; border-radius:4px;">💻
+                                编辑代码</button>
                             <button id="toggleToolbarBtn"
                                 style="background:none; border:none; color:#8af; font-size:12px; cursor:pointer; padding:2px 6px;">🔽</button>
                             <button id="saveRichContentBtn"
@@ -1684,6 +1687,9 @@
             <div id="crossLayerTargetList" style="display:flex; flex-direction:column; gap:3px;">
                 <div style="color:#fa6;font-size:11px;">→ 目标节点</div>
             </div>
+        </div>
+         <div class="menu-row">
+            <button id="openHtmlEditorBtn" style="background:#4a2c6e;"> 以代码模式打开</button>
         </div>
         <div class="menu-row">
             <label>节点大小</label>
@@ -1761,6 +1767,7 @@
         <div class="menu-row" id="splitScreenRow" style="display:none;">
             <button id="splitScreenBtn" style="background:#2c5a6e;">分屏显示</button>
         </div>
+       
         <div class="menu-row">
             <button id="addConnectionContextBtn" style="background:#2c6e7e;">添加连线</button>
             <button id="removeConnectionContextBtn" style="background:#6a3c3c;">删除连线</button>
@@ -1792,6 +1799,158 @@
         </div>
         <div class="menu-row" style="border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">
             <button id="blankSettingsBtn" style="background:rgba(0,255,255,0.12);">⚙️ 设置</button>
+        </div>
+    </div>
+
+    <!-- ==================== HTML 代码编辑器模态框 ==================== -->
+    <div id="htmlSandboxModal" class="rich-modal" style="display:none;">
+        <div class="rich-modal-content">
+            <div class="rich-modal-header">
+                <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                    <h2 id="htmlSandboxTitle">💻 代码编辑器</h2>
+                    <span id="htmlSandboxNodeName" style="color:#6af;font-size:12px;"></span>
+                </div>
+                <div class="caption-buttons">
+                    <button id="sandboxMinimizeBtn" class="caption-btn" title="最小化">
+                        <svg viewBox="0 0 10 10">
+                            <line x1="2" y1="5" x2="8" y2="5" />
+                        </svg>
+                    </button>
+                    <button id="sandboxMaximizeBtn" class="caption-btn" title="最大化">
+                        <svg id="sandboxMaxIcon" viewBox="0 0 10 10">
+                            <rect x="2" y="2" width="6" height="6" rx="0" />
+                        </svg>
+                    </button>
+                    <button id="sandboxCloseBtn" class="caption-btn close" title="关闭">
+                        <svg viewBox="0 0 10 10">
+                            <line x1="2" y1="2" x2="8" y2="8" />
+                            <line x1="8" y1="2" x2="2" y2="8" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="panel-accent-line"></div>
+            <div class="sandbox-ide-body">
+                <!-- 工具栏 -->
+                <div class="sandbox-toolbar">
+                    <button id="runSandboxBtn" class="sandbox-toolbar-btn run-btn" title="运行 (Ctrl+Enter)">▶ 运行</button>
+                    <button id="saveSandboxBtn" class="sandbox-toolbar-btn save-btn" title="保存 (Ctrl+S)">💾 保存</button>
+                    <button id="syncSandboxBtn" class="sandbox-toolbar-btn sync-btn" title="同步渲染结果到笔记">🔄 同步</button>
+                    <button id="exportSandboxBtn" class="sandbox-toolbar-btn export-btn" title="导出为 HTML 文件">📤 导出</button>
+                    <div class="sandbox-toolbar-sep"></div>
+                    <button id="searchSandboxBtn" class="sandbox-toolbar-btn search-btn" title="全局搜索 (Ctrl+Shift+F)">🔍 搜索</button>
+                    <button id="templateSandboxBtn" class="sandbox-toolbar-btn template-btn" title="从模板新建文件">📋 模板</button>
+                    <button id="historySandboxBtn" class="sandbox-toolbar-btn history-btn" title="本地历史记录">📜 历史</button>
+                    <div class="sandbox-toolbar-sep"></div>
+                    <button id="autoRunToggleBtn" class="sandbox-toolbar-btn autorun-btn active" title="自动运行 (编辑后防抖刷新)">⚡ 自动</button>
+                    <button id="toggleConsoleBtn" class="sandbox-toolbar-btn console-btn" title="切换控制台 (Ctrl+`)">📋 控制台 <span id="consoleErrorBadge" class="console-error-badge" style="display:none;">0</span></button>
+                    <span id="sandboxStatusText" class="sandbox-status-text"></span>
+                </div>
+                <!-- 主体: 文件树 + 编辑区 + 预览 -->
+                <div class="sandbox-main">
+                    <!-- 全局搜索面板（覆盖在文件树上方） -->
+                    <div id="sandboxSearchPanel" class="sandbox-search-panel" style="display:none;">
+                        <div class="search-input-group">
+                            <input type="text" id="sandboxSearchInput" placeholder="搜索内容 (Ctrl+Shift+F)..." autocomplete="off" />
+                            <button id="searchToggleReplaceBtn" class="search-mini-btn" title="切换替换模式">⇅</button>
+                            <button id="searchCloseBtn" class="search-mini-btn" title="关闭搜索">✕</button>
+                        </div>
+                        <div class="search-input-group search-replace-row" id="searchReplaceRow" style="display:none;">
+                            <input type="text" id="sandboxReplaceInput" placeholder="替换为..." autocomplete="off" />
+                            <button id="searchReplaceAllBtn" class="search-mini-btn" title="全部替换">∀</button>
+                        </div>
+                        <div class="search-toolbar">
+                            <label class="search-option"><input type="checkbox" id="searchCaseSensitive" /> Aa</label>
+                            <label class="search-option"><input type="checkbox" id="searchRegex" /> .*</label>
+                            <label class="search-option"><input type="checkbox" id="searchWholeWord" /> W</label>
+                            <span id="searchSummary" class="search-summary"></span>
+                        </div>
+                        <div id="sandboxSearchResults" class="search-results"></div>
+                    </div>
+                    <!-- 左: 文件树 -->
+                    <div id="sandboxFileTreeContainer" class="sandbox-sidebar"></div>
+                    <!-- 侧边栏 resize 分隔条 -->
+                    <div class="sandbox-resize-handle sandbox-resize-sidebar" data-handle="we"></div>
+                    <!-- 中+右: 标签 + Monaco + 预览 -->
+                    <div class="sandbox-editor-preview">
+                        <!-- 编辑区 -->
+                        <div class="sandbox-editor-area">
+                            <div id="sandboxTabsContainer"></div>
+                            <div id="sandboxMonacoContainer" class="sandbox-monaco-container"></div>
+                        </div>
+                        <!-- 编辑区/预览 resize 分隔条 -->
+                        <div class="sandbox-resize-handle sandbox-resize-editor" data-handle="we"></div>
+                        <!-- 预览区 -->
+                        <div class="sandbox-preview-area">
+                            <div class="sandbox-preview-header">
+                                <span class="preview-title">预览</span>
+                                <div class="preview-device-switcher">
+                                    <button id="previewFullscreenBtn" class="device-btn" title="全屏预览">⛶</button>
+                                </div>
+                                <button id="sandboxRefreshPreviewBtn" class="sandbox-toolbar-btn" style="padding:2px 8px;font-size:11px;">↻ 刷新</button>
+                            </div>
+                            <div class="sandbox-preview-viewport">
+                                <iframe id="htmlSandboxPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups" style="width:100%;height:100%;border:none;background:#fff;"></iframe>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 控制台 -->
+                <div id="sandboxConsolePanel" class="sandbox-console" style="display:none;">
+                    <div class="sandbox-console-header">
+                        <div class="console-filter-group">
+                            <span class="console-title">控制台</span>
+                            <button class="console-filter-btn active" data-filter="all">全部 <span class="filter-count" data-count="all">0</span></button>
+                            <button class="console-filter-btn" data-filter="error">错误 <span class="filter-count" data-count="error">0</span></button>
+                            <button class="console-filter-btn" data-filter="warn">警告 <span class="filter-count" data-count="warn">0</span></button>
+                            <button class="console-filter-btn" data-filter="log">日志 <span class="filter-count" data-count="log">0</span></button>
+                        </div>
+                        <button id="clearConsoleBtn" class="sandbox-toolbar-btn" style="padding:2px 8px;font-size:11px;">清空</button>
+                    </div>
+                    <div id="htmlConsoleOutput" class="sandbox-console-body"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 沙盒模板选择器 ==================== -->
+    <div id="sandboxTemplateModal" class="sandbox-overlay-modal" style="display:none;">
+        <div class="sandbox-overlay-content">
+            <div class="sandbox-overlay-header">
+                <h3>📋 从模板创建</h3>
+                <button id="templateCloseBtn" class="sandbox-overlay-close">✕</button>
+            </div>
+            <div class="panel-accent-line"></div>
+            <div id="templateGrid" class="template-grid"></div>
+            <div class="template-tip">选择模板后将创建新文件，若文件名冲突会自动追加序号</div>
+        </div>
+    </div>
+
+    <!-- ==================== 沙盒本地历史记录 ==================== -->
+    <div id="sandboxHistoryPanel" class="sandbox-overlay-modal" style="display:none;">
+        <div class="sandbox-overlay-content sandbox-overlay-wide">
+            <div class="sandbox-overlay-header">
+                <h3>📜 本地历史记录</h3>
+                <button id="historyCloseBtn" class="sandbox-overlay-close">✕</button>
+            </div>
+            <div class="panel-accent-line"></div>
+            <div class="history-layout">
+                <div class="history-pane history-files">
+                    <div class="history-pane-title">文件</div>
+                    <div id="historyFileList" class="history-list"></div>
+                </div>
+                <div class="history-pane history-versions">
+                    <div class="history-pane-title">版本</div>
+                    <div id="historyVersionList" class="history-list"></div>
+                </div>
+                <div class="history-pane history-diff">
+                    <div class="history-pane-title">
+                        <span>差异对比</span>
+                        <button id="historyRestoreBtn" class="sandbox-toolbar-btn" style="padding:2px 8px;font-size:11px;display:none;">↩ 恢复此版本</button>
+                    </div>
+                    <div id="historyDiffView" class="history-diff-view"></div>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -8,6 +8,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 // 标记 Electron 环境（供 index.html 检测）
 contextBridge.exposeInMainWorld('__ELECTRON__', true);
 
+// 暴露平台信息（供渲染进程跨平台适配）
+contextBridge.exposeInMainWorld('_platform', process.platform);
+
 // 读取 package.json 中的版本号（不用 path 模块，避免沙箱兼容问题）
 let appVersion = '1.0.0';
 try {

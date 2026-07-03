@@ -1,0 +1,947 @@
+/* ============================================================
+   底部固定任务栏
+   ============================================================ */
+#taskbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    background: var(--panel-bg);
+    backdrop-filter: blur(18px);
+    border-top: 1px solid var(--panel-border);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(0, 255, 255, 0.06) inset,
+                0 -1px 12px rgba(4, 123, 123, 0.573),
+                0 -2px 30px rgba(0, 255, 255, 0.06);
+    gap: 0;
+}
+/* 浅色模式任务栏 */
+body.light-mode #taskbar {
+    background: rgba(200, 220, 240, 0.98);
+    border-top: 1px solid rgba(0, 100, 160, 0.35);
+    box-shadow: 0 -4px 20px rgba(0, 60, 100, 0.12),
+                0 -1px 0 rgba(0, 100, 160, 0.2);
+}
+
+/* 任务栏底纹七彩流光动画 */
+#taskbar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(90deg,
+        rgba(255, 0, 128, 0.15) 0%,
+        rgba(255, 165, 0, 0.15) 14.28%,
+        rgba(255, 255, 0, 0.1) 28.57%,
+        rgba(0, 255, 128, 0.15) 42.85%,
+        rgba(0, 200, 255, 0.15) 57.14%,
+        rgba(100, 100, 255, 0.15) 71.42%,
+        rgba(200, 0, 255, 0.15) 85.71%,
+        rgba(255, 0, 128, 0.15) 100%
+    );
+    background-size: 200% 100%;
+    animation: taskbarRainbowFlow 8s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes taskbarRainbowFlow {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+}
+
+/* 确保任务栏内容在流光底纹之上 */
+#taskbar > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* 关闭流光时隐藏伪元素 */
+#taskbar.no-rainbow::before {
+    display: none;
+}
+
+.taskbar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    flex-shrink: 0;
+    height: 100%;
+    border-right: 1px solid rgba(0, 255, 255, 0.1);
+}
+
+.taskbar-right {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    flex-shrink: 0;
+    height: 100%;
+    border-left: 1px solid rgba(0, 255, 255, 0.1);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    user-select: none;
+}
+
+/* 任务栏中间标签页区域（自动布局） */
+.taskbar-tabs {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 100%;
+}
+
+.taskbar-tabs::-webkit-scrollbar {
+    height: 3px;
+}
+
+.taskbar-tabs::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+#taskbarClock {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+#clockCalendarPopup .cal-nav:hover {
+    background: rgba(0, 255, 255, 0.12);
+    color: #eef;
+}
+
+#clockCalendarPopup .cal-day:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+
+#clockCalendarPopup .cal-tab:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+
+#clockCalendarPopup .cal-cell:hover {
+    background: rgba(201, 168, 255, 0.22) !important;
+    border-color: rgba(201, 168, 255, 0.4) !important;
+}
+
+#clockCalendarPopup .cal-event:hover {
+    background: rgba(0, 255, 255, 0.12);
+}
+
+#clockCalendarPopup .cal-del:hover,
+#clockCalendarPopup .cal-weekly-del:hover {
+    color: #e88;
+}
+
+#clockCalendarPopup .cal-add:hover,
+#clockCalendarPopup .cal-add-slot:hover {
+    background: rgba(0, 255, 255, 0.08);
+    border-color: rgba(0, 255, 255, 0.4);
+}
+
+#clockCalendarPopup .cal-slot-label:hover {
+    background: rgba(0, 255, 255, 0.08);
+    color: #eef;
+}
+
+#slotMenu .slot-menu-item:hover {
+    background: rgba(0, 255, 255, 0.12);
+    color: #eef;
+}
+
+#slotMenu .slot-menu-item[data-act="delete"]:hover {
+    background: rgba(255, 100, 100, 0.15);
+    color: #fbb;
+}
+
+.clock-time-date {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+#taskbarWeather {
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+#weatherIcon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+#weatherTemp {
+    font-size: 12px;
+    color: #88b0c8;
+    font-weight: 500;
+}
+
+#weatherPopup {
+    user-select: none;
+    font-family: system-ui, sans-serif;
+}
+
+#weatherPopup .flex-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+
+#weatherCtxMenu .ctx-item:hover {
+    background: rgba(0, 255, 255, 0.12);
+}
+
+#clockTime {
+    font-size: 14px;
+    font-weight: 600;
+    color: #eef;
+}
+
+#clockDate {
+    font-size: 11px;
+    color: #88b0c8;
+}
+
+/* 缩放弹出面板 */
+.zoom-popup {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: 6px 8px;
+    z-index: 2100;
+    box-shadow: var(--panel-shadow);
+    white-space: nowrap;
+}
+
+.zoom-popup.show {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.zoom-popup .control-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    border-radius: 8px;
+}
+
+/* 自动排列弹出面板 */
+.arrange-popup {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: 8px;
+    z-index: 2100;
+    box-shadow: var(--panel-shadow);
+    white-space: nowrap;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 170px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+}
+
+.arrange-popup.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+.arrange-popup button {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--btn-bg);
+    border: none;
+    color: var(--text-primary);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+.arrange-popup button:hover {
+    background: var(--btn-hover);
+}
+
+.arrange-category {
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 4px 12px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+}
+
+.arrange-divider {
+    height: 1px;
+    background: var(--panel-border);
+    margin: 4px 8px;
+}
+
+/* ============================================================
+   AstroKnot 弹出菜单(从下到上弹出,包含项目面板+快速笔记)
+   ============================================================ */
+#astroKnotMenu {
+    display: none;
+    position: fixed;
+    bottom: 48px;
+    left: 4px;
+    z-index: 9999;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+    width: 400px;
+    height: 680px;
+    display: none;
+    flex-direction: column;
+    animation: astroMenuIn 0.25s ease-out;
+    transform-origin: bottom left;
+    overflow: visible;
+    padding: 0;
+}
+
+#astroKnotMenu.show {
+    display: flex;
+}
+
+@keyframes astroMenuIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scaleY(0.88);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
+}
+
+#astroKnotMenu.hiding {
+    animation: astroMenuOut 0.15s ease-in forwards;
+    pointer-events: none;
+}
+
+@keyframes astroMenuOut {
+    from {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(12px) scaleY(0.92);
+    }
+}
+
+/* ── 窗口开关动画 ── */
+@keyframes winFadeIn {
+    from { opacity: 0; transform: scale(0.93); }
+    to   { opacity: 1; transform: scale(1); }
+}
+@keyframes winFadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+.window-open {
+    animation: winFadeIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.window-close {
+    animation: winFadeOut 0.2s cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+#astroKnotMenu .project-panel,
+#astroKnotMenu #quickNotesBar {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 50%;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    border: none;
+    flex: 1;
+    min-height: 80px;
+    overflow-y: auto;
+    max-height: none;
+    background: transparent;
+    backdrop-filter: none;
+    display: flex;
+    flex-direction: column;
+    transform: none;
+    transition: none;
+}
+
+/* 菜单两栏容器 */
+#astroKnotMenuBody {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#astroKnotMenu .project-panel .project-list,
+#astroKnotMenu #quickNotesBar .quick-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+#astroKnotMenu .project-panel .project-header,
+#astroKnotMenu #quickNotesBar .quick-header {
+    flex-shrink: 0;
+    align-items: center;
+    min-height: 42px;
+    padding: 10px 14px;
+}
+
+#astroKnotMenu .project-panel .project-search,
+#astroKnotMenu #quickNotesBar .quick-search {
+    flex-shrink: 0;
+}
+
+/* 菜单内两栏的分割线(垂直) */
+.menu-panel-divider {
+    width: 4px;
+    height: auto;
+    background: rgba(0, 255, 255, 0.2);
+    flex-shrink: 0;
+    cursor: col-resize;
+}
+
+.menu-panel-divider:hover {
+    background: rgba(0, 255, 255, 0.5);
+}
+
+/* AstroKnot 菜单底部工具栏 */
+.menu-bottom-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(0, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.menu-bottom-btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text-secondary);
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.menu-bottom-btn:hover {
+    background: var(--btn-hover);
+    border-color: var(--panel-border);
+    color: var(--accent);
+}
+
+.menu-bottom-btn.menu-close-btn {
+    color: #faa;
+    border-color: rgba(255, 100, 100, 0.25);
+}
+
+.menu-bottom-btn.menu-close-btn:hover {
+    background: rgba(255, 50, 50, 0.2);
+    border-color: rgba(255, 100, 100, 0.6);
+    color: #f55;
+}
+
+.menu-bottom-spacer {
+    flex: 1;
+}
+
+.taskbar-tab {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: rgba(0, 255, 255, 0.06);
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.taskbar-tab:hover {
+    background: var(--btn-hover);
+    color: var(--text-primary);
+    border-color: rgba(0, 255, 255, 0.25);
+}
+
+.taskbar-tab.active {
+    background: var(--btn-hover);
+    color: var(--accent);
+    border-color: var(--panel-border);
+    box-shadow: var(--accent-glow);
+}
+
+.taskbar-tab .tab-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.taskbar-tab .tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.taskbar-tab .tab-close {
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-left: 2px;
+}
+
+.taskbar-tab:hover .tab-close {
+    opacity: 0.7;
+}
+
+.taskbar-tab .tab-close:hover {
+    opacity: 1;
+    color: #f66;
+}
+
+/* 任务栏右键菜单 */
+.taskbar-ctx-menu {
+    position: fixed;
+    z-index: 12000;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: 6px;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 140px;
+    box-shadow: var(--panel-shadow);
+    font-family: system-ui, sans-serif;
+    opacity: 0;
+    transform: translateY(8px) scaleY(0.6);
+    transform-origin: bottom center;
+}
+.taskbar-ctx-menu button {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+.taskbar-ctx-menu button:hover {
+    background: var(--btn-hover);
+}
+.taskbar-ctx-sep {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 4px 8px;
+}
+.taskbar-ctx-close:hover {
+    background: rgba(196, 43, 28, 0.7) !important;
+    color: #fff !important;
+}
+
+.control-btn {
+    background: var(--btn-bg);
+    border: none;
+    color: var(--text-secondary);
+    font-size: 18px;
+    width: 36px;
+    height: 36px;
+    border-radius: 36px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 任务栏 AstroKnot 菜单按钮图标 */
+#astroKnotBtn {
+    overflow: visible;
+}
+#astroKnotBtn .taskbar-icon {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    pointer-events: none;
+    position: relative;
+}
+
+.control-btn:hover {
+    background: var(--btn-hover);
+    color: var(--text-primary);
+    transform: scale(1.05);
+    box-shadow: var(--accent-glow);
+}
+
+/* ============================================================
+   项目管理面板(右上角折叠面板)
+   ============================================================ */
+.project-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 210;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border-radius: var(--panel-radius);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    width: 260px;
+    pointer-events: auto;
+    overflow: hidden;
+    transition: all 0.3s;
+}
+
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--header-bg);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    cursor: pointer;
+}
+
+.project-header h4 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--accent);
+}
+
+.project-header button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 16px;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+}
+
+.project-header button:hover {
+    background: var(--btn-hover);
+    transform: none;
+}
+
+.project-header .header-btns {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.header-btns button {
+    background: var(--btn-bg);
+    border: none;
+    color: var(--accent);
+    font-size: 16px;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header-btns button:hover {
+    background: var(--btn-hover);
+    transform: none;
+}
+
+
+
+.project-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    margin: 4px 0;
+    background: var(--btn-bg);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.project-item:hover {
+    background: var(--btn-hover);
+}
+
+.project-item.active {
+    background: var(--btn-hover);
+    border-left: 3px solid var(--accent);
+}
+
+.project-name {
+    font-size: 12px;
+    color: var(--text-primary);
+    word-break: break-word;
+    max-width: 150px;
+}
+
+.project-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.project-actions button {
+    background: var(--btn-bg);
+    border: none;
+    color: var(--text-primary);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.project-actions button:hover {
+    background: var(--btn-hover);
+}
+
+/* 给项目列表添加过渡动画 */
+.project-list {
+    transition: max-height 0.35s ease, opacity 0.3s ease, padding 0.35s ease;
+    overflow: hidden;
+}
+.project-list.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin: 0;
+    border: none;
+}
+
+/* ============================================================
+   快速笔记侧边栏
+   ============================================================ */
+#quickNotesBar {
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(20px);
+    z-index: 220;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border-radius: var(--panel-radius);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    width: 260px;
+    pointer-events: auto;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-family: system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+#quickNotesBar .quick-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--header-bg);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+}
+
+#quickNotesBar .quick-header .header-btns {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#quickNotesBar .quick-header .header-btns button {
+    background: var(--btn-bg);
+    border: none;
+    color: var(--accent);
+    font-size: 16px;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+#quickNotesBar .quick-header .header-btns button:hover {
+    background: var(--btn-hover);
+    transform: none;
+}
+
+#quickNotesBar .quick-header button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 16px;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+#quickNotesBar .quick-header button:hover {
+    background: var(--btn-hover);
+    transform: none;
+}
+
+#quickNotesBar .quick-header h4 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--accent);
+}
+
+/* 快速笔记列表折叠动画 */
+#quickNotesList {
+    transition: max-height 0.35s ease, opacity 0.3s ease, padding 0.35s ease;
+    overflow: hidden;
+}
+#quickNotesList.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin: 0;
+    border: none;
+}
+
+#quickNotesBar .quick-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    margin: 4px 0;
+    background: var(--btn-bg);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+#quickNotesBar .quick-item:hover {
+    background: var(--btn-hover);
+}
+
+#quickNotesBar .quick-item .qnote-title {
+    font-size: 12px;
+    color: var(--text-primary);
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+#quickNotesBar .quick-item button {
+    background: var(--btn-bg);
+    border: none;
+    color: var(--text-primary);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    width: auto;
+    margin-left: 6px;
+}
+
+/* 项目项/笔记项右键菜单 */
+#itemContextMenu {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+    padding: 6px 0;
+    min-width: 160px;
+    backdrop-filter: blur(12px);
+}
+
+#itemContextMenu .ctx-item {
+    padding: 8px 18px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+#itemContextMenu .ctx-item:hover {
+    background: var(--btn-hover);
+    color: var(--accent);
+}
+
+#itemContextMenu .ctx-sep {
+    height: 1px;
+    background: var(--panel-border);
+    margin: 4px 0;
+}

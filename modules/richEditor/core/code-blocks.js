@@ -171,7 +171,7 @@ let monacoReady = false;
 let monacoLoading = false;
 let monacoCallbacks = [];
 
-function ensureMonaco(cb) {
+export function ensureMonaco(cb) {
   if (monacoReady) { cb(); return; }
   monacoCallbacks.push(cb);
   if (monacoLoading) return;
@@ -259,7 +259,7 @@ function doLoadViaAMD(_require) {
 }
 
 // 语言映射：代码块语言 → Monaco 语言 ID
-function toMonacoLang(lang) {
+export function toMonacoLang(lang) {
   var map = {
     'javascript': 'javascript',
     'typescript': 'typescript',

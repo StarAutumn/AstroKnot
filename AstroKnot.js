@@ -56,6 +56,7 @@ import { initVersionAtmosphere } from './modules/versionGraph/versionAtmosphere.
 
 // ---------- 模块10：富文本编辑器 ----------
 import { initRichEditor } from './modules/richEditor/index.js';
+import './modules/richEditor/sandbox/index.js';
 
 // ---------- 模块11：快速笔记 ----------
 import { initQuickNotes } from './modules/module11_QuickNotes.js';
@@ -87,6 +88,9 @@ import { initLayerManager } from './modules/LayerManager/index.js';
 
 // ---------- 快捷启动 Dock ----------
 import { initDock } from './modules/UI/Dock.js';
+
+// ---------- 窗口管理系统 ----------
+import './modules/UI/window-manager.js';
 
 // ---------- 新手引导 ----------
 import { initGuide, startGuideIfNeeded } from './modules/Guide/index.js';

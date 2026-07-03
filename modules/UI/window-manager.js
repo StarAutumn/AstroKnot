@@ -1,0 +1,447 @@
+// ============================================================
+//  window-manager.js - 统一窗口管理系统
+//  管理所有模态框窗口的状态、动画、拖拽、调整大小
+//  各窗口模块自行管理 Taskbar（通过 onStateChange 回调）
+// ============================================================
+
+/**
+ * 窗口状态枚举
+ */
+const WindowState = {
+  MAXIMIZED: 'maximized',
+  WINDOWED: 'windowed',
+  MINIMIZED: 'minimized'
+};
+
+/**
+ * 窗口实例类
+ */
+class WindowInstance {
+  constructor(options) {
+    this.id = options.id;
+    this.title = options.title;
+    this.container = options.container;
+    this.content = options.content;
+    this.header = options.header;
+    this.icon = options.icon || '📄';
+    this.initialState = options.initialState || WindowState.MAXIMIZED;
+    this.resizable = options.resizable !== false;
+    this.onClose = options.onClose;
+    this.onStateChange = options.onStateChange;
+
+    // 窗口化时保存的位置和尺寸
+    this._winLeft = -1;
+    this._winTop = -1;
+    this._winWidth = null;   // 字符串 '800px' 或 null
+    this._winHeight = null;
+
+    // 当前状态
+    this._state = null;
+
+    // 拖拽
+    this._dragging = false;
+    this._dragShiftX = 0;
+    this._dragShiftY = 0;
+
+    // 调整大小
+    this._resizing = false;
+    this._resizeDir = '';
+    this._resizeStartX = 0;
+    this._resizeStartY = 0;
+    this._resizeStartW = 0;
+    this._resizeStartH = 0;
+    this._resizeStartL = 0;
+    this._resizeStartT = 0;
+
+    this._init();
+  }
+
+  _init() {
+    // 标题栏双击
+    if (this.header) {
+      this.header.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.caption-btn')) return;
+        this.toggleMaximize();
+      });
+    }
+
+    // 标题栏拖拽
+    if (this.header) {
+      this.header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.caption-btn')) return;
+        if (this._state !== WindowState.WINDOWED) return;
+        this._startDrag(e);
+      });
+    }
+
+    // resize handles
+    if (this.resizable && this.content) {
+      const handles = this.content.querySelectorAll('.win-resize-handle, .modal-resize-handle');
+      handles.forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+          if (this._state !== WindowState.WINDOWED) return;
+          this._startResize(e, handle.dataset.handle || 'se');
+        });
+      });
+    }
+
+    // 全局事件（只绑一次）
+    this._boundMouseMove = (e) => this._onMouseMove(e);
+    this._boundMouseUp = (e) => this._onMouseUp(e);
+    document.addEventListener('mousemove', this._boundMouseMove);
+    document.addEventListener('mouseup', this._boundMouseUp);
+  }
+
+  // ==================== 状态 ====================
+
+  getState() { return this._state; }
+
+  setState(newState) {
+    const prevState = this._state;
+    this._state = newState;
+
+    if (newState === WindowState.MAXIMIZED || newState === WindowState.WINDOWED) {
+      // 从最小化恢复 → 用弹入动画
+      if (prevState === WindowState.MINIMIZED) {
+        this._restoreFromMinimized(newState);
+        return;
+      }
+
+      // 正常切换 → 先冻结起点，再设目标（让 transition 平滑过渡）
+      this._snapshotCurrentPosition();
+      this.container.classList.remove(WindowState.MAXIMIZED, WindowState.WINDOWED, WindowState.MINIMIZED, 'closing');
+      this.container.classList.add(newState);
+      this._applyLayout(newState);
+
+    } else if (newState === WindowState.MINIMIZED) {
+      this._animateMinimize();
+    }
+
+    if (this.onStateChange) this.onStateChange(newState, prevState);
+  }
+
+  toggleMaximize() {
+    if (this._state === WindowState.MAXIMIZED) this.setState(WindowState.WINDOWED);
+    else if (this._state === WindowState.WINDOWED) this.setState(WindowState.MAXIMIZED);
+  }
+
+  minimize() { if (this._state !== WindowState.MINIMIZED) this.setState(WindowState.MINIMIZED); }
+
+  restore() {
+    if (this._state === WindowState.MINIMIZED) this.setState(WindowState.WINDOWED);
+  }
+
+  maximize() { this.setState(WindowState.MAXIMIZED); }
+
+  // ==================== 布局 ====================
+
+  _applyLayout(state) {
+    const c = this.content;
+    if (!c) return;
+
+    if (state === WindowState.MAXIMIZED) {
+      c.style.left = '';
+      c.style.top = '';
+      c.style.width = '';
+      c.style.height = '';
+      c.style.transform = '';
+    } else if (state === WindowState.WINDOWED) {
+      c.style.transform = '';
+
+      // 尺寸
+      if (this._winWidth && this._winHeight) {
+        c.style.width = this._winWidth;
+        c.style.height = this._winHeight;
+      } else {
+        c.style.width = '';
+        c.style.height = '';
+      }
+
+      // 位置
+      if (this._winLeft >= 0 && this._winTop >= 0) {
+        c.style.left = this._winLeft + 'px';
+        c.style.top = this._winTop + 'px';
+      } else {
+        // 首次窗口化：用 CSS 默认比例居中
+        const tw = this._winWidth ? parseInt(this._winWidth) : Math.round(window.innerWidth * 0.75);
+        const th = this._winHeight ? parseInt(this._winHeight) : Math.round(window.innerHeight * 0.8);
+        const cx = Math.round((window.innerWidth - tw) / 2);
+        const cy = Math.round((window.innerHeight - th) / 2);
+        c.style.left = cx + 'px';
+        c.style.top = cy + 'px';
+        this._winLeft = cx;
+        this._winTop = cy;
+      }
+    }
+  }
+
+  /** 冻结当前视觉位置为内联像素值（transition=none → 强制重排 → 恢复 transition） */
+  _snapshotCurrentPosition() {
+    if (!this.content) return;
+    const r = this.content.getBoundingClientRect();
+    const c = this.content;
+    c.style.transition = 'none';
+    c.style.left = r.left + 'px';
+    c.style.top = r.top + 'px';
+    c.style.width = r.width + 'px';
+    c.style.height = r.height + 'px';
+    c.style.transform = '';
+    void c.offsetWidth;
+    c.style.transition = '';
+  }
+
+  // ==================== 动画 ====================
+
+  open(initialState) {
+    this.container.style.display = 'flex';
+    this.container.classList.remove('closing');
+
+    // 打开动画
+    this.container.classList.add('window-open');
+    const onEnd = (e) => {
+      if (e.animationName !== 'winFadeIn') return;
+      this.container.classList.remove('window-open');
+      this.container.removeEventListener('animationend', onEnd);
+    };
+    this.container.addEventListener('animationend', onEnd);
+
+    this.setState(initialState || this.initialState);
+    WindowManager.bringToFront(this);
+  }
+
+  close() {
+    if (this._state === WindowState.MINIMIZED) {
+      this.container.style.display = 'none';
+      this.container.classList.remove(WindowState.MINIMIZED);
+    } else {
+      this.container.classList.add('closing', 'window-close');
+      const onEnd = (e) => {
+        if (e.animationName !== 'winFadeOut') return;
+        this.container.classList.remove('window-close', 'closing');
+        this.container.classList.remove(WindowState.MAXIMIZED, WindowState.WINDOWED);
+        this.container.style.display = 'none';
+        this.container.removeEventListener('animationend', onEnd);
+      };
+      this.container.addEventListener('animationend', onEnd);
+    }
+
+    this._state = null;
+    if (this.onClose) this.onClose();
+  }
+
+  _getTaskbarTab() {
+    return document.querySelector(`.taskbar-tab[data-editor-key="${this.id}"]`);
+  }
+
+  _animateMinimize() {
+    const c = this.content;
+    const tab = this._getTaskbarTab();
+
+    if (!tab) {
+      this.container.style.display = 'none';
+      this.container.classList.add(WindowState.MINIMIZED);
+      return;
+    }
+
+    c.style.transition = 'none';
+    c.style.transform = '';
+
+    const sr = c.getBoundingClientRect();
+    const tr = tab.getBoundingClientRect();
+    const dx = (tr.left + tr.width / 2) - (sr.left + sr.width / 2);
+    const dy = (tr.top + tr.height / 2) - (sr.top + sr.height / 2);
+    const scale = Math.min(40 / sr.width, 20 / sr.height);
+
+    const anim = c.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px,${dy}px) scale(${scale})`, opacity: 0.1 }
+    ], { duration: 220, easing: 'cubic-bezier(0.7,0,0.8,0.3)' });
+
+    anim.onfinish = () => {
+      c.style.transition = '';
+      this.container.style.display = 'none';
+      this.container.classList.add(WindowState.MINIMIZED);
+    };
+  }
+
+  _restoreFromMinimized(targetState) {
+    const c = this.content;
+    const tab = this._getTaskbarTab();
+
+    // 先设好目标布局
+    c.style.transition = 'none';
+    c.style.transform = '';
+    this.container.classList.remove(WindowState.MINIMIZED);
+    this.container.style.display = 'flex';
+    this.container.classList.add(targetState);
+    this._applyLayout(targetState);
+    void c.offsetWidth;
+
+    if (!tab) {
+      c.style.transition = '';
+      if (this.onStateChange) this.onStateChange(targetState, WindowState.MINIMIZED);
+      return;
+    }
+
+    // 弹入动画
+    const targetR = c.getBoundingClientRect();
+    const tabR = tab.getBoundingClientRect();
+    const dx = (tabR.left + tabR.width / 2) - (targetR.left + targetR.width / 2);
+    const dy = (tabR.top + tabR.height / 2) - (targetR.top + targetR.height / 2);
+    const scale = Math.min(40 / targetR.width, 20 / targetR.height);
+
+    const anim = c.animate([
+      { transform: `translate(${dx}px,${dy}px) scale(${scale})`, opacity: 0.1 },
+      { transform: 'translate(0,0) scale(1)', opacity: 1 }
+    ], { duration: 250, easing: 'cubic-bezier(0.1,0.9,0.2,1)' });
+
+    anim.onfinish = () => { c.style.transition = ''; };
+    if (this.onStateChange) this.onStateChange(targetState, WindowState.MINIMIZED);
+  }
+
+  // ==================== 拖拽 ====================
+
+  _startDrag(e) {
+    const r = this.content.getBoundingClientRect();
+    this._dragging = true;
+    this._dragShiftX = e.clientX - r.left;
+    this._dragShiftY = e.clientY - r.top;
+
+    this.content.style.transition = 'none';
+    this.content.style.left = r.left + 'px';
+    this.content.style.top = r.top + 'px';
+    this.content.style.transform = '';
+
+    document.body.style.cursor = 'grabbing';
+    e.preventDefault();
+  }
+
+  _onDrag(e) {
+    if (!this._dragging) return;
+    const l = e.clientX - this._dragShiftX;
+    const t = e.clientY - this._dragShiftY;
+    this.content.style.left = l + 'px';
+    this.content.style.top = t + 'px';
+    this._winLeft = l;
+    this._winTop = t;
+  }
+
+  _endDrag() {
+    if (!this._dragging) return;
+    this._dragging = false;
+    this.content.style.transition = '';
+    document.body.style.cursor = '';
+    // 保存尺寸
+    this._winWidth = this.content.style.width || (this.content.offsetWidth + 'px');
+    this._winHeight = this.content.style.height || (this.content.offsetHeight + 'px');
+  }
+
+  // ==================== 调整大小 ====================
+
+  _startResize(e, dir) {
+    this._resizing = true;
+    this._resizeDir = dir;
+    this._resizeStartX = e.clientX;
+    this._resizeStartY = e.clientY;
+
+    const r = this.content.getBoundingClientRect();
+    this._resizeStartW = r.width;
+    this._resizeStartH = r.height;
+    this._resizeStartL = r.left;
+    this._resizeStartT = r.top;
+
+    this.content.style.transition = 'none';
+    this.content.style.left = r.left + 'px';
+    this.content.style.top = r.top + 'px';
+    this.content.style.width = r.width + 'px';
+    this.content.style.height = r.height + 'px';
+    this.content.style.transform = '';
+
+    e.preventDefault();
+  }
+
+  _onResize(e) {
+    if (!this._resizing) return;
+    const dx = e.clientX - this._resizeStartX;
+    const dy = e.clientY - this._resizeStartY;
+    const d = this._resizeDir;
+
+    let nw = this._resizeStartW, nh = this._resizeStartH;
+    let nl = this._resizeStartL, nt = this._resizeStartT;
+
+    if (d.includes('e')) nw += dx;
+    if (d.includes('w')) { nw -= dx; nl += dx; }
+    if (d.includes('s')) nh += dy;
+    if (d.includes('n')) { nh -= dy; nt += dy; }
+
+    if (nw < 400) { if (d.includes('w')) nl = this._resizeStartL + this._resizeStartW - 400; nw = 400; }
+    if (nh < 300) { if (d.includes('n')) nt = this._resizeStartT + this._resizeStartH - 300; nh = 300; }
+
+    this.content.style.left = nl + 'px';
+    this.content.style.top = nt + 'px';
+    this.content.style.width = nw + 'px';
+    this.content.style.height = nh + 'px';
+
+    this._winLeft = nl;
+    this._winTop = nt;
+    this._winWidth = nw + 'px';
+    this._winHeight = nh + 'px';
+  }
+
+  _endResize() {
+    if (!this._resizing) return;
+    this._resizing = false;
+    this.content.style.transition = '';
+  }
+
+  // ==================== 全局事件 ====================
+
+  _onMouseMove(e) {
+    if (this._dragging) this._onDrag(e);
+    if (this._resizing) this._onResize(e);
+  }
+
+  _onMouseUp(e) {
+    this._endDrag();
+    this._endResize();
+  }
+
+  // ==================== 标题 ====================
+
+  setTitle(title) {
+    this.title = title;
+    const el = this.container.querySelector('.rich-modal-header h2');
+    if (el) el.textContent = title;
+    const tabLabel = document.querySelector(`.taskbar-tab[data-editor-key="${this.id}"] .tab-label`);
+    if (tabLabel) tabLabel.textContent = title;
+  }
+}
+
+/**
+ * 窗口管理器（全局单例）
+ */
+const WindowManager = {
+  _windows: new Map(),
+  _topZIndex: 11000,
+
+  create(options) {
+    const win = new WindowInstance(options);
+    this._windows.set(options.id, win);
+    return win;
+  },
+
+  get(id) { return this._windows.get(id); },
+
+  bringToFront(win) {
+    this._topZIndex++;
+    win.container.style.zIndex = this._topZIndex;
+  },
+
+  destroy(id) { this._windows.delete(id); }
+};
+
+// 导出
+window.WindowState = WindowState;
+window.WindowManager = WindowManager;
+
+console.log('[window-manager] 模块已加载');

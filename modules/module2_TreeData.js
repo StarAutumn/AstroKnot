@@ -94,6 +94,16 @@ export function saveCurrentProjectData() {
   for (let [id, node] of appState.nodeMap.entries()) {
     if (node.overlayImages && node.overlayImages.length > 0) no[id] = node.overlayImages;
   }
+  // 收集 HTML 沙盒源码
+  let nhs = {};
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (node.htmlSource) nhs[id] = node.htmlSource;
+  }
+  // 收集虚拟文件系统
+  let nfs = {};
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (node.fileSystem) nfs[id] = node.fileSystem;
+  }
   // 克隆位置
   let po = new Map();
   for (let [id, v] of appState.positions.entries()) po.set(id, v.clone());
@@ -135,6 +145,8 @@ export function saveCurrentProjectData() {
         Array.from(appState.collapsed2D) : appState.collapsed2D) : [],
     nodeRichContents: nr,
     nodeOverlayImages: no,
+    nodeHtmlSources: nhs,
+    nodeFileSystems: nfs,
     layers: serializedLayers,
     currentLayerId: appState.currentLayerId,
     cameraView: cameraView,
@@ -620,6 +632,8 @@ function _persistToLocalStorage() {
         collapsed2D: p.data.collapsed2D || [],
         nodeRichContents: p.data.nodeRichContents || {},
         nodeOverlayImages: p.data.nodeOverlayImages || {},
+        nodeHtmlSources: p.data.nodeHtmlSources || {},
+        nodeFileSystems: p.data.nodeFileSystems || {},
         layers: p.data.layers || [],
         currentLayerId: p.data.currentLayerId || null,
         cameraView: p.data.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }

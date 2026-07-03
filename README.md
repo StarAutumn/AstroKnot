@@ -20,9 +20,12 @@
 - **历史记录** — 完整的撤销/重做，操作原子化
 - **快速笔记** — 独立的富文本笔记列表
 - **项目持久化** — Markdown + JSON 混合格式存储，支持多项目
+- **版本控制** — 版本图系统，支持提交、分支、diff、回滚，类似 Git 的版本管理（已保存项目存储在 `.versiongraph/`，未保存项目临时存储在 `userData/version-graphs-tmp/`）
+- **代码沙盒 IDE** — VSCode 风格迷你 IDE，Monaco Editor + 文件树 + 标签页 + esbuild-wasm 打包，支持 HTML/CSS/JS 实时预览、控制台、全局搜索、本地历史、Emmet 缩写、代码片段模板
 - **启动闪屏** — 应用图标 + 渐变文字 + 地面反光效果
 - **天气时钟** — 任务栏显示实时时钟、农历、节气、天气
 - **日历排班** — 月/周/日三视图，日程管理，四象限事项，排班（上班规律/手动倒班/规律倒班），法定节假日自动识别
+- **双版本部署** — Electron 桌面版（完整功能）+ Web 版（浏览器访问，部分功能受限）
 
 ## 快速开始
 
@@ -85,6 +88,12 @@ AstroKnot/
     ├── StressTest.js               # 性能压力测试工具
     ├── taskbar.js                  # 底部任务栏（窗口管理）
     ├── hot-update.js               # 开发热更新（HMR）
+    ├── versionGraph/               # 版本控制系统
+    │   ├── versionGraph.js         #   提交/分支/diff 核心逻辑
+    │   ├── versionStore.js         #   版本数据持久化（hash、blob 存储）
+    │   ├── versionAutoSave.js      #   自动保存 & 定时快照
+    │   ├── versionMap.js           #   版本图可视化（Canvas 渲染）
+    │   └── versionAtmosphere.js    #   版本图 3D 氛围效果
     ├── VisualComponents/           # 3D 可视化组件（原 module6）
     │   ├── index.js                #   入口 & 统一导出
     │   ├── Nodes.js                #   节点网格创建/销毁/动画
@@ -157,12 +166,29 @@ AstroKnot/
         ├── heading-templates.js    #   标题样式模板管理
         ├── insert-toc.js           #   右键添加到目录
         ├── lists.js                #   列表功能（项目符号/编号/多级）
-        ├── content-io.js           #   内容读写（保存/加载/标签页/分屏）
         ├── content-style.js        #   编辑器内容 CSS（含 sup/sub/分栏）
         ├── images-files.js         #   图片/文件管理 & 右键菜单
         ├── toc.js                  #   目录/大纲侧边栏
         ├── tree-panel.js           #   节点树 2D 面板（Canvas 渲染）
         ├── style.css               #   编辑器样式
+        ├── content-io/             #   内容读写子系统
+        │   ├── index.js            #     入口 & 聚合导出
+        │   ├── editor-content-io.js #    内容保存/加载、sandbox/普通UI切换、标签页管理
+        │   ├── editor-tabs.js      #     编辑器标签页（多节点切换、z-index 管理）
+        │   ├── split-screen.js     #     分屏预览（宽度拖拽、iframe 预览）
+        │   ├── modal-window.js     #     窗口三态控制（最大化/最小化/恢复、动画）
+        │   └── modal-window.css    #     窗口样式
+        ├── sandbox/                #   代码沙盒 IDE
+        │   ├── index.js            #     IDE 入口（Monaco + 文件树 + 标签页 + 预览）
+        │   ├── sandbox-virtual-fs.js #   虚拟文件系统（多文件管理、HTML 迁移）
+        │   ├── sandbox-file-tree.js #   文件树组件（右键菜单、新建/删除/重命名）
+        │   ├── sandbox-tabs.js     #     文件标签页（拖拽排序、关闭、切换）
+        │   ├── sandbox-monaco-editor.js # Monaco 编辑器集成（语法高亮、Emmet）
+        │   ├── sandbox-bundler.js  #     esbuild-wasm 打包器（模块打包、CSS/JS 注入）
+        │   ├── sandbox-templates.js #    代码片段模板（HTML/CSS/JS 模板）
+        │   ├── sandbox-history.js  #     本地历史记录（快照、diff、回滚）
+        │   ├── sandbox-search.js   #     全局文件搜索（Ctrl+Shift+F）
+        │   └── sandbox-ide.css     #     IDE 样式
         └── core/                   #   内核
             ├── init.js             #     TinyMCE 7 初始化 & 事件绑定
             ├── editor-events.js    #     编辑器事件（右键/拖放/搜索/缩放）
@@ -205,6 +231,7 @@ AstroKnot/
 | 层 | 模块 | 职责 |
 |----|------|------|
 | 数据层 | `module0`, `module2`, `module3`, `module9` | 状态管理、数据持久化、历史记录、文件 IO |
+| 版本控制层 | `versionGraph/` | 版本图系统（提交、分支、diff、回滚、自动保存） |
 | 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件、场景初始化、动画 |
 | 交互控制层 | `module5`, `MoveMode/` | 节点选中/编辑、拖拽移动 |
 | UI 层 | `module4`, `module8`, `module11`, `AIChat/`, `UI/`, `richEditor/`, `taskbar.js` | 弹窗、菜单、AI 对话、编辑器、窗口管理 |
@@ -232,9 +259,10 @@ AstroKnot/
 | `module9` | `module0`, `module2`, `VisualComponents/`, `module5` | 文件 IO |
 | `module11` | `module0`, `module2`, `module4` | 快速笔记 |
 | `module14` | `module0` | 动画循环 |
+| `versionGraph/` | `module0`, `module2` | 版本控制系统（提交、分支、diff） |
 | `AIChat/` | `module0`, `UI/` | AI 对话（Chat/Agent 双模式） |
 | `Guide/` | `module0`, `UI/` | 新手引导 |
-| `richEditor/` | `module0`, `module2`, `UI/` | 富文本编辑 |
+| `richEditor/` | `module0`, `module2`, `UI/` | 富文本编辑（含 sandbox IDE） |
 | `UI/` | `module0`, `module2`, `module3`, `module5`, `module9`, `richEditor/` | UI 组件 |
 | `MoveMode/` | `module0`, `module2`, `module3`, `module5`, `VisualComponents/`, `module8`, `richEditor/` | 移动模式 |
 | `2DView/` | `module0`, `module2`, `module5`, `VisualComponents/`, `module8`, `richEditor/` | 2D 视图 |
@@ -295,6 +323,8 @@ AstroKnot/
 - **天气 & 农历**：任务栏右侧时钟，右键可设置城市
 - **日历排班**：月/周/日三视图，支持排班（上班规律自动识别法定节假日和调休、手动倒班、规律倒班循环），四象限事项管理，纪念日
 - **AI 对话**：支持 Chat 模式和 Agent 模式，Agent 模式可调用工具（读取项目上下文、导入 Markdown 等）
+- **版本控制**：工具栏版本图按钮，查看提交历史、创建分支、回滚到历史版本、查看 diff
+- **代码沙盒 IDE**：右键节点 → "💻 以 HTML 方式打开"，进入 VSCode 风格 IDE，支持实时预览、控制台、全局搜索
 - **新手引导**：首次打开空项目时自动启动，交互式引导完成基本操作
 
 ## 技术栈
@@ -314,6 +344,26 @@ AstroKnot/
 | **html2canvas** | DOM 截图 |
 | **SoundTouchJS** | 音频变速/变调处理 |
 | **Fabric.js** | 画布/遮罩操作 |
+
+## 部署版本
+
+AstroKnot 提供两个版本：
+
+### 桌面版（推荐）
+
+- **路径**：项目根目录（`main.js`, `index.html`, `AstroKnot.js`）
+- **启动**：`npm start` 或直接运行打包后的 `.exe`
+- **特性**：完整功能，包括文件系统访问、本地存储、全屏模式、无边框窗口
+
+### Web 版
+
+- **路径**：`web_version/` 目录
+- **启动**：部署到静态服务器或本地 HTTP 服务器
+- **特性**：浏览器访问，支持大部分功能，但受浏览器安全限制（无文件系统直接访问、部分 API 需要适配）
+- **限制**：
+  - 文件保存通过浏览器下载
+  - FFmpeg.wasm 性能受限
+  - 无 Electron IPC 能力
 
 ## License
 

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=AstroKnot
+Comment=3D Knowledge Network Visualization Tool - 3D知识网络可视化与编辑工具
+Exec=bash -c "cd $(dirname %k) && npm start"
+Icon=assets/icon.png
+Terminal=false
+Type=Application
+Categories=Education;Productivity;Graphics;3DGraphics;
+StartupNotify=true
+StartupWMClass=astroknot
+GenericName=Knowledge Management Tool
+Keywords=knowledge;mind-map;3D;visualization;note-taking;editor;

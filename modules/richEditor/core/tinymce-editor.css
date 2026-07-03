@@ -1,0 +1,976 @@
+/* ============================================================
+   TinyMCE 7 深色主题样式（覆盖 / 适配）
+   ============================================================ */
+#ckEditorContainer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0d1b23;
+}
+
+#ckEditorContainer .tox {
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+#ckEditorContainer .tox .tox-toolbar,
+#ckEditorContainer .tox .tox-toolbar__primary {
+    background: #0f1e26 !important;
+    border-bottom: 1px solid #2c6e7e !important;
+    /* 防止工具栏重排导致按钮文字闪烁 */
+    contain: layout style !important;
+}
+
+/* 工具栏分组稳定布局 */
+#ckEditorContainer .tox .tox-toolbar__group {
+    flex-shrink: 0 !important;
+}
+
+#ckEditorContainer .tox .tox-tbtn {
+    color: #aef0ff !important;
+    /* 防止内置按钮文字闪烁：强制显示文字标签 */
+    min-width: auto !important;
+    flex-shrink: 0 !important;
+}
+
+/* 强制显示所有工具栏按钮的文字标签（表格、特殊字符、表情符号等） */
+#ckEditorContainer .tox .tox-tbtn__text,
+#ckEditorContainer .tox .tox-tbtn--select .tox-tbtn__text,
+#ckEditorContainer .tox .tox-split-button__text {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+    color: inherit !important;
+}
+
+#ckEditorContainer .tox .tox-mbtn[aria-label="中文字体（仅对汉字生效）"],
+#ckEditorContainer .tox .tox-tbtn[aria-label="中文字体（仅对汉字生效）"],
+#ckEditorContainer .tox .tox-mbtn[aria-label="英文字体（仅对英文生效）"],
+#ckEditorContainer .tox .tox-tbtn[aria-label="英文字体（仅对英文生效）"] {
+    min-width: 100px !important;
+    justify-content: flex-start !important;
+    padding-left: 4px !important;
+    padding-right: 0px !important;
+    position: relative !important;
+}
+
+#ckEditorContainer .tox .tox-mbtn[aria-label="中文字体（仅对汉字生效）"] .tox-mbtn__select-chevron,
+#ckEditorContainer .tox .tox-tbtn[aria-label="中文字体（仅对汉字生效）"] .tox-tbtn__select-chevron,
+#ckEditorContainer .tox .tox-mbtn[aria-label="英文字体（仅对英文生效）"] .tox-mbtn__select-chevron,
+#ckEditorContainer .tox .tox-tbtn[aria-label="英文字体（仅对英文生效）"] .tox-tbtn__select-chevron {
+    position: absolute !important;
+    right: 4px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    margin: 0 !important;
+}
+
+#ckEditorContainer .tox .tox-tbtn:hover {
+    background: #1c525a !important;
+    color: #fff !important;
+}
+
+#ckEditorContainer .tox .tox-tbtn--enabled,
+#ckEditorContainer .tox .tox-tbtn--enabled:hover {
+    background: #2c7a6e !important;
+    color: #fff !important;
+}
+
+#ckEditorContainer .tox .tox-tbtn svg {
+    fill: #aef0ff !important;
+}
+
+#ckEditorContainer .tox .tox-tbtn:hover svg {
+    fill: #fff !important;
+}
+
+#ckEditorContainer .tox .tox-tbtn--enabled svg {
+    fill: #fff !important;
+}
+
+#ckEditorContainer .tox .tox-edit-area__iframe {
+    background: #0d1b23 !important;
+}
+
+#ckEditorContainer .tox .tox-editor-header {
+    order: -1 !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    flex-shrink: 0 !important;
+    border-bottom: 1px solid #2c6e7e !important;
+    background: #0f1e26 !important;
+}
+
+#ckEditorContainer .tox-tinymce-inline {
+    order: -1 !important;
+    flex-shrink: 0 !important;
+}
+
+#ckEditorContainer #tinymce-editor-textarea.mce-content-body {
+    position: relative !important;
+    flex: 1 !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+    background: #0d1b23 !important;
+    color: #c8e6ff !important;
+    font-size: 15px !important;
+    line-height: 1.7 !important;
+}
+
+/* ── 浅色模式（视图 Tab 切换） ── */
+#ckEditorContainer.editor-light-mode #tinymce-editor-textarea.mce-content-body {
+    background: #ffffff !important;
+    color: #333333 !important;
+}
+#ckEditorContainer.editor-light-mode .tox .tox-edit-area__iframe {
+    background: #ffffff !important;
+}
+#ckEditorContainer.editor-light-mode .tox .tox-toolbar,
+#ckEditorContainer.editor-light-mode .tox .tox-toolbar__primary {
+    background: #0f1e26 !important;
+    border-bottom: 1px solid #2c6e7e !important;
+}
+/* 浅色模式 — 内容区元素适配 */
+#ckEditorContainer.editor-light-mode .mce-content-body a {
+    color: #1565c0 !important;
+}
+#ckEditorContainer.editor-light-mode .mce-content-body blockquote {
+    border-left-color: #ccc !important;
+    color: #555 !important;
+}
+#ckEditorContainer.editor-light-mode .mce-content-body h1,
+#ckEditorContainer.editor-light-mode .mce-content-body h2,
+#ckEditorContainer.editor-light-mode .mce-content-body h3,
+#ckEditorContainer.editor-light-mode .mce-content-body h4 {
+    color: #222 !important;
+}
+#ckEditorContainer.editor-light-mode .mce-content-body pre {
+    background: #f5f5f5 !important;
+    border-color: #ddd !important;
+    color: #333 !important;
+}
+#ckEditorContainer.editor-light-mode .mce-content-body code {
+    background: #f0f0f0 !important;
+    border-color: #ddd !important;
+    color: #333 !important;
+}
+#ckEditorContainer.editor-light-mode .mce-content-body .tox-pagebreak {
+    border-color: #ccc !important;
+}
+
+/* ── 页面视图（视图 Tab 切换） ── */
+#ckEditorContainer.editor-page-view {
+    background: #1a2a35 !important;
+}
+#ckEditorContainer.editor-page-view .tox-edit-area__iframe,
+#ckEditorContainer.editor-page-view .tox .tox-edit-area {
+    background: #1a2a35 !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+}
+#ckEditorContainer.editor-page-view .tox .tox-toolbar,
+#ckEditorContainer.editor-page-view .tox .tox-toolbar__primary {
+    background: #0f1e26 !important;
+}
+/* 浅色模式 + 页面视图 */
+#ckEditorContainer.editor-light-mode.editor-page-view {
+    background: #e8eaed !important;
+}
+#ckEditorContainer.editor-light-mode.editor-page-view .tox-edit-area__iframe,
+#ckEditorContainer.editor-light-mode.editor-page-view .tox .tox-edit-area {
+    background: #e8eaed !important;
+}
+
+/* 外部文件拖入编辑区高亮 */
+#ckEditorContainer #tinymce-editor-textarea.mce-content-body.tmce-drag-over {
+    outline: 3px dashed #4fc3f7 !important;
+    outline-offset: -3px !important;
+    background: rgba(79, 195, 247, 0.06) !important;
+    box-shadow: inset 0 0 40px rgba(79, 195, 247, 0.08) !important;
+}
+
+#ckEditorContainer .tox .tox-statusbar {
+    border-top: 1px solid #2c6e7e !important;
+    background: #0f1e26 !important;
+}
+
+/* ── TinyMCE 对话框（多级列表 UI 风格） ── */
+.tox-dialog-wrap {
+    background: rgba(0,0,0,0.5) !important;
+}
+
+.tox-dialog-wrap .tox-dialog,
+#ckEditorContainer .tox .tox-dialog {
+    background: #0d1f2b !important;
+    border: 1px solid #2c6e7e !important;
+    border-radius: 14px !important;
+    box-shadow: 0 6px 30px rgba(0,0,0,0.8) !important;
+}
+
+.tox-dialog-wrap .tox-dialog__header,
+#ckEditorContainer .tox .tox-dialog__header {
+    background: #0d1f2b !important;
+    color: #ccd !important;
+    padding: 12px 16px 8px !important;
+    border-bottom: 1px solid #1e3a44 !important;
+    user-select: none !important;
+    cursor: move !important;
+}
+
+.tox-dialog-wrap .tox-dialog__title,
+#ckEditorContainer .tox .tox-dialog__title {
+    color: #ccd !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+}
+
+.tox-dialog-wrap .tox-dialog__body,
+#ckEditorContainer .tox .tox-dialog__body {
+    background: #0d1f2b !important;
+    color: #ccd !important;
+    padding: 12px 16px !important;
+}
+
+.tox-dialog-wrap .tox-dialog__body .tox-dialog__body-content,
+#ckEditorContainer .tox .tox-dialog__body .tox-dialog__body-content {
+    background: #0d1f2b !important;
+    color: #ccd !important;
+}
+
+.tox-dialog-wrap .tox-dialog__footer,
+#ckEditorContainer .tox .tox-dialog__footer {
+    background: #0d1f2b !important;
+    border-top: 1px solid #1e3a44 !important;
+    padding: 10px 16px !important;
+}
+
+.tox-dialog-wrap .tox-button,
+#ckEditorContainer .tox .tox-button {
+    background: #1a3a44 !important;
+    color: #ccd !important;
+    border: 1px solid #2c6e7e !important;
+    border-radius: 6px !important;
+    padding: 6px 14px !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+}
+
+.tox-dialog-wrap .tox-button:hover,
+#ckEditorContainer .tox .tox-button:hover {
+    background: #2c6e7e !important;
+    color: #fff !important;
+}
+
+.tox-dialog-wrap .tox-button--primary,
+#ckEditorContainer .tox .tox-button--primary {
+    background: #2c6e7e !important;
+    border: none !important;
+    color: #fff !important;
+    font-weight: bold !important;
+}
+
+.tox-dialog-wrap .tox-button--primary:hover,
+#ckEditorContainer .tox .tox-button--primary:hover {
+    background: #3a8e9e !important;
+}
+
+.tox-dialog-wrap .tox-listboxfield .tox-listbox--select,
+.tox-dialog-wrap .tox-textfield,
+.tox-dialog-wrap .tox-toolbar-textfield,
+.tox-dialog-wrap select,
+#ckEditorContainer .tox .tox-listboxfield .tox-listbox--select,
+#ckEditorContainer .tox .tox-textfield,
+#ckEditorContainer .tox .tox-toolbar-textfield,
+#ckEditorContainer .tox select {
+    background: #0a151d !important;
+    color: #ccd !important;
+    border: 1px solid #2c6e7e !important;
+    border-radius: 4px !important;
+    padding: 4px 8px !important;
+    font-size: 13px !important;
+}
+
+.tox-dialog-wrap .tox-collection--list .tox-collection__item,
+#ckEditorContainer .tox .tox-collection--list .tox-collection__item {
+    background: #0d1f2b !important;
+    color: #ccd !important;
+}
+
+.tox-dialog-wrap .tox-collection--list .tox-collection__item--enabled,
+#ckEditorContainer .tox .tox-collection--list .tox-collection__item--enabled {
+    background: #2c6e7e !important;
+    color: #fff !important;
+}
+
+/* ── Charmap 特殊字符网格 ── */
+.tox .tox-dialog__body .tox-charmap,
+#ckEditorContainer .tox .tox-charmap {
+    background: #0a151d !important;
+    border: 1px solid #1e3a44 !important;
+    border-radius: 8px !important;
+}
+
+.tox .tox-charmap button,
+#ckEditorContainer .tox .tox-charmap button {
+    background: #122 !important;
+    border: 1px solid #1e3a44 !important;
+    border-radius: 4px !important;
+    color: #ccd !important;
+    font-size: 18px !important;
+    cursor: pointer !important;
+    transition: all 0.15s !important;
+}
+
+.tox .tox-charmap button:hover,
+#ckEditorContainer .tox .tox-charmap button:hover {
+    background: #2c6e7e !important;
+    border-color: #5ab !important;
+    color: #fff !important;
+    transform: scale(1.05) !important;
+}
+
+/* ── Emoticons 表情网格 ── */
+.tox .tox-dialog__body .tox-emoticons,
+#ckEditorContainer .tox .tox-emoticons {
+    background: #0a151d !important;
+    border: 1px solid #1e3a44 !important;
+    border-radius: 8px !important;
+}
+
+.tox .tox-emoticons button,
+#ckEditorContainer .tox .tox-emoticons button {
+    background: #122 !important;
+    border: 1px solid #1e3a44 !important;
+    border-radius: 4px !important;
+    color: #ccd !important;
+    font-size: 22px !important;
+    cursor: pointer !important;
+    transition: all 0.15s !important;
+}
+
+.tox .tox-emoticons button:hover,
+#ckEditorContainer .tox .tox-emoticons button:hover {
+    background: #2c6e7e !important;
+    border-color: #5ab !important;
+    color: #fff !important;
+    transform: scale(1.05) !important;
+}
+
+/* ── Searchreplace 查找替换 ── */
+.tox .tox-dialog__body .tox-searchreplace,
+#ckEditorContainer .tox .tox-searchreplace {
+    background: #0a151d !important;
+    border: 1px solid #1e3a44 !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+}
+
+.tox .tox-dialog__body .tox-searchreplace input,
+#ckEditorContainer .tox .tox-searchreplace input {
+    background: #0a151d !important;
+    border: 1px solid #2c6e7e !important;
+    border-radius: 4px !important;
+    color: #ccd !important;
+    padding: 4px 8px !important;
+    font-size: 13px !important;
+}
+
+#ckEditorContainer .tox .tox-menu,
+.tox-tinymce-aux .tox-menu {
+    background: #0a1a24 !important;
+    border: 1px solid #2c6e7e !important;
+    max-height: min(380px, calc(100vh - 200px)) !important;
+    overflow-y: auto !important;
+    scrollbar-width: thin !important;
+}
+
+#ckEditorContainer .tox .tox-menu::-webkit-scrollbar,
+.tox-tinymce-aux .tox-menu::-webkit-scrollbar {
+    width: 4px;
+}
+
+#ckEditorContainer .tox .tox-menu::-webkit-scrollbar-thumb,
+.tox-tinymce-aux .tox-menu::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+#ckEditorContainer .tox .tox-collection__item:hover {
+    background: #1c525a !important;
+}
+
+/* ── 字号下拉按钮(缩窄到刚好显示数字) ── */
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[data-mce-name="fontsize"],
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字体大小"],
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字号"],
+#toolbarDock .tox-tbtn.tox-tbtn--select[data-mce-name="fontsize"],
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[data-mce-name="fontsize"],
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字体大小"],
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字号"],
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select[data-mce-name="fontsize"] {
+    min-width: 38px !important;
+    max-width: 50px !important;
+    width: 48px !important;
+    overflow: hidden !important;
+}
+
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[data-mce-name="fontsize"] .tox-tbtn__select-label,
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字体大小"] .tox-tbtn__select-label,
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字号"] .tox-tbtn__select-label,
+#toolbarDock .tox-tbtn.tox-tbtn--select[data-mce-name="fontsize"] .tox-tbtn__select-label,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[data-mce-name="fontsize"] .tox-tbtn__select-label,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字体大小"] .tox-tbtn__select-label,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字号"] .tox-tbtn__select-label,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select[data-mce-name="fontsize"] .tox-tbtn__select-label {
+    max-width: 32px !important;
+    min-width: 32px !important;
+    padding: 0 !important;
+    font-size: 11px;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[data-mce-name="fontsize"] .tox-tbtn__select-chevron,
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字体大小"] .tox-tbtn__select-chevron,
+#toolbarDock .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字号"] .tox-tbtn__select-chevron,
+#toolbarDock .tox-tbtn.tox-tbtn--select[data-mce-name="fontsize"] .tox-tbtn__select-chevron,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[data-mce-name="fontsize"] .tox-tbtn__select-chevron,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字体大小"] .tox-tbtn__select-chevron,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select.tox-tbtn--bespoke[aria-label*="字号"] .tox-tbtn__select-chevron,
+#ckEditorContainer .tox .tox-tbtn.tox-tbtn--select[data-mce-name="fontsize"] .tox-tbtn__select-chevron {
+    flex-shrink: 0;
+    width: 10px !important;
+    min-width: 10px !important;
+}
+
+/* ── TinyMCE 7 字体大小选择框(可能使用 tox-listbox) ── */
+#ckEditorContainer .tox .tox-listboxfield .tox-listbox--select {
+    min-width: 28px !important;
+    max-width: 38px !important;
+}
+
+#ckEditorContainer .tox .tox-listbox--select .tox-listbox__select-label {
+    max-width: 24px !important;
+    padding: 0 1px !important;
+    font-size: 11px;
+}
+
+/* ── 通用：限制所有工具栏选择按钮宽度 ── */
+#ckEditorContainer .tox .tox-tbtn--select {
+    min-width: 28px;
+    max-width: 42px;
+}
+
+#ckEditorContainer .tox .tox-split-button:hover {
+    box-shadow: none !important;
+}
+
+/* ---------- TinyMCE 工具栏始终显示 + 折叠 ---------- */
+#ckEditorContainer .tox-tinymce-inline,
+#ckEditorContainer .tox .tox-editor-header {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+#ckEditorContainer {
+    position: relative;
+}
+
+/* 工具栏折叠状态：保留第一行，隐藏其余 */
+#ckEditorContainer.tmce-toolbar-collapsed .tox-tinymce-inline {
+    max-height: 46px;
+    overflow: hidden;
+}
+
+#toolbarDock.tmce-toolbar-collapsed .tox-tinymce-inline {
+    max-height: 46px;
+    overflow: hidden;
+}
+
+/* 工具栏折叠/展开按钮 */
+#ckEditorContainer .tox .tox-tbtn[title="展开/折叠工具栏"] {
+    background: #2c5a6a !important;
+    color: #aef0ff !important;
+    font-size: 11px !important;
+    min-width: 28px !important;
+    width: 28px !important;
+    padding: 0 4px !important;
+    font-weight: bold;
+}
+
+/* ---------- 图片拖拽/缩放 ---------- */
+.tmce-resizable-image-wrapper {
+    display: inline-block;
+    position: relative;
+    max-width: 100%;
+    cursor: move;
+    vertical-align: top;
+}
+
+.tmce-resize-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #2c6e7e;
+    border: 1px solid #aef0ff;
+    border-radius: 2px;
+    z-index: 10;
+    display: none;
+}
+
+.tmce-resizable-image-wrapper:hover .tmce-resize-handle,
+.tmce-resizable-image-wrapper.tmce-dragging .tmce-resize-handle {
+    display: block;
+}
+
+/* ---------- 浮动图片覆盖层 — 画布块模式 ---------- */
+.tmce-overlay-block {
+    position: relative;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    margin: 8px 0;
+    overflow: visible;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.tmce-overlay-block:hover {
+    border: none;
+    background: transparent;
+}
+
+/* 画布块选中状态 */
+.tmce-overlay-block-active {
+    border: 1px solid rgba(0, 255, 255, 0.6) !important;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.2);
+    background: rgba(13, 27, 35, 0.45);
+}
+
+/* 画布块内有焦点元素时显示边框 */
+.tmce-overlay-block:focus-within {
+    border: 1px dashed rgba(0, 255, 255, 0.35);
+    background: rgba(13, 27, 35, 0.45);
+}
+
+/* 画布块标签（已移除） */
+.tmce-overlay-block::before {
+    content: '';
+    display: none;
+}
+
+/* 旧的全局 overlay 容器（兼容） */
+#overlayImageContainer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.oly-img-item {
+    pointer-events: auto;
+    transition: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.oly-img-item img {
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.oly-img-item svg {
+    pointer-events: none;
+}
+
+.oly-img-item [contenteditable] {
+    pointer-events: auto;
+    cursor: text;
+}
+
+.oly-img-item [contenteditable]:focus {
+    outline: 1px dashed #4a9eae;
+    outline-offset: -2px;
+}
+
+#olyTextBoxToolbar .oly-tb-btn {
+    background: var(--btn-bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 2px 7px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    min-width: 24px;
+    text-align: center;
+}
+
+#olyTextBoxToolbar .oly-tb-btn:hover {
+    background: var(--btn-hover);
+    border-color: var(--accent);
+}
+
+#olyTextBoxToolbar .oly-tb-btn:active {
+    background: var(--btn-hover);
+    color: var(--text-primary);
+}
+
+.oly-resize-handle {
+    pointer-events: auto;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.oly-resize-handle:hover {
+    background: #4a9eae !important;
+    border-color: #fff !important;
+}
+
+#olyContextMenu div:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+#olyContextMenu div:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+/* ---------- 图片编辑器弹窗 ---------- */
+#olyEditorModal .oly-edit-tool.oly-tool-active {
+    background: #2c6e7e !important;
+    border-color: #aef0ff !important;
+    color: #fff !important;
+}
+
+/* 滤镜预设按钮 */
+.oly-filter-preset {
+    transition: all 0.12s;
+}
+.oly-filter-preset:hover {
+    border-color: #3a6a7a !important;
+    color: #c8e6ff !important;
+    background: #1a3a44 !important;
+}
+.oly-filter-preset.oly-filter-active {
+    background: #2c6e7e !important;
+    border-color: #00e5ff !important;
+    color: #fff !important;
+}
+
+/* 橡皮擦激活状态 */
+.oly-draw-eraser-active {
+    background: #3a2a2a !important;
+    border-color: #ff6666 !important;
+    color: #ff9999 !important;
+}
+
+#olyEditorAdjustPanel input[type="range"] {
+    height: 4px;
+    cursor: pointer;
+}
+
+.tmce-resize-handle:hover {
+    background: #4a9eae;
+    border-color: #fff;
+}
+
+/* ---------- 图片右键菜单 ---------- */
+#tmceImgContextMenu input[type="range"] {
+    cursor: pointer;
+}
+
+/* ---------- 文件/链接右键菜单 ---------- */
+#tmceFileLinkCtxMenu div:hover {
+    background: #1a3a44;
+}
+
+/* ---------- 插入目录右键菜单 ---------- */
+#tmceTocCtxMenu {
+    animation: tmceFadeIn 0.12s ease;
+}
+#tmceTocCtxMenu .tmce-ctx-label {
+    padding: 4px 14px;
+    color: #5a8a9a;
+    font-size: 11px;
+}
+#tmceTocCtxMenu .tmce-ctx-disabled {
+    padding: 7px 14px;
+    color: #4a5a6a;
+    font-size: 12px;
+    font-style: italic;
+}
+#tmceTocCtxMenu [data-action]:hover {
+    background: #2c6e7e;
+    color: #fff;
+}
+
+/* ---------- 链接对话框 ---------- */
+#tmceLinkDialog > div {
+    animation: tmceFadeIn 0.2s ease;
+}
+
+@keyframes tmceFadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* 查找替换当前匹配项闪烁 */
+@keyframes tmceMatchFlash {
+    0%, 100% { background-color: #ffeb3b; color: #000; box-shadow: 0 0 8px rgba(255,235,59,0.6); }
+    50% { background-color: #ff9800; color: #000; box-shadow: 0 0 14px rgba(255,152,0,0.9); }
+}
+
+#ckEditorContainer .mce-match-marker-selected {
+    animation: tmceMatchFlash 0.75s ease-in-out 3 !important;
+}
+
+/* 编辑器内嵌搜索栏下拉 */
+.tox-toolbar__group .editor-search-flash {
+    transition: none;
+}
+.editor-search-dropdown-menu div:hover {
+    background: #1a3a44 !important;
+}
+
+#tmceLinkSave:hover {
+    background: #3a8e9e !important;
+}
+
+#tmceLinkRemove:hover {
+    background: #5a2a2a !important;
+    color: #ff8080 !important;
+}
+
+/* TinyMCE 代码块深色主题 */
+#ckEditorContainer .mce-content-body pre,
+.split-preview-wrapper .mce-content-body pre {
+    background: #0d1b23 !important;
+    border: 1px solid #2c6e7e !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    margin: 8px 0 !important;
+    overflow-x: auto !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    color: #c8e6ff !important;
+    text-shadow: none !important;
+}
+
+#ckEditorContainer .mce-content-body pre code,
+.split-preview-wrapper .mce-content-body pre code {
+    background: transparent !important;
+    color: inherit !important;
+    padding: 0 !important;
+    font-family: inherit !important;
+}
+
+#ckEditorContainer .mce-content-body code,
+.split-preview-wrapper .mce-content-body code {
+    background: #1a2a34 !important;
+    border: 1px solid #2c6e7e !important;
+    border-radius: 4px !important;
+    padding: 2px 6px !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    font-size: 14px !important;
+    color: #c8e6ff !important;
+}
+
+/* 行内 code 样式不应用于代码块内的 code（pre > code） */
+#ckEditorContainer .mce-content-body pre code,
+.split-preview-wrapper .mce-content-body pre code {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+}
+
+#ckEditorContainer .tmce-code-wrapper,
+.split-preview-wrapper .tmce-code-wrapper {
+    display: flex !important;
+    background: #0d1b23 !important;
+    border: 1px solid #2c6e7e !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    margin: 8px 0 !important;
+}
+
+#ckEditorContainer .tmce-code-wrapper .tmce-line-numbers,
+.split-preview-wrapper .tmce-code-wrapper .tmce-line-numbers {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 0;
+    background: #0d1b23;
+    color: #3a5a6a;
+    user-select: none;
+    text-align: right;
+    min-width: 48px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    border-right: 1px solid #1a2a34;
+    overflow: hidden;
+}
+
+#ckEditorContainer .tmce-code-wrapper .tmce-line-numbers span,
+.split-preview-wrapper .tmce-code-wrapper .tmce-line-numbers span {
+    display: block;
+    padding: 0 12px 0 6px;
+    line-height: 1.6;
+}
+
+#ckEditorContainer .tmce-code-wrapper .tmce-code-area,
+.split-preview-wrapper .tmce-code-wrapper .tmce-code-area {
+    flex: 1;
+    overflow: auto;
+    min-width: 0;
+}
+
+#ckEditorContainer .tmce-code-wrapper pre,
+.split-preview-wrapper .tmce-code-wrapper pre {
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px 16px !important;
+    background: transparent !important;
+    overflow: visible !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    text-shadow: none !important;
+}
+
+#ckEditorContainer .tmce-code-wrapper pre code,
+.split-preview-wrapper .tmce-code-wrapper pre code {
+    background: transparent !important;
+    color: inherit !important;
+    padding: 0 !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+}
+
+#ckEditorContainer .tmce-code-wrapper pre code *,
+.split-preview-wrapper .tmce-code-wrapper pre code * {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* ── hljs token 颜色对齐 Monaco astroknot-dark 主题 ──
+   覆盖范围：编辑器内 + 分屏预览，所有 hljs 代码块 */
+#ckEditorContainer .hljs,
+.split-preview-wrapper .hljs {
+    color: #c8e6ff !important;
+    background: transparent !important;
+}
+#ckEditorContainer .hljs-comment,
+#ckEditorContainer .hljs-quote,
+#ckEditorContainer .hljs-doctag,
+.split-preview-wrapper .hljs-comment,
+.split-preview-wrapper .hljs-quote,
+.split-preview-wrapper .hljs-doctag {
+    color: #5a7a8a !important;
+    font-style: italic !important;
+}
+#ckEditorContainer .hljs-keyword,
+#ckEditorContainer .hljs-selector-tag,
+#ckEditorContainer .hljs-tag,
+#ckEditorContainer .hljs-section,
+#ckEditorContainer .hljs-name,
+.split-preview-wrapper .hljs-keyword,
+.split-preview-wrapper .hljs-selector-tag,
+.split-preview-wrapper .hljs-tag,
+.split-preview-wrapper .hljs-section,
+.split-preview-wrapper .hljs-name {
+    color: #00e5ff !important;
+}
+#ckEditorContainer .hljs-string,
+#ckEditorContainer .hljs-regexp,
+#ckEditorContainer .hljs-meta-string,
+#ckEditorContainer .hljs-symbol,
+#ckEditorContainer .hljs-bullet,
+#ckEditorContainer .hljs-link,
+#ckEditorContainer .hljs-addition,
+.split-preview-wrapper .hljs-string,
+.split-preview-wrapper .hljs-regexp,
+.split-preview-wrapper .hljs-meta-string,
+.split-preview-wrapper .hljs-symbol,
+.split-preview-wrapper .hljs-bullet,
+.split-preview-wrapper .hljs-link,
+.split-preview-wrapper .hljs-addition {
+    color: #ffd93d !important;
+}
+#ckEditorContainer .hljs-number,
+#ckEditorContainer .hljs-literal,
+#ckEditorContainer .hljs-attr,
+#ckEditorContainer .hljs-attribute,
+#ckEditorContainer .hljs-variable,
+#ckEditorContainer .hljs-template-variable,
+#ckEditorContainer .hljs-deletion,
+.split-preview-wrapper .hljs-number,
+.split-preview-wrapper .hljs-literal,
+.split-preview-wrapper .hljs-attr,
+.split-preview-wrapper .hljs-attribute,
+.split-preview-wrapper .hljs-variable,
+.split-preview-wrapper .hljs-template-variable,
+.split-preview-wrapper .hljs-deletion {
+    color: #ff6b9d !important;
+}
+#ckEditorContainer .hljs-type,
+#ckEditorContainer .hljs-class .hljs-title,
+#ckEditorContainer .hljs-function .hljs-title,
+#ckEditorContainer .hljs-title,
+#ckEditorContainer .hljs-built_in,
+.split-preview-wrapper .hljs-type,
+.split-preview-wrapper .hljs-class .hljs-title,
+.split-preview-wrapper .hljs-function .hljs-title,
+.split-preview-wrapper .hljs-title,
+.split-preview-wrapper .hljs-built_in {
+    color: #6bff6b !important;
+}
+#ckEditorContainer .hljs-meta,
+#ckEditorContainer .hljs-selector-id,
+#ckEditorContainer .hljs-selector-class,
+#ckEditorContainer .hljs-selector-pseudo,
+#ckEditorContainer .hljs-selector-attr,
+.split-preview-wrapper .hljs-meta,
+.split-preview-wrapper .hljs-selector-id,
+.split-preview-wrapper .hljs-selector-class,
+.split-preview-wrapper .hljs-selector-pseudo,
+.split-preview-wrapper .hljs-selector-attr {
+    color: #5a7a8a !important;
+}
+#ckEditorContainer .hljs-emphasis,
+.split-preview-wrapper .hljs-emphasis { font-style: italic !important; }
+#ckEditorContainer .hljs-strong,
+.split-preview-wrapper .hljs-strong { font-weight: bold !important; }
+
+/* 取消 TinyMCE 编辑区中的橙色边框 */
+#ckEditorContainer .tox .tox-edit-area__content:focus,
+#ckEditorContainer .tox .tox-edit-area:focus,
+#ckEditorContainer .tox .tox-edit-area__iframe:focus,
+#ckEditorContainer [contenteditable="true"]:focus,
+#ckEditorContainer .mce-content-body:focus,
+#ckEditorContainer .tox-tinymce-inline:focus,
+.split-preview-wrapper .mce-content-body:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+#editorWordCount {
+    position: sticky;
+    bottom: 0;
+    background: var(--btn-bg);
+    z-index: 5;
+}

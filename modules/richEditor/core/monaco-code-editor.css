@@ -1,0 +1,215 @@
+/* ============================================================
+   Monaco 代码编辑器弹窗
+   ============================================================ */
+.monaco-code-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: monaco-fade-in 0.2s ease;
+}
+@keyframes monaco-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.monaco-code-dialog {
+    width: 90vw;
+    max-width: 1100px;
+    height: 80vh;
+    max-height: 800px;
+    display: flex;
+    flex-direction: column;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 229, 255, 0.08);
+    animation: monaco-scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes monaco-scale-in {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.monaco-code-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: #0d1b23;
+    border-bottom: 1px solid #1e3a44;
+    flex-shrink: 0;
+}
+.monaco-code-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #c8e6ff;
+    white-space: nowrap;
+}
+.monaco-code-lang-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+.monaco-code-lang-row label {
+    font-size: 12px;
+    color: #5a7a8a;
+    white-space: nowrap;
+}
+.monaco-code-lang-row select {
+    background: #112833;
+    color: #c8e6ff;
+    border: 1px solid #1e3a44;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.monaco-code-lang-row select:hover {
+    border-color: #00e5ff;
+}
+.monaco-code-lang-row select:focus {
+    border-color: #00e5ff;
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.15);
+}
+
+.monaco-code-header-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.monaco-code-btn {
+    padding: 6px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.monaco-code-btn-ghost {
+    background: transparent;
+    color: #5a7a8a;
+    border: 1px solid #1e3a44;
+}
+.monaco-code-btn-ghost:hover {
+    color: #c8e6ff;
+    border-color: #3a6a7a;
+    background: rgba(255, 255, 255, 0.04);
+}
+.monaco-code-btn-primary {
+    background: #00e5ff;
+    color: #0a151d;
+    font-weight: 600;
+}
+.monaco-code-btn-primary:hover {
+    background: #33ecff;
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.3);
+}
+
+.monaco-code-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ── 工具栏 ── */
+.monaco-code-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 16px;
+    background: #0a151d;
+    border-bottom: 1px solid #1e3a44;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.monaco-code-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.monaco-code-toolbar-sep {
+    width: 1px;
+    height: 18px;
+    background: #1e3a44;
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+.monaco-tool-btn {
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #1e3a44;
+    background: transparent;
+    color: #5a7a8a;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+    line-height: 1.4;
+}
+.monaco-tool-btn:hover {
+    color: #c8e6ff;
+    border-color: #3a6a7a;
+    background: rgba(0, 229, 255, 0.06);
+}
+.monaco-tool-btn:active {
+    background: rgba(0, 229, 255, 0.12);
+}
+.monaco-tool-label {
+    font-size: 11px;
+    color: #5a7a8a;
+    font-family: 'Consolas', 'Monaco', monospace;
+    min-width: 30px;
+    text-align: center;
+}
+.monaco-tool-select {
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid #1e3a44;
+    background: #112833;
+    color: #8ab;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.monaco-tool-select:hover {
+    border-color: #00e5ff;
+}
+.monaco-tool-select:focus {
+    border-color: #00e5ff;
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.12);
+}
+
+.monaco-code-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 20px;
+    background: #0d1b23;
+    border-top: 1px solid #1e3a44;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #3a5a6a;
+}
+.monaco-code-footer #monaco-code-info {
+    color: #5a7a8a;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+#editorWordCountText:hover {
+    background: var(--btn-hover);
+    color: var(--text-primary);
+}
+#wordCountPopup tr:hover td {
+    background: rgba(0,255,255,0.08);
+}

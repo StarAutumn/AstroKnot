@@ -343,6 +343,78 @@ function loadOverlays(overlaysDir) {
 }
 
 /**
+ * 将虚拟文件系统写入磁盘（递归）
+ * @param {Object} node - 文件树节点 { type, name, content, children }
+ * @param {string} dirPath - 目标目录绝对路径
+ */
+function _writeFileSystemToDisk(node, dirPath) {
+  if (!node || !node.children) return;
+
+  for (const child of node.children) {
+    if (child.type === 'file') {
+      fs.mkdirSync(dirPath, { recursive: true });
+      fs.writeFileSync(path.join(dirPath, child.name), child.content || '', 'utf-8');
+    } else if (child.type === 'directory') {
+      const subDir = path.join(dirPath, child.name);
+      fs.mkdirSync(subDir, { recursive: true });
+      _writeFileSystemToDisk(child, subDir);
+    }
+  }
+}
+
+/**
+ * 从磁盘目录读取虚拟文件系统（递归）
+ * @param {string} dirPath - sandbox 目录绝对路径
+ * @returns {Object} 文件树根节点
+ */
+function _readFileSystemFromDisk(dirPath) {
+  if (!fs.existsSync(dirPath)) return null;
+
+  const children = [];
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const subTree = _readFileSystemFromDisk(path.join(dirPath, entry.name));
+      if (subTree) children.push(subTree);
+    } else if (entry.isFile()) {
+      const filePath = path.join(dirPath, entry.name);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      // 根据扩展名推断语言
+      const ext = entry.name.split('.').pop().toLowerCase();
+      const langMap = {
+        'html': 'html', 'htm': 'html',
+        'css': 'css', 'scss': 'scss', 'less': 'less',
+        'js': 'javascript', 'mjs': 'javascript',
+        'ts': 'typescript', 'tsx': 'typescript', 'jsx': 'javascript',
+        'json': 'json', 'md': 'markdown', 'py': 'python',
+        'xml': 'xml', 'svg': 'xml', 'yaml': 'yaml', 'yml': 'yaml',
+        'txt': 'plaintext', 'sql': 'sql',
+      };
+      children.push({
+        type: 'file',
+        name: entry.name,
+        content: content,
+        language: langMap[ext] || 'plaintext'
+      });
+    }
+  }
+
+  // 排序：目录在前，文件在后
+  children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const dirName = path.basename(dirPath);
+  return {
+    type: 'directory',
+    name: dirName,
+    children: children
+  };
+}
+
+/**
  * 生成 project.md（人类可读摘要）
  */
 function generateProjectMd(savePath, projectCore, nodeRichContents, overlayImages) {
@@ -744,7 +816,7 @@ function bindFileIPC() {
       fs.mkdirSync(nodesDir, { recursive: true });
 
       // 分离节点级数据和项目核心数据
-      const { nodeRichContents, overlayImages, savePath: _sp, ...projectCore } = projectData;
+      const { nodeRichContents, overlayImages, nodeFileSystems, savePath: _sp, ...projectCore } = projectData;
 
       // 写入 project.json
       fs.writeFileSync(
@@ -757,6 +829,7 @@ function bindFileIPC() {
       const currentNodeIds = collectTreeNodeIds(projectCore.methodsTree);
       if (nodeRichContents) for (const id of Object.keys(nodeRichContents)) currentNodeIds.add(id);
       if (overlayImages) for (const id of Object.keys(overlayImages)) currentNodeIds.add(id);
+      if (nodeFileSystems) for (const id of Object.keys(nodeFileSystems)) currentNodeIds.add(id);
 
       if (fs.existsSync(nodesDir)) {
         for (const folder of fs.readdirSync(nodesDir, { withFileTypes: true })) {
@@ -779,6 +852,18 @@ function bindFileIPC() {
         const nodeDir = path.join(nodesDir, nodeId);
         const overlaysDir = path.join(nodeDir, 'overlays');
         saveOverlays(overlaysDir, overlays);
+      }
+
+      // 写入每个节点的沙盒代码文件（虚拟文件系统 → 真实磁盘文件）
+      for (const [nodeId, fileSystem] of Object.entries(nodeFileSystems || {})) {
+        if (!fileSystem) continue;
+        const sandboxDir = path.join(nodesDir, nodeId, 'sandbox');
+        // 先清空旧的 sandbox 目录，避免残留已删除的文件
+        if (fs.existsSync(sandboxDir)) {
+          fs.rmSync(sandboxDir, { recursive: true, force: true });
+        }
+        // 递归写入文件树
+        _writeFileSystemToDisk(fileSystem, sandboxDir);
       }
 
       // 生成 project.md
@@ -830,6 +915,7 @@ function bindFileIPC() {
       const nodesDir = path.join(folderPath, 'nodes');
       const nodeRichContents = {};
       const overlayImages = {};
+      const nodeFileSystems = {};
 
       if (fs.existsSync(nodesDir)) {
         for (const entry of fs.readdirSync(nodesDir, { withFileTypes: true })) {
@@ -851,12 +937,23 @@ function bindFileIPC() {
               overlayImages[nodeId] = overlays;
             }
           }
+
+          // 读取沙盒代码文件（sandbox/ 目录 → 虚拟文件系统）
+          const sandboxDir = path.join(nodeDir, 'sandbox');
+          if (fs.existsSync(sandboxDir)) {
+            const fsTree = _readFileSystemFromDisk(sandboxDir);
+            if (fsTree && fsTree.children && fsTree.children.length > 0) {
+              // 将根目录名改为 '/' 以匹配 VirtualFileSystem 的约定
+              fsTree.name = '/';
+              nodeFileSystems[nodeId] = fsTree;
+            }
+          }
         }
       }
 
       return {
         success: true,
-        data: { ...projectCore, nodeRichContents, overlayImages },
+        data: { ...projectCore, nodeRichContents, overlayImages, nodeFileSystems },
         folderName: path.basename(folderPath),
         folderPath
       };

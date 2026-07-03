@@ -8,7 +8,7 @@ import { showSavedToast, getCKEditorInstance, isCKEditorActive, rgbToHex, getCur
 import { showTinyUI } from '../code-blocks.js';
 import { registerListFeatures } from '../../lists.js';
 import { showTinyImageContextMenu } from '../../images-files.js';
-import { saveCurrentContentCK } from '../../content-io.js';
+import { saveCurrentContentCK } from '../../content-io/index.js';
 import { escapeHtml, saveCurrentProjectData } from '../../../module2_TreeData.js';
 import { appState } from '../../../module0_AppState.js';
 

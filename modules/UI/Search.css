@@ -1,0 +1,163 @@
+/* 任务栏集成搜索框 */
+.taskbar-search-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 4px;
+}
+
+.taskbar-search-container input {
+    width: 180px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-primary);
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+}
+
+.taskbar-search-container input:focus {
+    border-color: var(--accent);
+    box-shadow: var(--accent-glow);
+}
+
+/* 选中节点时的高亮 */
+.taskbar-search-container input.node-selected {
+    border-color: #ffd966;
+    box-shadow: 0 0 8px rgba(255, 217, 102, 0.35);
+}
+
+.taskbar-search-container input.node-selected:focus {
+    border-color: #ffd966;
+    box-shadow: 0 0 8px rgba(255, 217, 102, 0.35);
+}
+
+/* 搜索下拉框——上拉（在输入框上方） */
+.taskbar-search-container .search-dropdown {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 4px;
+    right: 4px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 99999;
+    box-shadow: var(--panel-shadow);
+}
+
+.taskbar-search-container .search-dropdown div {
+    padding: 7px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.08);
+    transition: background 0.12s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.taskbar-search-container .search-dropdown div:hover {
+    background: var(--btn-hover);
+}
+
+.taskbar-search-container .search-dropdown div:last-child {
+    border-bottom: none;
+}
+
+.menu-top-bar {
+    flex-shrink: 0;
+    padding: 10px 12px 6px 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.12);
+}
+
+#globalSearchContainer {
+    position: relative;
+    width: 100%;
+}
+
+#globalSearchInput {
+    width: 100%;
+    background: rgba(7, 22, 31, 0.85);
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    color: #eef;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    outline: none;
+    box-shadow: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+#globalSearchInput:focus {
+    border-color: rgba(0, 255, 255, 0.8);
+    box-shadow: 0 0 10px rgba(0, 200, 255, 0.2);
+}
+
+#globalSearchInput::placeholder {
+    color: rgba(150, 200, 220, 0.5);
+}
+
+.global-search-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: rgba(8, 18, 28, 0.98);
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    border-radius: 12px;
+    max-height: 280px;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    z-index: 999;
+}
+
+.global-search-dropdown.show {
+    display: block;
+}
+
+.global-search-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+    transition: background 0.2s;
+}
+
+.global-search-item:last-child {
+    border-bottom: none;
+    border-radius: 0 0 16px 16px;
+}
+
+.global-search-item:hover {
+    background: rgba(0, 150, 200, 0.2);
+}
+
+.global-search-item .item-project {
+    font-size: 11px;
+    color: #7ec8e3;
+    margin-bottom: 4px;
+}
+
+.global-search-item .item-name {
+    font-size: 14px;
+    color: #eef;
+    font-weight: 500;
+}
+
+.global-search-item .item-preview {
+    font-size: 12px;
+    color: rgba(200, 220, 230, 0.7);
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

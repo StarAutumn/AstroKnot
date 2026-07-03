@@ -9,7 +9,7 @@ import { state } from '../shared-state.js';
 import { contentStyle } from '../content-style.js';
 import { stripLineNumbersFromHTML } from './code-blocks.js';
 import { bindFormulaEditor } from './formula.js';
-import { saveCurrentContentCK, openRichEditorCK, closeModalCK, initSplitScreenDrag } from '../content-io.js';
+import { saveCurrentContentCK, openRichEditorCK, closeModalCK, initSplitScreenDrag } from '../content-io/index.js';
 import { refreshTreePanel, bindTreeSidebar } from '../tree-panel.js';
 
 import { injectToolbarGridCSS } from './toolbar-layout.js';
@@ -156,8 +156,10 @@ export function initCKEditor() {
     link_default_target: '_blank',
     paste_data_images: false,
     importcss_append: true,
+    forced_root_block: 'p',
+    invalid_elements: 'script,object,embed,link,meta,base,frame,frameset,noscript',
     valid_styles: {
-      span: 'color,font-size,font-family,font-style,font-weight,letter-spacing,text-decoration,vertical-align,background-color,background-image,background,transform,transform-origin,display,margin-right,margin-left,margin-top,margin-bottom,text-emphasis,-webkit-text-emphasis,text-emphasis-position,-webkit-text-emphasis-position,position,left,bottom,font-size,line-height,white-space,pointer-events,overflow,text-align,text-align-last,text-indent,padding-left,padding-right,padding-top,padding-bottom,-webkit-text-fill-color,-webkit-background-clip,background-clip',
+      span: 'color,font-size,font-family,font-style,font-weight,letter-spacing,text-decoration,vertical-align,background-color,background-image,background,margin-right,margin-left,margin-top,margin-bottom,text-emphasis,-webkit-text-emphasis,text-emphasis-position,-webkit-text-emphasis-position,line-height,white-space,pointer-events,text-align,text-align-last,text-indent,padding-left,padding-right,padding-top,padding-bottom,border,border-radius,-webkit-text-fill-color,-webkit-background-clip,background-clip',
       '*': 'color,font-size,font-family,font-style,font-weight,letter-spacing,text-decoration,vertical-align,background-color,background-image,background,transform,transform-origin,display,height,width,margin,margin-right,margin-left,margin-top,margin-bottom,padding,padding-left,padding-right,padding-top,padding-bottom,border,text-align,text-align-last,text-indent,float,border-radius,opacity,box-shadow,text-emphasis,-webkit-text-emphasis,text-emphasis-position,-webkit-text-emphasis-position,position,left,bottom,line-height,white-space,pointer-events,overflow,-webkit-text-fill-color,-webkit-background-clip,background-clip,gap,align-items,flex-direction,flex-wrap,justify-content,cursor,user-select'
     },
     extended_valid_elements: 'svg[*],line[*],polygon[*],rect[*],ellipse[*],path[*],circle[*],g[*],defs[*],use[*],text[*],div[contenteditable|data-block-id|data-min-height|class|style|min-height]',
@@ -479,6 +481,16 @@ export function initRichEditor() {
 
   safeClick('closeModalBtn', closeModal);
   safeClick('toggleToolbarBtn', () => document.getElementById('richToolbar').classList.toggle('collapsed'));
+
+  // sandbox 模式下"编辑代码"按钮：关闭文本编辑器并打开代码编辑器
+  safeClick('editSandboxCodeBtn', () => {
+    const nodeId = appState.currentEditNodeId;
+    if (!nodeId) return;
+    closeModal();
+    setTimeout(() => {
+      if (window.openHtmlSandboxEditor) window.openHtmlSandboxEditor(nodeId);
+    }, 350);
+  });
 
   safeClick('saveRichContentBtn', saveCurrentContent);
   safeClick('exportWordBtn', () => {

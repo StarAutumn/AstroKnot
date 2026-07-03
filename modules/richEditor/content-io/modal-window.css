@@ -1,0 +1,772 @@
+/* ============================================================
+   富文本编辑器模态框
+   ============================================================ */
+.rich-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--modal-overlay);
+    backdrop-filter: blur(12px);
+    z-index: 11000;
+    display: none;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── 显示状态 ── */
+.rich-modal.maximized,
+.rich-modal.windowed {
+    display: flex;
+}
+
+/* ── 最大化：全屏铺满（任务栏+标题栏之间），无圆角 ── */
+.rich-modal.maximized {
+    background: none;
+    backdrop-filter: none;
+    height: calc(100% - 44px);
+}
+.rich-modal.maximized .rich-modal-content {
+    position: fixed;
+    top: var(--titlebar-height, 38px);
+    left: 0;
+    width: 100vw;
+    height: calc(100vh - var(--titlebar-height, 38px) - 44px);
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    max-width: none;
+}
+
+/* 全屏时标题栏隐藏，模态框撑满整个屏幕 */
+body.is-fullscreen .rich-modal.maximized .rich-modal-content {
+    top: 0;
+    height: calc(100vh - 44px);
+}
+
+/* ── 窗口化：浮动窗口，无遮罩，背后 3D 场景可见可操作 ── */
+.rich-modal.windowed {
+    background: none;
+    backdrop-filter: none;
+    pointer-events: none;
+}
+.rich-modal.windowed .rich-modal-content {
+    pointer-events: auto;
+    position: fixed;
+    /* 位置由 JS 设置像素值，不使用 CSS transform 居中 */
+    width: 75vw;
+    height: 80vh;
+    border-radius: var(--panel-radius);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+}
+
+/* ── 最小化：隐藏 ── */
+.rich-modal.minimized {
+    display: none !important;
+}
+
+.rich-modal-content {
+    background: var(--panel-bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Windows 风格过渡：位置+尺寸同时平滑过渡，快速启动缓慢停止 */
+    transition: left 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), 
+                top 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), 
+                width 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), 
+                height 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), 
+                border-radius 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+    /* 华丽科技风增强 */
+    box-shadow:
+        var(--panel-shadow),
+        0 0 30px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(0, 255, 255, 0.1) inset,
+        0 0 20px rgba(0, 255, 255, 0.15),
+        0 0 60px rgba(0, 255, 255, 0.05);
+}
+/* 浅色模式富文本编辑器：简约无光晕 */
+body.light-mode .rich-modal-content {
+    box-shadow: var(--panel-shadow), 0 4px 16px rgba(0, 30, 60, 0.12);
+    border: 1px solid rgba(0, 100, 160, 0.3);
+}
+/* 关闭时禁用尺寸过渡，只保留纯透明度渐隐 */
+.rich-modal.window-close .rich-modal-content {
+    transition: none !important;
+}
+body.light-mode .rich-modal-content::after {
+    display: none;
+}
+/* 模态框边角光晕 */
+.rich-modal-content::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--panel-radius);
+    background:
+        radial-gradient(circle at 0% 0%, rgba(0, 255, 255, 0.08) 0%, transparent 30%),
+        radial-gradient(circle at 100% 100%, rgba(100, 100, 255, 0.06) 0%, transparent 30%);
+    pointer-events: none;
+    z-index: 0;
+}
+.rich-modal-header {
+    padding: 0 0 0 16px;
+    background: var(--header-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 标题栏发光电路板底纹（模拟真实PCB走线 + 焊盘呼吸闪烁） */
+.rich-modal-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        /* ═══ 焊盘层：透明度由变量控制，实现独立呼吸 ═══ */
+        /* 实心亮焊盘（高亮，带光晕）*/
+        radial-gradient(circle at 22px 11px, rgba(80, 200, 255, var(--p1)) 2px, rgba(40, 180, 255, calc(var(--p1) * 0.47)) 3.5px, transparent 5px),
+        radial-gradient(circle at 158px 33px, rgba(100, 220, 255, var(--p2)) 2px, rgba(50, 190, 255, calc(var(--p2) * 0.46)) 3.5px, transparent 5px),
+        radial-gradient(circle at 278px 8px, rgba(60, 210, 255, var(--p3)) 2px, rgba(30, 185, 255, calc(var(--p3) * 0.43)) 3.5px, transparent 5px),
+        /* 实心暗焊盘 */
+        radial-gradient(circle at 68px 36px, rgba(0, 200, 255, var(--p4)) 1.8px, transparent 3.5px),
+        radial-gradient(circle at 198px 14px, rgba(0, 190, 255, var(--p5)) 1.8px, transparent 3.5px),
+        radial-gradient(circle at 248px 28px, rgba(20, 195, 255, var(--p6)) 1.8px, transparent 3.5px),
+        /* 空心过孔环 */
+        radial-gradient(circle at 38px 18px, transparent 2px, rgba(0, 200, 255, var(--p7)) 2.8px, transparent 4px),
+        radial-gradient(circle at 118px 26px, transparent 2px, rgba(0, 190, 255, var(--p8)) 2.8px, transparent 4px),
+        radial-gradient(circle at 188px 37px, transparent 2px, rgba(0, 200, 255, var(--p9)) 2.8px, transparent 4px),
+        radial-gradient(circle at 228px 12px, transparent 2px, rgba(10, 195, 255, var(--p10)) 2.8px, transparent 4px),
+
+        /* ═══ 走线层A：主走线（宽1.5px）═══ */
+        /* 横→斜下 转弯 */
+        linear-gradient(135deg,
+            transparent 0, transparent 9px,
+            rgba(0, 200, 255, 0.28) 9px, rgba(0, 200, 255, 0.28) 10.5px,
+            transparent 10.5px),
+        /* 斜上→横 转弯 */
+        linear-gradient(-135deg,
+            transparent 0, transparent 7px,
+            rgba(0, 190, 255, 0.25) 7px, rgba(0, 190, 255, 0.25) 8.5px,
+            transparent 8.5px),
+        /* 横向长走线段 */
+        linear-gradient(90deg,
+            transparent 0, transparent 48px,
+            rgba(0, 210, 255, 0.30) 48px, rgba(0, 210, 255, 0.30) 49.5px,
+            transparent 49.5px),
+        /* 斜向下走线段 */
+        linear-gradient(135deg,
+            transparent 0, transparent 18px,
+            rgba(0, 195, 255, 0.24) 18px, rgba(0, 195, 255, 0.24) 19.5px,
+            transparent 19.5px),
+
+        /* ═══ 走线层B：次走线（宽1.2px）═══ */
+        /* 横向中走线 */
+        linear-gradient(90deg,
+            transparent 0, transparent 95px,
+            rgba(50, 180, 255, 0.22) 95px, rgba(50, 180, 255, 0.22) 96.2px,
+            transparent 96.2px),
+        /* 竖直走线 */
+        linear-gradient(0deg,
+            transparent 0, transparent 8px,
+            rgba(50, 180, 255, 0.22) 8px, rgba(50, 180, 255, 0.22) 9.2px,
+            transparent 9.2px),
+        /* 斜向上短走线 */
+        linear-gradient(-135deg,
+            transparent 0, transparent 12px,
+            rgba(0, 200, 255, 0.20) 12px, rgba(0, 200, 255, 0.20) 13.2px,
+            transparent 13.2px),
+        /* 横向中走线2 */
+        linear-gradient(90deg,
+            transparent 0, transparent 168px,
+            rgba(0, 205, 255, 0.24) 168px, rgba(0, 205, 255, 0.24) 169.2px,
+            transparent 169.2px),
+
+        /* ═══ 走线层C：细辅助走线（宽0.8px）═══ */
+        /* 竖直短线 */
+        linear-gradient(0deg,
+            transparent 0, transparent 19px,
+            rgba(0, 190, 255, 0.16) 19px, rgba(0, 190, 255, 0.16) 19.8px,
+            transparent 19.8px),
+        /* 斜向下细线 */
+        linear-gradient(135deg,
+            transparent 0, transparent 55px,
+            rgba(0, 200, 255, 0.17) 55px, rgba(0, 200, 255, 0.17) 55.8px,
+            transparent 55.8px),
+        /* 横向细线 */
+        linear-gradient(90deg,
+            transparent 0, transparent 128px,
+            rgba(0, 195, 255, 0.17) 128px, rgba(0, 195, 255, 0.17) 128.8px,
+            transparent 128.8px),
+        /* 斜向上细线 */
+        linear-gradient(-135deg,
+            transparent 0, transparent 78px,
+            rgba(0, 200, 255, 0.14) 78px, rgba(0, 200, 255, 0.14) 78.8px,
+            transparent 78.8px);
+
+    background-size: 320px 44px;
+    background-repeat: repeat;
+    pointer-events: none;
+    z-index: 0;
+
+    /* 左右两侧渐隐：标题文字和按钮区域电路板消失 */
+    -webkit-mask-image: linear-gradient(90deg,
+        transparent 10%,
+        rgba(0, 0, 0, 0.5) 25%,
+        rgba(0, 0, 0, 0.5) 70%,
+        transparent 80%);
+    mask-image: linear-gradient(90deg,
+        transparent 10%,
+        rgba(0, 0, 0, 0.5) 25%,
+        rgba(0, 0, 0, 0.5) 70%,
+        transparent 80%);
+
+    /* 焊盘呼吸闪烁动画 */
+    --p1: 0.75; --p2: 0.70; --p3: 0.65; --p4: 0.55; --p5: 0.50;
+    --p6: 0.48; --p7: 0.42; --p8: 0.38; --p9: 0.35; --p10: 0.38;
+    animation: pcbPadBreathe 7s ease-in-out infinite;
+}
+
+.rich-modal-header > * {
+    position: relative;
+    z-index: 1;
+}
+
+.rich-modal-header h2 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+/* ── 编辑器标签栏 ── */
+.editor-tab-bar {
+    display: flex;
+    align-items: stretch;
+    height: 34px;
+    min-height: 34px;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--panel-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--panel-border) transparent;
+}
+
+.editor-tab-bar::-webkit-scrollbar {
+    height: 3px;
+}
+
+.editor-tab-bar::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.25);
+    border-radius: 2px;
+}
+
+.editor-tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px 0 14px;
+    height: 100%;
+    border-right: 1px solid rgba(44, 110, 126, 0.35);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+    position: relative;
+}
+
+.editor-tab:hover {
+    background: var(--btn-hover);
+    color: var(--text-primary);
+}
+
+.editor-tab.active {
+    background: rgba(44, 110, 126, 0.3);
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.editor-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 1px 1px 0 0;
+}
+
+.editor-tab .tab-icon {
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.editor-tab .tab-label {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.editor-tab .tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #5a7a8a;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.editor-tab .tab-close:hover {
+    background: rgba(255, 100, 100, 0.3);
+    color: #ff8888;
+}
+
+/* ── 标签拖拽调换位置 ── */
+.editor-tab,
+.taskbar-tab {
+    will-change: transform;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.editor-tab.dragging,
+.taskbar-tab.dragging {
+    opacity: 0.35;
+    transform: scale(0.92);
+}
+
+.editor-tab.drag-over,
+.taskbar-tab.drag-over {
+    background: rgba(0, 255, 255, 0.12);
+    border-left: 2px solid var(--accent, #0ff);
+}
+
+.editor-tab.drag-over {
+    padding-left: 12px;
+}
+
+.taskbar-tab.drag-over {
+    padding-left: 10px;
+}
+
+/* ── Win11 风格标题栏按钮（由通用 .caption-btn 定义） ── */
+.caption-buttons {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+/* 窗口化时标题栏可拖拽 */
+.rich-modal.windowed .rich-modal-header {
+    cursor: default;
+    user-select: none;
+}
+
+/* 模态框边缘拉伸手柄 */
+.modal-resize-handle {
+    position: absolute;
+    z-index: 10;
+    pointer-events: auto;
+}
+.rich-modal.windowed .modal-resize-handle:hover {
+    background: rgba(0, 255, 255, 0.15);
+}
+.rich-modal.maximized .modal-resize-handle {
+    pointer-events: none !important;
+    display: none !important;
+}
+
+.btn-danger {
+    background: #6a2c2c;
+}
+
+.btn-danger:hover {
+    background: #a03a3a;
+}
+
+/* 节点树侧边栏 */
+.tree-sidebar {
+    width: 260px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0.2s;
+    position: relative;
+}
+
+/* 拖拽拉伸时禁用过渡，避免 width 追赶鼠标导致卡顿滞后 */
+.tree-sidebar.resizing {
+    transition: none;
+}
+
+.tree-sidebar.collapsed {
+    width: 32px;
+    min-width: 32px;
+}
+
+.tree-sidebar.collapsed .tree-search,
+.tree-sidebar.collapsed .tree-container {
+    display: none;
+    visibility: hidden;
+}
+
+.tree-collapse-btn {
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 30;
+    background: var(--btn-bg);
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, right 0.2s;
+}
+
+.tree-sidebar.collapsed .tree-collapse-btn {
+    right: 4px;
+}
+
+.tree-collapse-btn:hover {
+    background: var(--btn-hover);
+    transform: translateY(-50%);
+}
+
+.tree-search {
+    padding: 12px;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.tree-search input {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-primary);
+    padding: 6px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+    box-sizing: border-box;
+}
+
+.tree-container {
+    flex: 1;
+    overflow: hidden;
+    padding: 0;
+    position: relative;
+}
+
+/* ---------- 层数条（树形面板2D视图左侧） ---------- */
+.layer-strip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 14px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 20px 0 20px 0;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.layer-strip-item {
+    flex: 1;
+    min-height: 3px;
+    border-radius: 0 3px 3px 0;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: opacity 0.2s, box-shadow 0.2s;
+    opacity: 0.4;
+    border: 1px solid transparent;
+    border-left: none;
+    position: relative;
+}
+
+.layer-strip-item:hover {
+    opacity: 0.7;
+    box-shadow: 0 0 6px rgba(0, 255, 255, 0.3);
+}
+
+.layer-strip-item.active {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.5), inset 0 0 4px rgba(0, 255, 255, 0.1);
+    border-color: rgba(0, 255, 255, 0.6);
+}
+
+.layer-strip-item .strip-label {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 8px;
+    color: rgba(200, 235, 255, 0.5);
+    white-space: nowrap;
+    pointer-events: none;
+    font-family: system-ui, sans-serif;
+    line-height: 1;
+}
+
+.tree-container canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.tree-node {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.tree-node ul {
+    padding-left: 20px;
+    list-style: none;
+}
+
+.tree-node-item {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: 0.1s;
+    font-size: 13px;
+}
+
+.tree-node-item:hover {
+    background: var(--btn-hover);
+}
+
+.tree-node-item.active {
+    background: var(--btn-hover);
+}
+
+.toggle-icon {
+    font-size: 12px;
+    width: 16px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.node-name {
+    font-size: 13px;
+}
+
+.edit-area-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    background: #111c24;
+}
+
+/* 分屏预览区 */
+.split-preview-wrapper {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    word-wrap: break-word;
+    color: var(--text-primary);
+    font-size: 16px;
+    background: var(--input-bg);
+}
+
+.split-preview-wrapper img {
+    max-width: 100%;
+    height: auto;
+}
+
+.split-preview-wrapper table {
+    border-collapse: collapse;
+    margin: 8px 0;
+}
+
+.split-preview-wrapper table td,
+.split-preview-wrapper table th {
+    border: 1px solid #3a5a6a;
+    padding: 6px 10px;
+}
+
+.split-preview-wrapper pre {
+    background: #0a1520;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 14px;
+}
+
+.split-preview-wrapper blockquote {
+    border-left: 3px solid #4a8a9a;
+    padding-left: 12px;
+    margin-left: 0;
+    color: #99bbcc;
+}
+
+.split-preview-wrapper a {
+    color: #66aacc;
+}
+
+.split-preview-wrapper h1,
+.split-preview-wrapper h2,
+.split-preview-wrapper h3 {
+    color: #88ccff;
+}
+
+.split-panel-label {
+    transition: background 0.2s;
+}
+.split-panel-label:hover {
+    background: rgba(44, 110, 126, 0.3) !important;
+}
+
+/* 分屏活动面板高亮 */
+#editPanelA.split-panel-active,
+#editPanelB.split-panel-active {
+    outline: 2px solid #44ccff;
+    outline-offset: -2px;
+    box-shadow: inset 0 0 12px rgba(68, 204, 255, 0.08);
+}
+
+#splitDivider {
+    transition: background 0.15s ease;
+}
+
+/* 可拖拽分割线 */
+.resize-handle {
+    width: 5px;
+    background: transparent;
+    cursor: col-resize;
+    transition: background 0.15s;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+}
+
+.resize-handle:hover,
+.resize-handle.active {
+    background: rgba(0, 255, 255, 0.4);
+}
+
+/* 防止拖拽时选中文字或误触其他元素 */
+.resize-handle::after {
+    content: '';
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+}
+
+.edit-area {
+    flex: 1;
+    padding: 20px 24px;
+    outline: none;
+    color: #eef;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.rich-editor-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.MathJax {
+    font-size: 1.1em;
+}
+
+/* 表格样式 */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+    background: #1e2a32;
+}
+
+th,
+td {
+    border: 1px solid #5a8a9a;
+    padding: 8px 12px;
+}
+
+img {
+    max-width: 100%;
+    border-radius: 8px;
+}
+
+a.file-link,
+span.file-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #eef;
+    background: linear-gradient(135deg, #1e7a8c, #0f3b48);
+    padding: 6px 16px;
+    border-radius: 20px;
+    margin: 4px;
+    font-size: 13px;
+    text-decoration: none;
+    border: 1px solid rgba(0,255,255,0.3);
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    user-select: none;
+    -webkit-user-select: none;
+}
+a.file-link:hover,
+span.file-link:hover {
+    background: linear-gradient(135deg, #2c9eaf, #1a525f);
+    border-color: rgba(0,255,255,0.6);
+    box-shadow: 0 4px 12px rgba(0,255,255,0.2);
+}
+
+span.url-link-btn {
+    background: linear-gradient(135deg, #2c6e7e, #1a3a44);
+    cursor: pointer;
+}
+span.url-link-btn:hover {
+    background: linear-gradient(135deg, #3a8e9e, #2a5a64);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   浅色模式：反色滤镜全局处理，无需逐组件覆盖
+   ═══════════════════════════════════════════════════════════ */
+/* 反色滤镜已自动处理所有颜色，以下仅保留非颜色的必要调整 */
+
+body.light-mode .rich-modal-content {
+    box-shadow: var(--panel-shadow);
+}
+body.light-mode .rich-modal-content::after {
+    display: none;
+}
+body.light-mode .editor-tab-bar::-webkit-scrollbar-thumb {
+    background: rgba(0, 100, 160, 0.3) !important;
+}

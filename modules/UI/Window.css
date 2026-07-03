@@ -1,0 +1,369 @@
+/* ── 窗口开关动画 ── */
+@keyframes winFadeIn {
+    from { opacity: 0; transform: scale(0.93); }
+    to   { opacity: 1; transform: scale(1); }
+}
+@keyframes winFadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+.window-open {
+    animation: winFadeIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.window-close {
+    animation: winFadeOut 0.2s cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+/* ── 快速笔记编辑器模态框 ── */
+.quick-editor-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--modal-overlay);
+    backdrop-filter: blur(10px);
+    z-index: 2000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    font-family: system-ui, 'Segoe UI', sans-serif;
+}
+
+.quick-editor-content {
+    background: rgba(16, 28, 40, 0.98);
+    border-radius: var(--panel-radius);
+    width: 85vw;
+    max-width: 1200px;
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    overflow: hidden;
+}
+
+.quick-editor-header {
+    padding: 10px 20px;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.quick-editor-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--accent);
+}
+
+.quick-editor-header button {
+    background: var(--btn-bg);
+    width: auto;
+    padding: 4px 14px;
+    font-size: 13px;
+    border-radius: 30px;
+    color: var(--text-primary);
+    border: none;
+    cursor: pointer;
+}
+
+.quick-editor-header button:hover {
+    background: var(--btn-hover);
+}
+
+.quick-editor-toolbar {
+    position: relative;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.quick-editor-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.quick-editor-area {
+    flex: 1;
+    padding: 20px 24px;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 1.5;
+    overflow-y: auto;
+    background: var(--input-bg);
+}
+
+.quick-editor-wordcount {
+    padding: 4px 12px;
+    background: var(--btn-bg);
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-align: right;
+    border-top: 1px solid var(--panel-border);
+}
+
+/* ── 打开/关闭动画 ── */
+@keyframes settingsContentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes settingsContentOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92) translateY(-12px);
+  }
+}
+
+#settingsPopup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 210;
+    background: none;
+    display: none;
+    flex-direction: column;
+    backdrop-filter: none;
+    user-select: none;
+}
+#settingsPopup.windowed {
+    display: flex;
+    pointer-events: none;
+}
+#settingsPopup.windowed .settings-modal-content {
+    pointer-events: auto;
+}
+
+.settings-modal-content {
+    position: fixed;
+    width: 550px;
+    height: 520px;
+    min-width: 350px;
+    min-height: 280px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    color: var(--text-primary);
+    font-family: system-ui, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: left 0.22s ease, top 0.22s ease, width 0.22s ease, height 0.22s ease;
+    box-shadow:
+        var(--panel-shadow),
+        0 0 30px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(0, 255, 255, 0.1) inset,
+        0 0 20px rgba(0, 255, 255, 0.15),
+        0 0 60px rgba(0, 255, 255, 0.05);
+}
+/* 浅色模式设置模态框：简约无光晕 */
+body.light-mode .settings-modal-content {
+    box-shadow: var(--panel-shadow), 0 4px 16px rgba(0, 30, 60, 0.12);
+    border: 1px solid rgba(0, 100, 160, 0.3);
+}
+/* 模态框边角光晕 */
+.settings-modal-content::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--panel-radius);
+    background:
+        radial-gradient(circle at 0% 0%, rgba(0, 255, 255, 0.08) 0%, transparent 30%),
+        radial-gradient(circle at 100% 100%, rgba(100, 100, 255, 0.06) 0%, transparent 30%);
+    pointer-events: none;
+    z-index: 0;
+}
+/* 浅色模式：隐藏边角光晕 */
+body.light-mode .settings-modal-content::after {
+    display: none;
+}
+.settings-modal-content .rich-modal-header {
+    height: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+}
+
+/* ── 窗口模式打开/关闭动画 ── */
+#settingsPopup.windowed:not(.closing) .settings-modal-content {
+  animation: settingsContentIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+#settingsPopup.windowed.closing .settings-modal-content {
+  animation: settingsContentOut 0.2s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+#settingsPopup.windowed .settings-modal-content .modal-resize-handle:hover {
+    background: rgba(0, 255, 255, 0.15);
+}
+
+#settingsPopup .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 16px;
+    background: var(--header-bg);
+    cursor: grab;
+    flex-shrink: 0;
+    border-radius: var(--panel-radius) var(--panel-radius) 0 0;
+    min-height: 44px;
+}
+
+/* ── 设置标签栏（Windows 11 风格左侧栏）── */
+.settings-tabs {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 180px;
+    background: rgba(255, 255, 255, 0.025);
+    border-right: 1px solid var(--divider);
+    padding: 8px 0;
+}
+.settings-tabs .settings-tab {
+    flex: none;
+    text-align: left;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+}
+.settings-tabs .settings-tab:hover {
+    color: var(--accent-light);
+    background: rgba(0, 255, 255, 0.06);
+}
+.settings-tabs .settings-tab.active {
+    color: var(--accent-light);
+    background: rgba(0, 255, 255, 0.08);
+    border-left-color: var(--accent-light);
+}
+
+#settingsPopup .settings-header:active {
+    cursor: grabbing;
+}
+
+#settingsPopup .settings-header h3 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+#settingsPopup .settings-header .settings-min-btn:hover {
+    background: var(--btn-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+#settingsPopup .settings-header .settings-close-btn:hover {
+    background: rgba(196, 43, 28, 0.65) !important;
+    color: #fff !important;
+}
+
+#settingsPopup .settings-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    overscroll-behavior: contain;
+}
+
+/* 设置内嵌样式优化 */
+#settingsPopup .settings-body .setting-section {
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+#settingsPopup .settings-body .setting-section:first-child {
+    border-top: none;
+    margin-top: 0;
+}
+
+#settingsPopup .settings-body .setting-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+#settingsPopup .settings-body .setting-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+}
+
+#settingsPopup .settings-body select {
+    width: 100%;
+    background: transparent;
+    color: var(--accent-light);
+    height: 26px;
+    font-size: 11px;
+    border: 1px solid var(--divider);
+    border-radius: 4px;
+    padding: 0 6px;
+    cursor: pointer;
+    outline: none;
+}
+
+#settingsPopup .settings-body select option {
+    background: #0d1f2b !important;
+    color: #ccd !important;
+}
+
+/* ===== Toggle Switch（科技青主题） ===== */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+.toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 50, 65, 0.6);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 10px;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    left: 2px;
+    top: 2px;
+    background: #8ab;
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(0, 255, 255, 0.15);
+    border-color: rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.2);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(16px);
+    background: #0ff;
+    box-shadow: 0 0 6px rgba(0, 255, 255, 0.5);
+}

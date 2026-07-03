@@ -1,0 +1,1135 @@
+/* ============================================================
+   AI对话浮窗样式（从 style.css 提取）
+   ============================================================ */
+
+/* ========== 动画定义 ========== */
+@keyframes pcbPadBreathe {
+    0%   { --p1: 0.75; --p2: 0.30; --p3: 0.65; --p4: 0.25; --p5: 0.50; --p6: 0.20; --p7: 0.42; --p8: 0.15; --p9: 0.35; --p10: 0.18; }
+    12%  { --p1: 0.40; --p2: 0.70; --p3: 0.30; --p4: 0.55; --p5: 0.20; --p6: 0.48; --p7: 0.15; --p8: 0.38; --p9: 0.18; --p10: 0.42; }
+    25%  { --p1: 0.65; --p2: 0.35; --p3: 0.60; --p4: 0.20; --p5: 0.48; --p6: 0.25; --p7: 0.42; --p8: 0.15; --p9: 0.35; --p10: 0.20; }
+    37%  { --p1: 0.30; --p2: 0.65; --p3: 0.35; --p4: 0.50; --p5: 0.25; --p6: 0.45; --p7: 0.20; --p8: 0.42; --p9: 0.15; --p10: 0.38; }
+    50%  { --p1: 0.70; --p2: 0.25; --p3: 0.30; --p4: 0.55; --p5: 0.20; --p6: 0.50; --p7: 0.38; --p8: 0.18; --p9: 0.42; --p10: 0.15; }
+    62%  { --p1: 0.35; --p2: 0.60; --p3: 0.65; --p4: 0.25; --p5: 0.48; --p6: 0.20; --p7: 0.15; --p8: 0.35; --p9: 0.18; --p10: 0.42; }
+    75%  { --p1: 0.65; --p2: 0.30; --p3: 0.35; --p4: 0.50; --p5: 0.25; --p6: 0.45; --p7: 0.42; --p8: 0.15; --p9: 0.38; --p10: 0.20; }
+    87%  { --p1: 0.40; --p2: 0.65; --p3: 0.60; --p4: 0.20; --p5: 0.48; --p6: 0.25; --p7: 0.18; --p8: 0.42; --p9: 0.15; --p10: 0.35; }
+    100% { --p1: 0.75; --p2: 0.30; --p3: 0.65; --p4: 0.25; --p5: 0.50; --p6: 0.20; --p7: 0.42; --p8: 0.15; --p9: 0.35; --p10: 0.18; }
+}
+
+@keyframes ai-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes mdPreviewFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes stepSuccess {
+  0% { transform: scale(1.5); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes stepError {
+  0%, 50%, 100% { transform: translateX(0); }
+  20%, 80% { transform: translateX(-3px); }
+}
+
+@keyframes agentProgressPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ========== AI对话浮窗主容器 ========== */
+#aiFloatingDialog {
+    position: absolute;
+    left: calc(100% - 420px);
+    top: var(--titlebar-height, 38px);
+    z-index: 99999;
+    width: 380px;
+    height: calc(100vh - var(--titlebar-height, 38px) - 44px);
+    min-width: 240px;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+#aiFloatingDialog.minimized {
+    display: none !important;
+}
+
+/* ========== 标题栏 ========== */
+#aiFloatingDialog .ai-drag-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--header-bg);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    user-select: none;
+    cursor: move;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 标题栏发光电路板底纹（模拟真实PCB走线 + 焊盘呼吸闪烁） */
+#aiFloatingDialog .ai-drag-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        /* ═══ 焊盘层：透明度由变量控制，实现独立呼吸 ═══ */
+        /* 实心亮焊盘（高亮，带光晕）*/
+        radial-gradient(circle at 22px 11px, rgba(80, 200, 255, var(--p1)) 2px, rgba(40, 180, 255, calc(var(--p1) * 0.47)) 3.5px, transparent 5px),
+        radial-gradient(circle at 158px 33px, rgba(100, 220, 255, var(--p2)) 2px, rgba(50, 190, 255, calc(var(--p2) * 0.46)) 3.5px, transparent 5px),
+        radial-gradient(circle at 278px 8px, rgba(60, 210, 255, var(--p3)) 2px, rgba(30, 185, 255, calc(var(--p3) * 0.43)) 3.5px, transparent 5px),
+        /* 实心暗焊盘 */
+        radial-gradient(circle at 68px 36px, rgba(0, 200, 255, var(--p4)) 1.8px, transparent 3.5px),
+        radial-gradient(circle at 198px 14px, rgba(0, 190, 255, var(--p5)) 1.8px, transparent 3.5px),
+        radial-gradient(circle at 248px 28px, rgba(20, 195, 255, var(--p6)) 1.8px, transparent 3.5px),
+        /* 空心过孔环 */
+        radial-gradient(circle at 38px 18px, transparent 2px, rgba(0, 200, 255, var(--p7)) 2.8px, transparent 4px),
+        radial-gradient(circle at 118px 26px, transparent 2px, rgba(0, 190, 255, var(--p8)) 2.8px, transparent 4px),
+        radial-gradient(circle at 188px 37px, transparent 2px, rgba(0, 200, 255, var(--p9)) 2.8px, transparent 4px),
+        radial-gradient(circle at 228px 12px, transparent 2px, rgba(10, 195, 255, var(--p10)) 2.8px, transparent 4px),
+
+        /* ═══ 走线层A：主走线（宽1.5px）═══ */
+        /* 横→斜下 转弯 */
+        linear-gradient(135deg,
+            transparent 0, transparent 9px,
+            rgba(0, 200, 255, 0.28) 9px, rgba(0, 200, 255, 0.28) 10.5px,
+            transparent 10.5px),
+        /* 斜上→横 转弯 */
+        linear-gradient(-135deg,
+            transparent 0, transparent 7px,
+            rgba(0, 190, 255, 0.25) 7px, rgba(0, 190, 255, 0.25) 8.5px,
+            transparent 8.5px),
+        /* 横向长走线段 */
+        linear-gradient(90deg,
+            transparent 0, transparent 48px,
+            rgba(0, 210, 255, 0.30) 48px, rgba(0, 210, 255, 0.30) 49.5px,
+            transparent 49.5px),
+        /* 斜向下走线段 */
+        linear-gradient(135deg,
+            transparent 0, transparent 18px,
+            rgba(0, 195, 255, 0.24) 18px, rgba(0, 195, 255, 0.24) 19.5px,
+            transparent 19.5px),
+
+        /* ═══ 走线层B：次走线（宽1.2px）═══ */
+        /* 横向中走线 */
+        linear-gradient(90deg,
+            transparent 0, transparent 95px,
+            rgba(50, 180, 255, 0.22) 95px, rgba(50, 180, 255, 0.22) 96.2px,
+            transparent 96.2px),
+        /* 竖直走线 */
+        linear-gradient(0deg,
+            transparent 0, transparent 8px,
+            rgba(50, 180, 255, 0.22) 8px, rgba(50, 180, 255, 0.22) 9.2px,
+            transparent 9.2px),
+        /* 斜向上短走线 */
+        linear-gradient(-135deg,
+            transparent 0, transparent 12px,
+            rgba(0, 200, 255, 0.20) 12px, rgba(0, 200, 255, 0.20) 13.2px,
+            transparent 13.2px),
+        /* 横向中走线2 */
+        linear-gradient(90deg,
+            transparent 0, transparent 168px,
+            rgba(0, 205, 255, 0.24) 168px, rgba(0, 205, 255, 0.24) 169.2px,
+            transparent 169.2px),
+
+        /* ═══ 走线层C：细辅助走线（宽0.8px）═══ */
+        /* 竖直短线 */
+        linear-gradient(0deg,
+            transparent 0, transparent 19px,
+            rgba(0, 190, 255, 0.16) 19px, rgba(0, 190, 255, 0.16) 19.8px,
+            transparent 19.8px),
+        /* 斜向下细线 */
+        linear-gradient(135deg,
+            transparent 0, transparent 55px,
+            rgba(0, 200, 255, 0.17) 55px, rgba(0, 200, 255, 0.17) 55.8px,
+            transparent 55.8px),
+        /* 横向细线 */
+        linear-gradient(90deg,
+            transparent 0, transparent 128px,
+            rgba(0, 195, 255, 0.17) 128px, rgba(0, 195, 255, 0.17) 128.8px,
+            transparent 128.8px),
+        /* 斜向上细线 */
+        linear-gradient(-135deg,
+            transparent 0, transparent 78px,
+            rgba(0, 200, 255, 0.14) 78px, rgba(0, 200, 255, 0.14) 78.8px,
+            transparent 78.8px);
+
+    background-size: 320px 44px;
+    background-repeat: repeat;
+    pointer-events: none;
+    z-index: 0;
+
+    -webkit-mask-image: linear-gradient(90deg,
+        transparent 10%,
+        rgba(0, 0, 0, 0.5) 25%,
+        rgba(0, 0, 0, 0.5) 70%,
+        transparent 80%);
+    mask-image: linear-gradient(90deg,
+        transparent 10%,
+        rgba(0, 0, 0, 0.5) 25%,
+        rgba(0, 0, 0, 0.5) 70%,
+        transparent 80%);
+
+    --p1: 0.75; --p2: 0.70; --p3: 0.65; --p4: 0.55; --p5: 0.50;
+    --p6: 0.48; --p7: 0.42; --p8: 0.38; --p9: 0.35; --p10: 0.38;
+    animation: pcbPadBreathe 7s ease-in-out infinite;
+    animation-delay: -2.3s;
+}
+
+#aiFloatingDialog .ai-drag-header > * {
+    position: relative;
+    z-index: 1;
+}
+
+#aiFloatingDialog .ai-drag-header h4 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--accent);
+}
+
+.ai-header-buttons {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.ai-header-btn {
+    background: none;
+    border: none;
+    color: #88c8e0;
+    font-size: 14px;
+    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+    padding: 0;
+}
+
+.ai-header-btn:hover {
+    background: rgba(0, 255, 255, 0.15);
+    color: #0ff;
+}
+
+.ai-close-btn {
+    margin-left: 4px;
+    color: #6a7a8a;
+}
+.ai-close-btn:hover {
+    background: rgba(255, 60, 60, 0.2);
+    color: #f66;
+}
+
+/* Agent 模式下输入区域特殊样式 */
+#aiFloatingDialog.agent-mode .ai-chat-input {
+    border-color: rgba(160, 80, 255, 0.35);
+}
+
+#aiFloatingDialog.agent-mode .ai-send-btn {
+    background: linear-gradient(135deg, #7733bb, #9955dd);
+}
+
+#aiFloatingDialog.agent-mode .ai-send-btn:hover {
+    background: linear-gradient(135deg, #8844cc, #aa66ee);
+}
+
+/* ========== 聊天主体 ========== */
+#aiFloatingDialog .ai-chat-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 10px;
+    overflow: hidden;
+    gap: 6px;
+    position: relative;
+}
+
+#aiFloatingDialog .ai-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    color: #c0f0ff;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 4px 0;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+/* ── 消息操作按钮（回退/复制） ── */
+.ai-msg-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-right: 6px;
+    opacity: 0.3;
+    transition: opacity 0.15s;
+}
+.ai-message.user:hover .ai-msg-actions {
+    opacity: 1;
+}
+.ai-msg-actions button {
+    background: none;
+    border: none;
+    color: #5a8a9a;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 1px 3px;
+    border-radius: 3px;
+    line-height: 1;
+    transition: color 0.12s, background 0.12s;
+}
+.ai-msg-actions button:hover {
+    color: #0ff;
+    background: rgba(0, 255, 255, 0.1);
+}
+.ai-msg-actions .ai-msg-rollback:hover {
+    color: #f88;
+    background: rgba(255,80,80,0.1);
+}
+
+/* ── 回退确认条（跟随在用户消息下方） ── */
+.ai-rollback-bar {
+    background: rgba(180, 60, 60, 0.08);
+    border: 1px solid rgba(200, 80, 80, 0.25);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 4px 0 8px auto;
+    max-width: 85%;
+    color: #c0f0ff;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ai-rollbar-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: #e0f8ff;
+    margin-bottom: 8px;
+}
+.ai-rollbar-body {
+    color: #8ab4c4;
+    margin-bottom: 10px;
+    font-size: 12px;
+}
+.ai-rollbar-nodes {
+    margin-top: 4px;
+}
+.ai-rollbar-node-item {
+    padding: 2px 0 2px 8px;
+    color: #aac8d8;
+    font-size: 12px;
+}
+.ai-rollbar-more {
+    color: #6a9aaa;
+}
+.ai-rollbar-edge-info {
+    margin-top: 4px;
+    color: #7aaaba;
+    font-size: 12px;
+}
+.ai-rollbar-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.ai-rollbar-btn {
+    padding: 5px 14px;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.15s, color 0.15s;
+}
+.ai-rollbar-cancel {
+    background: transparent;
+    color: #8ab4c4;
+    border-color: #2a4a55;
+}
+.ai-rollbar-cancel:hover {
+    background: rgba(255,255,255,0.06);
+    color: #c0f0ff;
+}
+.ai-rollbar-confirm {
+    background: #c33;
+    color: #fff;
+    border-color: #c33;
+}
+.ai-rollbar-confirm:hover {
+    background: #d44;
+}
+
+.ai-msg-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ========== 输入工具栏 ========== */
+.ai-input-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-shrink: 0;
+    padding: 2px 0;
+}
+
+.ai-toolbar-select {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: 14px;
+    font-size: 11px;
+    cursor: pointer;
+    outline: none;
+    max-width: 140px;
+}
+
+.ai-toolbar-select option {
+    background: var(--panel-bg);
+    color: var(--text-secondary);
+}
+
+/* ========== 输入区域 ========== */
+#aiFloatingDialog .ai-chat-input {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+#aiFloatingDialog .ai-chat-input textarea {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-primary);
+    padding: 8px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    line-height: 1.4;
+    box-sizing: border-box;
+}
+
+#aiFloatingDialog .ai-chat-input textarea:focus {
+    border-color: var(--accent);
+    box-shadow: var(--accent-glow);
+}
+
+.ai-input-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+/* ========== 模型上拉面板 ========== */
+.ai-model-trigger-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+.ai-model-trigger {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-secondary);
+    padding: 5px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: border-color 0.15s;
+}
+.ai-model-trigger:hover {
+    border-color: #0aa;
+}
+.ai-model-panel {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    min-width: 260px;
+    background: rgba(5, 18, 30, 0.98);
+    border: 1px solid #1a3a4a;
+    border-radius: 12px;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+    z-index: 9999;
+    flex-direction: column;
+    max-height: 360px;
+    overflow: hidden;
+}
+.ai-model-panel.open {
+    display: flex;
+}
+.ai-model-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px 0;
+    max-height: 280px;
+}
+.ai-model-option {
+    padding: 8px 14px;
+    color: #bcd;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.12s;
+}
+.ai-model-option:hover {
+    background: rgba(0, 255, 255, 0.08);
+}
+.ai-model-option.selected {
+    color: #0ff;
+    background: rgba(0, 255, 255, 0.1);
+}
+.ai-model-option .model-provider {
+    color: #4a6a7a;
+    font-size: 10px;
+    margin-left: 6px;
+}
+.ai-model-panel-bottom {
+    flex-shrink: 0;
+    padding: 8px 10px;
+    border-top: 1px solid #1a3a4a;
+}
+.ai-add-model-btn {
+    width: 100%;
+    padding: 6px 0;
+    border-radius: 8px;
+    border: 1px dashed #2a4a5a;
+    background: transparent;
+    color: #5a8a9a;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.ai-add-model-btn:hover {
+    color: #0ff;
+    border-color: #0ff;
+    background: rgba(0, 255, 255, 0.05);
+}
+
+/* ========== 模拟模式开关 ========== */
+.ai-mock-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(0, 255, 255, 0.03);
+    border: 1px solid #1a3a4a;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+}
+.ai-mock-toggle:hover {
+    border-color: #2a5a6a;
+    background: rgba(0, 255, 255, 0.06);
+}
+.ai-mock-toggle span:first-child {
+    font-size: 11px;
+    color: #5a8a9a;
+}
+.ai-mock-toggle-switch {
+    font-size: 10px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    background: #1a3a4a;
+    color: #5a8a9a;
+    transition: all 0.2s;
+}
+.ai-mock-toggle-switch.active {
+    background: #0ff;
+    color: #001520;
+    font-weight: bold;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.3);
+}
+.ai-model-panel-bottom:has(.ai-mock-toggle-switch.active) {
+    border-color: #0ff;
+}
+
+/* ========== 添加模型模态框 ========== */
+.ai-add-model-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(8, 20, 35, 0.98);
+    border: 1px solid #1a3a4a;
+    border-radius: 14px;
+    padding: 20px 24px;
+    z-index: 99999;
+    width: 340px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+}
+.ai-add-model-modal h3 {
+    color: #8ab;
+    font-size: 15px;
+    margin: 0 0 16px 0;
+    text-align: center;
+    font-weight: 600;
+}
+.ai-add-model-modal label {
+    display: block;
+    color: #5a8a9a;
+    font-size: 11px;
+    margin-bottom: 4px;
+    margin-top: 10px;
+}
+.ai-modal-key-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+}
+.ai-modal-key-row label {
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+.ai-modal-key-link {
+    color: #0af;
+    font-size: 10px;
+    text-decoration: none;
+    cursor: pointer;
+}
+.ai-modal-key-link:hover {
+    color: #0ff;
+    text-decoration: underline;
+}
+.ai-add-model-modal label:first-of-type {
+    margin-top: 0;
+}
+.ai-add-model-modal input,
+.ai-add-model-modal select {
+    width: 100%;
+    background: #0a1828;
+    border: 1px solid #1a3a4a;
+    color: #cde;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+    box-sizing: border-box;
+}
+.ai-modal-model-input {
+    width: 100%;
+    background: #0a1828;
+    border: 1px solid #1a3a4a;
+    color: #cde;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+    box-sizing: border-box;
+}
+.ai-add-model-modal input:focus,
+.ai-add-model-modal select:focus {
+    border-color: #0ff;
+}
+.ai-add-model-modal select option {
+    background: #0a1828;
+    color: #cde;
+}
+.ai-add-model-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+}
+.ai-add-model-actions button {
+    flex: 1;
+    padding: 7px 0;
+    border-radius: 8px;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ai-modal-cancel {
+    background: #1a2a3a;
+    color: #7a9aaa;
+}
+.ai-modal-cancel:hover {
+    background: #2a3a4a;
+}
+.ai-modal-confirm {
+    background: #0a5a6a;
+    color: #cde;
+}
+.ai-modal-confirm:hover {
+    background: #0a7a8a;
+}
+
+.ai-send-btn {
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    font-size: 12px;
+    height: 28px;
+    border-radius: 14px;
+    cursor: pointer;
+    border: none;
+    padding: 0 16px;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.ai-send-btn:hover {
+    background: var(--btn-hover);
+}
+
+.ai-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ========== 历史对话下拉框 ========== */
+.ai-history-panel {
+    display: none;
+    position: absolute;
+    top: 42px;
+    right: 0;
+    width: 320px;
+    z-index: 9999;
+    background: rgba(5, 18, 30, 0.98);
+    border: 1px solid #1a3a4a;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    flex-direction: column;
+    max-height: 400px;
+    overflow: hidden;
+}
+.ai-history-panel.open {
+    display: flex;
+}
+.ai-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid #1a3a4a;
+    color: #8ab;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.ai-history-clear {
+    background: none;
+    border: 1px solid #3a4a5a;
+    color: #6a8a9a;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.ai-history-clear:hover {
+    color: #f66;
+    border-color: #f66;
+}
+.ai-history-empty {
+    text-align: center;
+    color: #4a6a7a;
+    padding: 20px 0;
+    font-size: 12px;
+}
+.ai-history-list {
+    overflow-y: auto;
+    flex: 1;
+}
+.ai-history-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.12s;
+    gap: 4px;
+}
+.ai-history-item:hover {
+    background: rgba(0, 255, 255, 0.06);
+}
+.ai-history-item-info {
+    flex: 1;
+    min-width: 0;
+}
+.ai-history-item-title {
+    color: #cde;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ai-history-item-meta {
+    color: #4a6a7a;
+    font-size: 10px;
+    margin-top: 1px;
+}
+.ai-history-item-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+.ai-history-item-btn {
+    background: none;
+    border: none;
+    color: #3a4a5a;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: 4px;
+    transition: color 0.12s, background 0.12s;
+}
+.ai-history-item-btn:hover {
+    color: #8af;
+    background: rgba(0, 160, 255, 0.1);
+}
+.ai-history-item-btn.del:hover {
+    color: #f66;
+    background: rgba(255,80,80,0.1);
+}
+.ai-history-item-btn.del { color: #3a4a5a; }
+.ai-history-rename-input {
+    width: 100%;
+    background: #0a1828;
+    border: 1px solid #0ff;
+    border-radius: 4px;
+    color: #cde;
+    font-size: 11px;
+    padding: 2px 4px;
+    outline: none;
+}
+
+/* ========== AI 消息气泡 ========== */
+#aiFloatingDialog .ai-message {
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 4px;
+    max-width: 100%;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+#aiFloatingDialog .ai-message.user {
+    background: rgba(0, 255, 255, 0.06);
+    color: #c0f0ff;
+    border-left: 2px solid #0ff;
+    margin-left: auto;
+    max-width: 85%;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+}
+
+#aiFloatingDialog .ai-message.assistant {
+    background: rgba(255, 255, 255, 0.03);
+    color: #d0e8f0;
+    border-left: 2px solid #5a8a9a;
+}
+#aiFloatingDialog .ai-message.system {
+    background: rgba(0, 255, 255, 0.04);
+    color: #5a8a9a;
+    font-size: 12px;
+    text-align: center;
+    border-left: none;
+}
+#aiFloatingDialog .ai-message.error {
+    background: rgba(255, 80, 80, 0.08);
+    color: #e07070;
+    border-left: 2px solid #e07070;
+    font-size: 12px;
+}
+
+/* ========== AI 加载动画 ========== */
+.ai-loading {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    color: #5a8a9a;
+    font-size: 12px;
+}
+.ai-loading-dot {
+    width: 5px;
+    height: 5px;
+    background: #0ff;
+    border-radius: 50%;
+    animation: ai-bounce 1.2s ease-in-out infinite;
+}
+.ai-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.ai-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ========== Markdown 知识树预览面板 ========== */
+.ai-md-preview {
+  margin: 8px 0;
+  border: 1px solid rgba(0, 255, 255, 0.25);
+  border-radius: 10px;
+  background: rgba(5, 15, 25, 0.95);
+  overflow: hidden;
+  animation: mdPreviewFadeIn 0.3s ease;
+}
+
+.ai-md-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.12);
+}
+.ai-md-preview-title {
+  color: #0ff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ai-md-preview-stats {
+  color: #5a8a9a;
+  font-size: 11px;
+}
+.ai-md-preview-body {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #b0c8d8;
+}
+.ai-md-preview-body::-webkit-scrollbar {
+  width: 4px;
+}
+.ai-md-preview-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.ai-md-preview-body .md-code-block {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.ai-md-preview-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(0, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+}
+.ai-md-preview-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ai-md-preview-btn.cancel {
+  background: rgba(255, 255, 255, 0.06);
+  color: #8a9aaa;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ai-md-preview-btn.cancel:hover {
+  background: rgba(255, 80, 80, 0.1);
+  color: #f88;
+  border-color: rgba(255, 80, 80, 0.3);
+}
+.ai-md-preview-btn.confirm {
+  background: rgba(0, 255, 255, 0.15);
+  color: #0ff;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+}
+.ai-md-preview-btn.confirm:hover {
+  background: rgba(0, 255, 255, 0.25);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.2);
+}
+.ai-md-preview-btn.confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ========== 工具调用消息样式 ========== */
+#aiFloatingDialog .ai-message.tool {
+  background: rgba(140, 60, 220, 0.12);
+  color: #c8a0ff;
+  border-left: 2px solid #8844cc;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+#aiFloatingDialog .ai-message.tool-result {
+  background: rgba(80, 180, 120, 0.1);
+  color: #7dd;
+  border-left: 2px solid #4a9a6a;
+  font-size: 12px;
+}
+
+#aiFloatingDialog .ai-message.error {
+  background: rgba(255, 60, 60, 0.1);
+  color: #f88888;
+  border-left: 2px solid #c44;
+  font-size: 12px;
+}
+
+/* ========== Agent 执行进度条 ========== */
+.ai-agent-progress {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(140, 60, 220, 0.12), rgba(100, 40, 180, 0.08));
+  border: 1px solid rgba(160, 80, 255, 0.25);
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.agent-progress-header {
+  font-weight: 600;
+  color: #c8a0ff;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(160, 80, 255, 0.15);
+}
+
+.agent-progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  transition: all 0.3s ease;
+}
+
+.agent-step .step-icon {
+  font-size: 13px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.agent-step .step-name {
+  color: #b89ce0;
+  font-weight: 500;
+  flex: 1;
+}
+
+.agent-step .step-detail {
+  color: #888;
+  font-size: 10px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-step.success .step-name {
+  color: #7dd;
+}
+
+.agent-step.success .step-icon {
+  animation: stepSuccess 0.4s ease;
+}
+
+.agent-step.error .step-name {
+  color: #f88888;
+}
+
+.agent-step.error .step-icon {
+  animation: stepError 0.4s ease;
+}
+
+/* ========== 停止生成按钮 ========== */
+#aiStopBtn {
+    background: rgba(255,80,80,0.1);
+    border: 1px solid #5a3a3a;
+    color: #d07070;
+    padding: 3px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+#aiStopBtn:hover {
+    background: rgba(255,80,80,0.2);
+    border-color: #e07070;
+    color: #ff8080;
+}
+
+/* ========== 边缘拉伸手柄 ========== */
+.floating-resize-handle {
+    position: absolute;
+    z-index: 10;
+    pointer-events: auto;
+}
+.floating-resize-handle[data-handle="n"] {
+    top: -3px; left: 6px; right: 6px; height: 6px;
+    cursor: n-resize;
+}
+.floating-resize-handle[data-handle="s"] {
+    bottom: -3px; left: 6px; right: 6px; height: 6px;
+    cursor: s-resize;
+}
+.floating-resize-handle[data-handle="e"] {
+    right: -3px; top: 6px; bottom: 6px; width: 6px;
+    cursor: e-resize;
+}
+.floating-resize-handle[data-handle="w"] {
+    left: -3px; top: 6px; bottom: 6px; width: 6px;
+    cursor: w-resize;
+}
+.floating-resize-handle[data-handle="ne"] {
+    top: -3px; right: -3px; width: 10px; height: 10px;
+    cursor: ne-resize;
+}
+.floating-resize-handle[data-handle="nw"] {
+    top: -3px; left: -3px; width: 10px; height: 10px;
+    cursor: nw-resize;
+}
+.floating-resize-handle[data-handle="se"] {
+    bottom: -3px; right: -3px; width: 10px; height: 10px;
+    cursor: se-resize;
+}
+.floating-resize-handle[data-handle="sw"] {
+    bottom: -3px; left: -3px; width: 10px; height: 10px;
+    cursor: sw-resize;
+}
+.floating-resize-handle:hover {
+    background: rgba(0, 255, 255, 0.12);
+}

@@ -1,0 +1,220 @@
+/* ---------- 浮动图片覆盖层 — 画布块模式 ---------- */
+.tmce-overlay-block {
+    position: relative;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    margin: 8px 0;
+    overflow: visible;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.tmce-overlay-block:hover {
+    border: none;
+    background: transparent;
+}
+
+/* 画布块选中状态 */
+.tmce-overlay-block-active {
+    border: 1px solid rgba(0, 255, 255, 0.6) !important;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.2);
+    background: rgba(13, 27, 35, 0.45);
+}
+
+/* 画布块内有焦点元素时显示边框 */
+.tmce-overlay-block:focus-within {
+    border: 1px dashed rgba(0, 255, 255, 0.35);
+    background: rgba(13, 27, 35, 0.45);
+}
+
+/* 画布块标签（已移除） */
+.tmce-overlay-block::before {
+    content: '';
+    display: none;
+}
+
+/* 旧的全局 overlay 容器（兼容） */
+#overlayImageContainer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.oly-img-item {
+    pointer-events: auto;
+    transition: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.oly-img-item img {
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.oly-img-item svg {
+    pointer-events: none;
+}
+
+.oly-img-item [contenteditable] {
+    pointer-events: auto;
+    cursor: text;
+}
+
+.oly-img-item [contenteditable]:focus {
+    outline: 1px dashed #4a9eae;
+    outline-offset: -2px;
+}
+
+#olyTextBoxToolbar .oly-tb-btn {
+    background: var(--btn-bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 2px 7px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    min-width: 24px;
+    text-align: center;
+}
+
+#olyTextBoxToolbar .oly-tb-btn:hover {
+    background: var(--btn-hover);
+    border-color: var(--accent);
+}
+
+#olyTextBoxToolbar .oly-tb-btn:active {
+    background: var(--btn-hover);
+    color: var(--text-primary);
+}
+
+.oly-resize-handle {
+    pointer-events: auto;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.oly-resize-handle:hover {
+    background: #4a9eae !important;
+    border-color: #fff !important;
+}
+
+#olyContextMenu div:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+#olyContextMenu div:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+/* ---------- 图片编辑器弹窗 ---------- */
+#olyEditorModal .oly-edit-tool.oly-tool-active {
+    background: #2c6e7e !important;
+    border-color: #aef0ff !important;
+    color: #fff !important;
+}
+
+/* 滤镜预设按钮 */
+.oly-filter-preset {
+    transition: all 0.12s;
+}
+.oly-filter-preset:hover {
+    border-color: #3a6a7a !important;
+    color: #c8e6ff !important;
+    background: #1a3a44 !important;
+}
+.oly-filter-preset.oly-filter-active {
+    background: #2c6e7e !important;
+    border-color: #00e5ff !important;
+    color: #fff !important;
+}
+
+/* 橡皮擦激活状态 */
+.oly-draw-eraser-active {
+    background: #3a2a2a !important;
+    border-color: #ff6666 !important;
+    color: #ff9999 !important;
+}
+
+#olyEditorAdjustPanel input[type="range"] {
+    height: 4px;
+    cursor: pointer;
+}
+
+.tmce-resize-handle:hover {
+    background: #4a9eae;
+    border-color: #fff;
+}
+
+/* ---------- 图片右键菜单 ---------- */
+#tmceImgContextMenu input[type="range"] {
+    cursor: pointer;
+}
+
+/* ---------- 文件/链接右键菜单 ---------- */
+#tmceFileLinkCtxMenu div:hover {
+    background: #1a3a44;
+}
+
+/* ---------- 插入目录右键菜单 ---------- */
+#tmceTocCtxMenu {
+    animation: tmceFadeIn 0.12s ease;
+}
+#tmceTocCtxMenu .tmce-ctx-label {
+    padding: 4px 14px;
+    color: #5a8a9a;
+    font-size: 11px;
+}
+#tmceTocCtxMenu .tmce-ctx-disabled {
+    padding: 7px 14px;
+    color: #4a5a6a;
+    font-size: 12px;
+    font-style: italic;
+}
+#tmceTocCtxMenu [data-action]:hover {
+    background: #2c6e7e;
+    color: #fff;
+}
+
+/* ---------- 链接对话框 ---------- */
+#tmceLinkDialog > div {
+    animation: tmceFadeIn 0.2s ease;
+}
+
+@keyframes tmceFadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* 查找替换当前匹配项闪烁 */
+@keyframes tmceMatchFlash {
+    0%, 100% { background-color: #ffeb3b; color: #000; box-shadow: 0 0 8px rgba(255,235,59,0.6); }
+    50% { background-color: #ff9800; color: #000; box-shadow: 0 0 14px rgba(255,152,0,0.9); }
+}
+
+#ckEditorContainer .mce-match-marker-selected {
+    animation: tmceMatchFlash 0.75s ease-in-out 3 !important;
+}
+
+/* 编辑器内嵌搜索栏下拉 */
+.tox-toolbar__group .editor-search-flash {
+    transition: none;
+}
+.editor-search-dropdown-menu div:hover {
+    background: #1a3a44 !important;
+}
+
+#tmceLinkSave:hover {
+    background: #3a8e9e !important;
+}
+
+#tmceLinkRemove:hover {
+    background: #5a2a2a !important;
+    color: #ff8080 !important;
+}

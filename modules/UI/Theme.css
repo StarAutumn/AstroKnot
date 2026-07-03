@@ -1,0 +1,54 @@
+/* ============================================================
+   电路板焊盘呼吸闪烁动画（全局定义，供所有标题栏使用）
+   ============================================================ */
+@property --p1 { syntax: '<number>'; inherits: false; initial-value: 0.75; }
+@property --p2 { syntax: '<number>'; inherits: false; initial-value: 0.70; }
+@property --p3 { syntax: '<number>'; inherits: false; initial-value: 0.65; }
+@property --p4 { syntax: '<number>'; inherits: false; initial-value: 0.55; }
+@property --p5 { syntax: '<number>'; inherits: false; initial-value: 0.50; }
+@property --p6 { syntax: '<number>'; inherits: false; initial-value: 0.48; }
+@property --p7 { syntax: '<number>'; inherits: false; initial-value: 0.42; }
+@property --p8 { syntax: '<number>'; inherits: false; initial-value: 0.38; }
+@property --p9 { syntax: '<number>'; inherits: false; initial-value: 0.35; }
+@property --p10 { syntax: '<number>'; inherits: false; initial-value: 0.38; }
+
+@keyframes pcbPadBreathe {
+    0%   { --p1: 0.75; --p2: 0.30; --p3: 0.65; --p4: 0.25; --p5: 0.50; --p6: 0.20; --p7: 0.42; --p8: 0.15; --p9: 0.35; --p10: 0.18; }
+    12%  { --p1: 0.40; --p2: 0.70; --p3: 0.30; --p4: 0.55; --p5: 0.20; --p6: 0.48; --p7: 0.15; --p8: 0.38; --p9: 0.18; --p10: 0.42; }
+    25%  { --p1: 0.65; --p2: 0.35; --p3: 0.60; --p4: 0.20; --p5: 0.48; --p6: 0.25; --p7: 0.42; --p8: 0.15; --p9: 0.35; --p10: 0.20; }
+    37%  { --p1: 0.30; --p2: 0.65; --p3: 0.35; --p4: 0.50; --p5: 0.25; --p6: 0.45; --p7: 0.20; --p8: 0.42; --p9: 0.15; --p10: 0.38; }
+    50%  { --p1: 0.70; --p2: 0.25; --p3: 0.30; --p4: 0.55; --p5: 0.20; --p6: 0.50; --p7: 0.38; --p8: 0.18; --p9: 0.42; --p10: 0.15; }
+    62%  { --p1: 0.35; --p2: 0.60; --p3: 0.65; --p4: 0.25; --p5: 0.48; --p6: 0.20; --p7: 0.15; --p8: 0.35; --p9: 0.18; --p10: 0.42; }
+    75%  { --p1: 0.65; --p2: 0.30; --p3: 0.35; --p4: 0.50; --p5: 0.25; --p6: 0.45; --p7: 0.42; --p8: 0.15; --p9: 0.38; --p10: 0.20; }
+    87%  { --p1: 0.40; --p2: 0.65; --p3: 0.60; --p4: 0.20; --p5: 0.48; --p6: 0.25; --p7: 0.18; --p8: 0.42; --p9: 0.15; --p10: 0.35; }
+    100% { --p1: 0.75; --p2: 0.30; --p3: 0.65; --p4: 0.25; --p5: 0.50; --p6: 0.20; --p7: 0.42; --p8: 0.15; --p9: 0.35; --p10: 0.18; }
+}
+
+/* ═══ 标题栏电路板底纹开关 ═══ */
+/* 关闭电路板底纹 */
+body.no-header-circuit .rich-modal-header::before,
+body.no-header-circuit .layer-panel-header::before,
+body.no-header-circuit #aiFloatingDialog .ai-drag-header::before {
+    display: none;
+}
+/* 关闭焊盘呼吸闪烁（保留静态底纹）*/
+body.no-header-circuit-anim .rich-modal-header::before,
+body.no-header-circuit-anim .layer-panel-header::before,
+body.no-header-circuit-anim #aiFloatingDialog .ai-drag-header::before {
+    animation: none;
+}
+
+/* ═══ 浅色模式适配（反色滤镜全局处理颜色，以下仅保留非颜色调整） ═══ */
+body.light-mode .dark-only {
+    display: none !important;
+}
+/* 滚动条 */
+body.light-mode ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.06) !important;
+}
+body.light-mode ::-webkit-scrollbar-thumb {
+    background: rgba(0, 100, 160, 0.3) !important;
+}
+body.light-mode ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 100, 160, 0.45) !important;
+}

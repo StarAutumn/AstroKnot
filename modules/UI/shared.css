@@ -1,0 +1,284 @@
+/* 提示信息 */
+#info {
+    position: absolute;
+    bottom: 54px;
+    left: 18px;
+    z-index: 100;
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    padding: 8px 18px;
+    border-radius: var(--panel-radius);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: none;
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+}
+
+/* 状态栏和instruction */
+.status {
+    position: absolute;
+    top: 20px;
+    right: 140px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    padding: 4px 14px;
+    border-radius: var(--panel-radius);
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    border: 1px solid var(--panel-border);
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: var(--panel-shadow);
+}
+
+.instruction {
+    position: absolute;
+    bottom: 54px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    padding: 5px 14px;
+    border-radius: var(--panel-radius);
+    font-size: 12px;
+    color: var(--text-secondary);
+    pointer-events: none;
+    white-space: nowrap;
+    font-family: monospace;
+    z-index: 100;
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+}
+
+/* 左侧编辑器面板 */
+.editor-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 200;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    border-radius: var(--panel-radius);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    font-family: system-ui, 'Segoe UI', sans-serif;
+    pointer-events: auto;
+    transition: all 0.3s;
+    overflow: hidden;
+    color: var(--text-primary);
+    width: 340px;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--header-bg);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    cursor: pointer;
+    user-select: none;
+}
+
+.title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+}
+
+.panel-header button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 18px;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 20px;
+}
+
+.panel-header button:hover {
+    background: #1a525f;
+    transform: none;
+}
+
+.panel-content {
+    padding: 16px 20px;
+    max-height: 70vh;
+    overflow-y: auto;
+    transition: max-height 0.35s ease, opacity 0.3s ease, padding 0.35s ease;
+}
+.panel-content.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow: hidden;
+}
+
+/* 重命名区域（已废弃？但保留样式） */
+.rename-section {
+    background: var(--btn-bg);
+    border-radius: 16px;
+    padding: 10px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.rename-section input {
+    flex: 1;
+    margin-bottom: 0;
+    font-size: 12px;
+}
+
+.rename-section button {
+    width: auto;
+    padding: 0 12px;
+    margin-top: 0;
+    background: #2c6e7e;
+    font-size: 12px;
+}
+
+/* 通用区块分隔 */
+.section {
+    margin-bottom: 20px;
+    border-top: 1px solid rgba(0, 255, 255, 0.3);
+    padding-top: 12px;
+}
+
+/* 输入框通用样式 */
+input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="file"]) {
+    width: calc(100% - 16px);
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-primary);
+    padding: 6px 8px;
+    border-radius: 16px;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+/* 按钮通用样式（仅限未被其他类覆盖的基础按钮） */
+/* 使用 capitons 作为目标 */
+.caption-btn {
+    width: 46px;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    transition: background 0.15s;
+}
+
+.caption-btn svg {
+    width: 10px;
+    height: 10px;
+    fill: none;
+    stroke: var(--text-secondary);
+    stroke-width: 1.2;
+}
+
+.caption-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.caption-btn.close:hover {
+    background: #c42b1c;
+}
+
+.caption-btn.close:hover svg {
+    stroke: #fff;
+}
+
+/* 行内两列布局 */
+.flex-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.flex-row button {
+    width: 50%;
+    margin-top: 0;
+}
+
+.clear-both-row {
+    text-align: right;
+    margin-top: 6px;
+}
+
+.clear-both-btn {
+    background: transparent;
+    border: none;
+    color: #f99;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 50%;
+}
+
+.clear-both-btn:hover {
+    background: rgba(255, 100, 100, 0.2);
+}
+
+/* 提示小字 */
+.note {
+    font-size: 10px;
+    text-align: center;
+    margin-top: 8px;
+    opacity: 0.7;
+}
+
+/* 右键菜单 */
+#itemContextMenu {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+    padding: 6px 0;
+    min-width: 160px;
+    backdrop-filter: blur(12px);
+}
+
+#itemContextMenu .ctx-item {
+    padding: 8px 18px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+#itemContextMenu .ctx-item:hover {
+    background: var(--btn-hover);
+    color: var(--accent);
+}
+
+#itemContextMenu .ctx-sep {
+    height: 1px;
+    background: var(--panel-border);
+    margin: 4px 0;
+}

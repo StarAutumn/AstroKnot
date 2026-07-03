@@ -1,0 +1,62 @@
+/* 时钟日历弹出框hover样式 */
+#clockCalendarPopup .cal-nav:hover {
+    background: rgba(0, 255, 255, 0.12);
+    color: #eef;
+}
+
+#clockCalendarPopup .cal-day:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+
+#clockCalendarPopup .cal-tab:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+
+#clockCalendarPopup .cal-cell:hover {
+    background: rgba(201, 168, 255, 0.22) !important;
+    border-color: rgba(201, 168, 255, 0.4) !important;
+}
+
+#clockCalendarPopup .cal-event:hover {
+    background: rgba(0, 255, 255, 0.12);
+}
+
+#clockCalendarPopup .cal-del:hover,
+#clockCalendarPopup .cal-weekly-del:hover {
+    color: #e88;
+}
+
+#clockCalendarPopup .cal-add:hover,
+#clockCalendarPopup .cal-add-slot:hover {
+    background: rgba(0, 255, 255, 0.08);
+    border-color: rgba(0, 255, 255, 0.4);
+}
+
+#clockCalendarPopup .cal-slot-label:hover {
+    background: rgba(0, 255, 255, 0.08);
+    color: #eef;
+}
+
+#slotMenu .slot-menu-item:hover {
+    background: rgba(0, 255, 255, 0.12);
+    color: #eef;
+}
+
+#slotMenu .slot-menu-item[data-act="delete"]:hover {
+    background: rgba(255, 100, 100, 0.15);
+    color: #fbb;
+}
+
+/* 时钟样式 */
+#clockTime {
+    font-size: 14px;
+    font-weight: 600;
+    color: #eef;
+}
+
+#clockDate {
+    font-size: 11px;
+    color: #88b0c8;
+}

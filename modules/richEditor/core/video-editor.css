@@ -1,0 +1,499 @@
+/* ============================================================
+   视频编辑器（FFmpeg.wasm）
+   ============================================================ */
+.ve-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: ve-fade-in 0.2s ease;
+}
+@keyframes ve-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.ve-dialog {
+    width: 92vw;
+    max-width: 1100px;
+    height: 80vh;
+    max-height: 750px;
+    display: flex;
+    flex-direction: column;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 229, 255, 0.08);
+    animation: ve-scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ve-scale-in {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.ve-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: #0d1b23;
+    border-bottom: 1px solid #1e3a44;
+    flex-shrink: 0;
+}
+.ve-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #aef0ff;
+}
+.ve-subtitle {
+    font-size: 12px;
+    color: #5a8aaa;
+}
+.ve-close-btn {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: #5a8aaa;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+}
+.ve-close-btn:hover {
+    background: #1c3a44;
+    color: #fff;
+}
+
+.ve-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* 预览面板 */
+.ve-preview-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: #000;
+}
+.ve-preview-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    min-height: 0;
+}
+.ve-preview-video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    transition: filter 0.15s, transform 0.2s, clip-path 0.2s;
+}
+
+.ve-play-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #0a151d;
+    border-top: 1px solid #1e3a44;
+    flex-shrink: 0;
+}
+.ve-play-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #1c3a44;
+    color: #aef0ff;
+    cursor: pointer;
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.ve-play-btn:hover {
+    background: #2c6e7e;
+}
+.ve-time-label {
+    font-size: 11px;
+    color: #5a8aaa;
+    font-family: 'Consolas', monospace;
+    flex-shrink: 0;
+    min-width: 80px;
+}
+.ve-seek-bar {
+    flex: 1;
+    height: 20px;
+    background: #1a2a34;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+}
+.ve-seek-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2c6e7e, #0ff);
+    border-radius: 4px;
+    width: 0%;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+/* 裁剪范围 */
+.ve-trim-range {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(0, 229, 255, 0.15);
+    border-left: 2px solid #00e5ff;
+    border-right: 2px solid #00e5ff;
+    pointer-events: none;
+}
+.ve-trim-handle {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 20px;
+    background: #00e5ff;
+    border-radius: 2px;
+    transform: translateY(-50%);
+    cursor: ew-resize;
+    pointer-events: auto;
+    z-index: 2;
+}
+.ve-trim-handle-start {
+    left: -6px;
+}
+.ve-trim-handle-end {
+    right: -6px;
+}
+
+/* 工具面板 */
+.ve-tool-panel {
+    width: 300px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: #0d1b23;
+    border-left: 1px solid #1e3a44;
+    overflow: hidden;
+}
+
+.ve-tab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 8px 8px 0;
+    border-bottom: 1px solid #1e3a44;
+    flex-shrink: 0;
+}
+.ve-tab-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #5a8aaa;
+    cursor: pointer;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.15s;
+}
+.ve-tab-btn:hover {
+    color: #aef0ff;
+    background: #1a2a34;
+}
+.ve-tab-btn.ve-tab-active {
+    color: #aef0ff;
+    background: #1a2a34;
+    border-bottom: 2px solid #00e5ff;
+}
+
+.ve-tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+.ve-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #aef0ff;
+    margin-bottom: 12px;
+}
+.ve-param-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.ve-param-row label {
+    font-size: 12px;
+    color: #5a8aaa;
+    min-width: 70px;
+    flex-shrink: 0;
+}
+.ve-param-row span {
+    font-size: 12px;
+    color: #c8e6ff;
+    font-family: 'Consolas', monospace;
+}
+.ve-hint {
+    font-size: 11px;
+    color: #3a5a6a;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.ve-input {
+    flex: 1;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 4px;
+    color: #c8e6ff;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+    outline: none;
+}
+.ve-input:focus {
+    border-color: #2c6e7e;
+}
+
+.ve-select {
+    flex: 1;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 4px;
+    color: #c8e6ff;
+    padding: 4px 8px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+}
+.ve-select option {
+    background: #0d1b23;
+    color: #c8e6ff;
+}
+
+.ve-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #1a2a34;
+    border-radius: 2px;
+    outline: none;
+}
+.ve-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #00e5ff;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.ve-color-input {
+    width: 32px;
+    height: 24px;
+    border: 1px solid #1e3a44;
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+}
+
+.ve-speed-presets {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+.ve-preset-btn {
+    flex: 1;
+    padding: 4px 0;
+    background: #1a2a34;
+    border: 1px solid #1e3a44;
+    border-radius: 4px;
+    color: #5a8aaa;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.ve-preset-btn:hover {
+    background: #1c3a44;
+    color: #aef0ff;
+}
+.ve-preset-btn.ve-preset-active {
+    background: #2c6e7e;
+    color: #fff;
+    border-color: #00e5ff;
+}
+
+.ve-snapshot-btn {
+    width: 100%;
+    padding: 8px 16px;
+    background: #1c3a44;
+    border: 1px solid #2c6e7e;
+    border-radius: 6px;
+    color: #aef0ff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.ve-snapshot-btn:hover {
+    background: #2c6e7e;
+    color: #fff;
+}
+
+.ve-snap-preview {
+    margin-top: 12px;
+    padding: 8px;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 6px;
+    text-align: center;
+}
+
+/* 进度 */
+.ve-progress-wrap {
+    padding: 12px 16px;
+    border-top: 1px solid #1e3a44;
+    flex-shrink: 0;
+}
+.ve-progress-bar {
+    height: 4px;
+    background: #1a2a34;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.ve-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2c6e7e, #00e5ff);
+    width: 0%;
+    transition: width 0.2s;
+    border-radius: 2px;
+}
+.ve-progress-label {
+    font-size: 11px;
+    color: #5a8aaa;
+    text-align: center;
+}
+
+/* 应用按钮 */
+.ve-apply-btn {
+    margin: 12px 16px;
+    padding: 10px 16px;
+    background: #2c6e7e;
+    border: 1px solid #00e5ff;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.ve-apply-btn:hover {
+    background: #3a8e9e;
+}
+.ve-apply-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 滤镜网格 */
+.ve-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+.ve-filter-toggle {
+    padding: 5px 0;
+    text-align: center;
+    font-size: 11px;
+    color: #5a8aaa;
+    background: #1a2a34;
+    border: 1px solid #1e3a44;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.ve-filter-toggle:hover {
+    background: #1c3a44;
+    color: #aef0ff;
+}
+.ve-filter-toggle.ve-filter-active {
+    background: #2c6e7e;
+    color: #fff;
+    border-color: #00e5ff;
+}
+
+/* 高级编辑 */
+.ve-rotate-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.ve-flip-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+/* 音频 */
+.ve-audio-result {
+    margin-top: 10px;
+    padding: 10px;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 6px;
+}
+.ve-audio-result audio {
+    border-radius: 4px;
+}
+
+/* GIF 预览 */
+.ve-gif-preview {
+    margin-top: 12px;
+    padding: 8px;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 6px;
+    text-align: center;
+}
+
+/* 字幕 */
+.ve-sub-label {
+    font-size: 11px;
+    color: #5a8aaa;
+    margin: 10px 0 4px;
+}
+.ve-textarea {
+    width: 100%;
+    background: #0a151d;
+    border: 1px solid #1e3a44;
+    border-radius: 4px;
+    color: #c8e6ff;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    padding: 8px;
+    resize: vertical;
+    outline: none;
+    box-sizing: border-box;
+}
+.ve-textarea:focus {
+    border-color: #2c6e7e;
+}
