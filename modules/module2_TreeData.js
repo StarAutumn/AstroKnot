@@ -47,6 +47,7 @@ export function ensureNodeDefaults(node) {
   if (node.sizeScale === undefined) node.sizeScale = 1.0;
   if (node.ringSpeedFactor === undefined) node.ringSpeedFactor = 1.0;
   if (node.fixedColor === undefined) node.fixedColor = null;
+  if (node.activeMode === undefined) node.activeMode = null;
 }
 
 /**
@@ -104,6 +105,11 @@ export function saveCurrentProjectData() {
   for (let [id, node] of appState.nodeMap.entries()) {
     if (node.fileSystem) nfs[id] = node.fileSystem;
   }
+  // 收集节点激活模式
+  let nam = {};
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (node.activeMode) nam[id] = node.activeMode;
+  }
   // 克隆位置
   let po = new Map();
   for (let [id, v] of appState.positions.entries()) po.set(id, v.clone());
@@ -147,6 +153,7 @@ export function saveCurrentProjectData() {
     nodeOverlayImages: no,
     nodeHtmlSources: nhs,
     nodeFileSystems: nfs,
+    nodeActiveModes: nam,
     layers: serializedLayers,
     currentLayerId: appState.currentLayerId,
     cameraView: cameraView,
@@ -186,6 +193,9 @@ export function getEmergencySnapshot() {
       collapsed2D: d.collapsed2D || [],
       nodeRichContents: d.nodeRichContents || {},
       nodeOverlayImages: d.nodeOverlayImages || {},
+      nodeFileSystems: d.nodeFileSystems || {},
+      nodeHtmlSources: d.nodeHtmlSources || {},
+      nodeActiveModes: d.nodeActiveModes || {},
       layers: (d.layers || []).map(l => ({
         id: l.id, name: l.name, order: l.order,
         nodeIds: Array.isArray(l.nodeIds) ? l.nodeIds : Array.from(l.nodeIds || []),
@@ -238,6 +248,38 @@ export function loadProject(projectId) {
   // 恢复覆盖层数据
   for (let [id, oi] of Object.entries(data.nodeOverlayImages || {})) {
     if (appState.nodeMap.has(id)) appState.nodeMap.get(id).overlayImages = oi;
+  }
+
+  // 恢复节点激活模式
+  if (data.nodeActiveModes) {
+    for (let [id, mode] of Object.entries(data.nodeActiveModes)) {
+      if (appState.nodeMap.has(id)) appState.nodeMap.get(id).activeMode = mode;
+    }
+  }
+
+  // 恢复虚拟文件系统（沙盒 IDE）
+  if (data.nodeFileSystems) {
+    for (let [id, fs] of Object.entries(data.nodeFileSystems)) {
+      if (appState.nodeMap.has(id)) appState.nodeMap.get(id).fileSystem = fs;
+    }
+  }
+
+  // 恢复 HTML 沙盒源码
+  if (data.nodeHtmlSources) {
+    for (let [id, hs] of Object.entries(data.nodeHtmlSources)) {
+      if (appState.nodeMap.has(id)) appState.nodeMap.get(id).htmlSource = hs;
+    }
+  }
+
+  // 旧项目兼容：没有 activeMode 的节点自动推断
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (!node.activeMode) {
+      if (node.sandboxMode || node.fileSystem || (node.htmlSource && node.htmlSource.mode === 'sandbox')) {
+        node.activeMode = 'code';
+      } else {
+        node.activeMode = 'text';
+      }
+    }
   }
 
   // 恢复图层数据
@@ -300,30 +342,87 @@ export function loadProject(projectId) {
 }
 
 /**
+ * 确保项目在磁盘上有文件夹（新建项目时立即调用）
+ * - 若 proj.folderPath 已存在，跳过
+ * - 若 currentProjectSavePath 已设置，直接在其下创建项目文件夹
+ * - 若 currentProjectSavePath 为空：
+ *   - allowDialog=true（用户新建项目）：弹窗选择保存位置，并回填 currentProjectSavePath
+ *   - allowDialog=false（默认项目启动）：静默跳过，不弹窗打扰
+ * @param {Object} proj - 项目对象（appState.projects 中的元素）
+ * @param {boolean} [allowDialog=true] - savePath 为空时是否允许弹窗选择
+ */
+async function _ensureProjectFolder(proj, allowDialog = true) {
+  // 防止重复创建（竞态条件保护）
+  if (proj.folderPath) return; // 已有文件夹路径
+  if (proj._creatingFolder) return; // 正在创建中，跳过
+  proj._creatingFolder = true;
+
+  if (!window.api?.createProjectFolder) {
+    proj._creatingFolder = false;
+    return; // Web 环境跳过
+  }
+
+  try {
+    const result = await window.api.createProjectFolder(
+      appState.currentProjectSavePath,
+      proj.name,
+      allowDialog
+    );
+
+    if (!result.success) {
+      if (result.canceled || result.skipped) {
+        proj._creatingFolder = false;
+        return; // 用户取消或静默跳过
+      }
+      console.warn('[项目磁盘同步] 创建项目文件夹失败:', result.error);
+      proj._creatingFolder = false;
+      return;
+    }
+
+    // 设置 folderPath
+    proj.folderPath = result.path;
+
+    // 文件夹名被调整（重名加后缀）时同步更新项目名
+    if (result.finalName && result.finalName !== proj.name) {
+      proj.name = result.finalName;
+      renderProjectList(); // 刷新项目列表以显示正确的名称
+    }
+
+    // currentProjectSavePath 为空时回填并持久化（避免后续新建项目再次弹窗）
+    if (!appState.currentProjectSavePath && result.rootPath) {
+      appState.currentProjectSavePath = result.rootPath;
+      try {
+        const { saveSettingsToStorage } = await import('./UI/Theme.js');
+        saveSettingsToStorage();
+      } catch (e) {
+        // 持久化失败不影响主流程
+        console.warn('[项目磁盘同步] 持久化 currentProjectSavePath 失败:', e);
+      }
+    }
+
+    console.log('[项目磁盘同步] 已创建项目文件夹:', result.path);
+  } catch (err) {
+    console.warn('[项目磁盘同步] 创建项目文件夹异常:', err);
+  } finally {
+    proj._creatingFolder = false;
+  }
+}
+
+/**
  * 创建新项目
  * @param {string} name 项目名称
  */
 export function createNewProject(name) {
-  // 自动递增编号，防止重名保存冲突
-  let finalName = name;
-  const existingNames = appState.projects.map(p => p.name);
-  if (existingNames.includes(name)) {
-    // 找同基名已用的最大编号
-    let maxN = 0;
-    const prefix = name + ' (';
-    for (const n of existingNames) {
-      if (n === name) { maxN = Math.max(maxN, 1); continue; }
-      if (n.startsWith(prefix) && n.endsWith(')')) {
-        const num = parseInt(n.slice(prefix.length, -1));
-        if (!isNaN(num)) maxN = Math.max(maxN, num);
-      }
-    }
-    finalName = name + ' (' + (maxN + 1) + ')';
-  }
-  let id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-  appState.projects.push({ id, name: finalName, data: getEmptyProjectData() });
+  // 不在内存中处理重名，完全依赖 IPC handler 的磁盘重名处理
+  // IPC handler 会检查文件夹是否存在，自动加编号，并返回 finalName
+  const id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  const proj = { id, name: name, data: getEmptyProjectData(), folderPath: null };
+  appState.projects.push(proj);
   loadProject(id);
   renderProjectList();
+  // 异步创建磁盘项目文件夹，确保后续实时同步可用（allowDialog=true：无保存路径时弹窗选择）
+  // IPC handler 会返回 finalName，_ensureProjectFolder 会自动更新 proj.name
+  _ensureProjectFolder(proj, true);
 }
 
 /**
@@ -334,9 +433,14 @@ export function copyCurrentProject() {
   let orig = appState.projects.find(p => p.id === appState.currentProjectId);
   if (!orig) return;
   let newId = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-  appState.projects.push({ id: newId, name: orig.name + " (副本)", data: cloneProjectData(orig.data) });
+  // 不在内存中添加" (副本)"后缀，完全依赖 IPC handler 的重名处理
+  const proj = { id: newId, name: orig.name, data: cloneProjectData(orig.data), folderPath: null };
+  appState.projects.push(proj);
   loadProject(newId);
   renderProjectList();
+  // 异步创建磁盘项目文件夹（allowDialog=true：无保存路径时弹窗选择）
+  // IPC handler 会检测重名并自动添加编号，返回 finalName
+  _ensureProjectFolder(proj, true);
 }
 
 /**
@@ -344,32 +448,69 @@ export function copyCurrentProject() {
  * @param {string} projId 项目 ID
  */
 export function deleteProject(projId) {
-  if (appState.projects.length <= 1) {
-    if (typeof showToast === 'function') showToast('至少保留一个项目');
-    else console.warn('至少保留一个项目');
-    return;
-  }
-  const projName = appState.projects.find(p => p.id === projId)?.name;
+  const proj = appState.projects.find(p => p.id === projId);
+  const projName = proj?.name;
+  const folderPath = proj?.folderPath;
+  const isLastProject = appState.projects.length === 1;
+  
   // 使用自定义确认弹窗
-  showConfirm(`删除项目 "${projName}"？`, () => {
-    // 清理该项目的版本图缓存和临时存储（惰性动态 import 避免循环依赖）
-    import('./versionGraph/versionGraph.js').then(({ clearCache, getVersionKey }) => {
+  showConfirm(
+    isLastProject 
+      ? `删除项目 "${projName}"？这是最后一个项目，删除后将返回开始首页。` 
+      : `删除项目 "${projName}"？`, 
+    async () => {
+      // 清理该项目的版本图缓存和临时存储（惰性动态 import 避免循环依赖）
       try {
+        const { clearCache, getVersionKey } = await import('./versionGraph/versionGraph.js');
         const key = getVersionKey(projId);
         clearCache(projId);
         // 仅清理临时存储（项目文件夹内的版本图跟随文件夹，不主动删）
         if (key === projId) {
-          return import('./versionGraph/versionStore.js').then(({ deleteGraph }) => deleteGraph(key));
+          const { deleteGraph } = await import('./versionGraph/versionStore.js');
+          await deleteGraph(key);
         }
       } catch (e) { console.warn('清理版本图失败:', e); }
-    }).catch(e => console.warn('清理版本图失败:', e));
 
-    let idx = appState.projects.findIndex(p => p.id === projId);
-    if (idx !== -1) appState.projects.splice(idx, 1);
-    // 如果删除的是当前项目，切换到第一个项目
-    if (appState.currentProjectId === projId) loadProject(appState.projects[0].id);
-    else renderProjectList();   // 否则只刷新列表
-  }, null, '删除项目');
+      // 删除磁盘上的项目文件夹（已保存项目）
+      if (folderPath && window.api?.deleteProjectFolder) {
+        try {
+          await window.api.deleteProjectFolder(folderPath);
+          console.log('[项目删除] 已删除磁盘文件夹:', folderPath);
+        } catch (e) {
+          console.warn('[项目删除] 删除磁盘文件夹失败:', e);
+        }
+      }
+
+      // 删除未保存项目的临时文件夹（sandbox-tmp）
+      if (!folderPath && window.api?.deleteSandboxTmpFolder) {
+        try {
+          await window.api.deleteSandboxTmpFolder(projId);
+          console.log('[项目删除] 已删除临时文件夹:', projId);
+        } catch (e) {
+          console.warn('[项目删除] 删除临时文件夹失败:', e);
+        }
+      }
+
+      let idx = appState.projects.findIndex(p => p.id === projId);
+      if (idx !== -1) appState.projects.splice(idx, 1);
+      
+      // 如果删除的是当前项目
+      if (appState.currentProjectId === projId) {
+        if (appState.projects.length > 0) {
+          // 还有其他项目，切换到第一个
+          loadProject(appState.projects[0].id);
+        } else {
+          // 没有项目了，显示开始首页（带下滑入场动画）
+          appState.currentProjectId = null;
+          const { showStartPage } = await import('./StartPage/index.js');
+          showStartPage(true);
+        }
+      }
+      renderProjectList();
+    }, 
+    null, 
+    '删除项目'
+  );
 }
 
 /**
@@ -586,10 +727,11 @@ function onProjectItemContextMenu(e) {
   e.preventDefault();
   e.stopPropagation();
   hideItemContextMenu();
-  
+
   let projectItem = e.currentTarget;
   let projId = projectItem.dataset.projectId;
-  
+  const proj = appState.projects.find(p => p.id === projId);
+
   showItemContextMenu(e.clientX, e.clientY, [
     { label: '💾 保存', action: function () {
         saveCurrentProjectData();
@@ -597,6 +739,31 @@ function onProjectItemContextMenu(e) {
     }},
     { label: '📋 复制项目', action: function () { copyCurrentProject(); } },
     { label: '✏️ 重命名', action: function () { startRename(projectItem); } },
+    { sep: true },
+    { label: '📂 打开文件所在位置', action: function () {
+        if (!proj) return;
+        const folderPath = proj.folderPath;
+        if (folderPath && window.api && window.api.showFileInFolder) {
+          window.api.showFileInFolder(folderPath);
+        } else {
+          showToast('项目尚未保存到磁盘');
+        }
+    }},
+    { label: '📄 另存为...', action: async function () {
+        if (!proj) return;
+        const folderPath = proj.folderPath;
+        const projectName = proj.name || 'knowledge_graph';
+        if (!folderPath) {
+          showToast('项目尚未保存，请先保存');
+          return;
+        }
+        if (window.api && window.api.saveProjectAs) {
+          const result = await window.api.saveProjectAs(folderPath, projectName);
+          if (!result.canceled) {
+            showToast('项目已另存为: ' + result.path);
+          }
+        }
+    }},
     { sep: true },
     { label: '🗑️ 删除', action: function () { deleteProject(projId); } }
   ]);
@@ -677,8 +844,9 @@ function _restoreFromLocalStorage() {
 }
 
 /**
- * 初始化默认项目（应用启动时调用）
- * 创建名为"我的空白网络"的项目并加载
+ * 初始化项目（应用启动时调用）
+ * 尝试恢复已保存的项目，如果没有项目则不创建默认项目
+ * @returns {boolean} 是否成功加载了项目
  */
 export function initProjects() {
   // ── Web 环境：优先从 localStorage 恢复 ──
@@ -690,16 +858,17 @@ export function initProjects() {
     const currentId = localStorage.getItem(_WEB_PROJECTS_KEY + '_current') || appState.projects[0]?.id;
     loadProject(currentId);
     console.log('[Web持久化] 已从 localStorage 恢复', restored.length, '个项目');
-  } else {
-    appState.projects.push({ id: 'default', name: '我的空白网络', data: getEmptyProjectData() });
-    loadProject('default');
   }
+  
   // ★ 绑定项目搜索
   const si = document.getElementById('projectSearchInput');
   if (si) si.addEventListener('input', renderProjectList);
   
   // ★ 绑定项目列表事件（使用事件委托）
   bindProjectListEvents();
+  
+  // 返回是否有项目加载
+  return appState.projects.length > 0;
 }
 
 /**
@@ -725,6 +894,9 @@ export function restoreEmergencySnapshot(snapshotData, projectName) {
     collapsed2D: snapshotData.collapsed2D || [],
     nodeRichContents: snapshotData.nodeRichContents || {},
     nodeOverlayImages: snapshotData.nodeOverlayImages || {},
+    nodeFileSystems: snapshotData.nodeFileSystems || {},
+    nodeHtmlSources: snapshotData.nodeHtmlSources || {},
+    nodeActiveModes: snapshotData.nodeActiveModes || {},
     layers: (snapshotData.layers || []).map(l => ({
       id: l.id, name: l.name, order: l.order,
       nodeIds: new Set(l.nodeIds || []),

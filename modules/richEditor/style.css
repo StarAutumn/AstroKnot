@@ -25,4 +25,4 @@
 @import './core/univer-table.css';
 
 /* 沙盒 IDE（对应 sandbox/*.js） */
-@import './sandbox/sandbox-ide.css';
+@import './sandbox/ide.css';

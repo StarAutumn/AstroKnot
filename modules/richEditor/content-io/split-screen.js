@@ -436,6 +436,11 @@ export function activateSplitScreen(nodeId) {
   if (!editPanelA || !editPanelB || !splitDivider) return;
 
   let editorContainer = document.getElementById('ckEditorContainer');
+
+  // 先隐藏面板，避免布局变更时的闪烁
+  editPanelA.style.visibility = 'hidden';
+  editPanelB.style.visibility = 'hidden';
+
   if (editorContainer && editorContainer.parentElement !== editPanelA) {
     editPanelA.appendChild(editorContainer);
   }
@@ -452,7 +457,17 @@ export function activateSplitScreen(nodeId) {
   editPanelB.classList.remove('split-panel-active');
 
   showTinyUI();
-  state.tinyEditor.focus();
+
+  // 布局刷新后再显示面板，确保编辑器和预览正确渲染
+  requestAnimationFrame(function () {
+    editPanelA.style.visibility = '';
+    editPanelB.style.visibility = '';
+    // 再次触发编辑器布局（DOM 移动后可能需要）
+    if (state.tinyEditor) {
+      state.tinyEditor.fire('ResizeEditor');
+      state.tinyEditor.focus();
+    }
+  });
 }
 
 export function deactivateSplitScreen() {

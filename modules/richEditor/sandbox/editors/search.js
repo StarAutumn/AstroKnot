@@ -133,8 +133,8 @@ export class SandboxSearch {
     let totalMatches = 0;
 
     for (const [filePath, file] of vfs.getAllFiles()) {
-      // 跳过二进制/非文本文件（简单判断）
-      if (file.language === 'plaintext' && /\.(png|jpg|jpeg|gif|svg|ico|woff|ttf|mp3|mp4)$/i.test(filePath)) {
+      // 跳过二进制/非文本文件（按扩展名判断，不依赖 language）
+      if (/\.(png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|mp3|mp4|wav|avi|zip|tar|gz)$/i.test(filePath)) {
         continue;
       }
 
@@ -150,7 +150,8 @@ export class SandboxSearch {
             line: i + 1,
             col: match.index + 1,
             text: lines[i],
-            matchText: match[0]
+            matchText: match[0],
+            matchIndex: match.index  // 保留精确位置，避免 replace 误高亮
           });
           totalMatches++;
           // 防止零宽匹配死循环
@@ -177,10 +178,8 @@ export class SandboxSearch {
     for (const fileResult of this._results) {
       html += `<div class="search-result-file">${_escapeHtml(fileResult.fileName)} <span style="color:#557">(${fileResult.matches.length})</span></div>`;
       for (const m of fileResult.matches) {
-        const escapedLine = _escapeHtml(m.text).replace(
-          _escapeHtml(m.matchText),
-          '<span class="match">' + _escapeHtml(m.matchText) + '</span>'
-        );
+        // 精确高亮：使用 matchIndex 定位，避免同一行多次出现时高亮错误位置
+        const escapedLine = _highlightMatch(_escapeHtml(m.text), m.matchIndex, m.matchText.length);
         html += `<div class="search-result-line" data-path="${_escapeAttr(fileResult.filePath)}" data-line="${m.line}" data-col="${m.col}">` +
                 `<span class="line-num">${m.line}</span>${escapedLine}</div>`;
       }
@@ -202,7 +201,7 @@ export class SandboxSearch {
     let replacedCount = 0;
 
     for (const [filePath, file] of vfs.getAllFiles()) {
-      if (file.language === 'plaintext' && /\.(png|jpg|jpeg|gif|svg|ico|woff|ttf|mp3|mp4)$/i.test(filePath)) {
+      if (/\.(png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|mp3|mp4|wav|avi|zip|tar|gz)$/i.test(filePath)) {
         continue;
       }
       const content = file.content || '';
@@ -227,7 +226,65 @@ function _escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 function _escapeAttr(s) {
-  return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * 在已 HTML 转义的行文本中，按原始字符偏移精确高亮匹配
+ * 由于 _escapeHtml 可能改变了字符偏移（如 & → &amp;），需要重新计算
+ * @param {string} escapedLine - 已 HTML 转义的行文本
+ * @param {number} rawIndex - 原始文本中的匹配起始位置
+ * @param {number} rawLength - 原始文本中的匹配长度
+ * @returns {string} 含高亮 <span> 的 HTML
+ */
+function _highlightMatch(escapedLine, rawIndex, rawLength) {
+  // 将转义后的文本映射回原始位置：遍历 escapedLine，跟踪原始偏移
+  let rawPos = 0;
+  let escPos = 0;
+  const result = [];
+
+  while (escPos < escapedLine.length && rawPos < rawIndex) {
+    if (escapedLine[escPos] === '&') {
+      // HTML 实体：跳过整个实体（如 &amp; &lt; &gt; &#39; &quot;）
+      const semiIdx = escapedLine.indexOf(';', escPos);
+      if (semiIdx >= 0) {
+        result.push(escapedLine.substring(escPos, semiIdx + 1));
+        escPos = semiIdx + 1;
+      } else {
+        result.push(escapedLine[escPos]);
+        escPos++;
+      }
+      rawPos++;
+    } else {
+      result.push(escapedLine[escPos]);
+      escPos++;
+      rawPos++;
+    }
+  }
+
+  // rawPos === rawIndex：提取匹配部分
+  let matchEsc = '';
+  let matchRawLen = 0;
+  while (escPos < escapedLine.length && matchRawLen < rawLength) {
+    if (escapedLine[escPos] === '&') {
+      const semiIdx = escapedLine.indexOf(';', escPos);
+      if (semiIdx >= 0) {
+        matchEsc += escapedLine.substring(escPos, semiIdx + 1);
+        escPos = semiIdx + 1;
+      } else {
+        matchEsc += escapedLine[escPos];
+        escPos++;
+      }
+      matchRawLen++;
+    } else {
+      matchEsc += escapedLine[escPos];
+      escPos++;
+      matchRawLen++;
+    }
+  }
+
+  // 拼装结果
+  return result.join('') + '<span class="match">' + matchEsc + '</span>' + escapedLine.substring(escPos);
 }
 
 console.log('[sandbox-search] 模块已加载');

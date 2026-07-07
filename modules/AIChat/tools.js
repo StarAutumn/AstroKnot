@@ -601,6 +601,16 @@ async function deleteNode(nodeId) {
     throw new Error('节点不存在: ' + nodeId);
   }
 
+  // 收集将被删除的所有节点 ID（含子树），须在 removeFromTree 之前
+  // （rebuildNodeMapFromTree 后子节点从 nodeMap 消失，无法再遍历）
+  const idsToDelete = [];
+  const collectSubtreeIds = (id) => {
+    idsToDelete.push(id);
+    const n = appState.nodeMap.get(id);
+    if (n && n.children) n.children.forEach(ch => collectSubtreeIds(ch.id));
+  };
+  collectSubtreeIds(nodeId);
+
   function removeFromTree(node) {
     if (!node || !node.children) return false;
     const idx = node.children.findIndex(function(c) { return c.id === nodeId; });
@@ -628,6 +638,13 @@ async function deleteNode(nodeId) {
   }
 
   _refreshViews();
+
+  // 派发批量删除事件（含子树，供 nodeDiskSync 监听器实时删除磁盘文件夹）
+  if (idsToDelete.length > 0) {
+    window.dispatchEvent(new CustomEvent('astroknot-node-deleted', {
+      detail: { nodeIds: idsToDelete }
+    }));
+  }
 }
 
 async function autoArrange(allLayers) {

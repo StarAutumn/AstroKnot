@@ -9,6 +9,8 @@
     "build:win": "electron-builder --win --x64",
     "build:mac": "electron-builder --mac --x64",
     "build:linux": "electron-builder --linux --x64",
+    "rebuild": "electron-rebuild -f -w node-pty",
+    "postinstall": "node scripts/copy-xterm.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -33,6 +35,7 @@
     "url": "https://gitee.com/星移三秋/astroknot"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.1.0",
     "electron": "^29.4.6",
     "electron-builder": "^26.8.1"
   },
@@ -40,17 +43,28 @@
     "appId": "com.astroknot.app",
     "productName": "AstroKnot",
     "icon": "assets/icon.png",
-    "buildDependenciesFromSource": false,
+    "buildDependencyFromSource": false,
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
     "files": [
       "**/*",
       "!modules/StressTest.js",
       "!modules/hot-update.js",
-      "!modules/emergencyBackup.js",
       "!README.md",
+      "!LICENSE",
       "!package-lock.json",
       "!.gitignore",
+      "!.npmrc",
+      "!.github/**/*",
+      "!.trae/**/*",
+      "!.trae-cn/**/*",
+      "!AstroKnot-Data/**/*",
+      "!AstroKnot文件/**/*",
+      "!generated-images/**/*",
       "!web_version/**/*",
       "!official_website/**/*",
+      "!scripts/**/*",
       "!dist-web/**/*",
       "!dist/**/*",
       "!startAstroKnot-*.sh",
@@ -64,7 +78,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.png"
@@ -73,11 +89,15 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.png",
@@ -90,15 +110,21 @@
       "target": [
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "rpm",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.png",
@@ -129,9 +155,13 @@
     "@univerjs/preset-sheets-sort": "^0.25.0",
     "@univerjs/preset-sheets-thread-comment": "^0.25.0",
     "@univerjs/presets": "^0.25.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
     "docx-preview": "^0.3.7",
     "jszip": "^3.10.1",
     "lunar-javascript": "^1.7.7",
+    "node-pty": "^1.1.0",
     "pdfjs-dist": "^6.0.227",
     "three": "^0.128.0",
     "tinymce": "^7.9.3",

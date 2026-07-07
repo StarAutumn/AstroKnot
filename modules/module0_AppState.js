@@ -52,14 +52,15 @@ class AppState {
     this.lineGlowOpacity = 1.0;
     this.skyBrightness = 1.0;
     this.skySaturation = 1.0;
-    this.simple3D = false;
+    this.simple3D = true;            // 默认启动为 3D 极简模式
     this.particleVisible = true;
     this.meteorVisible = true;
     this.ringVisible = true;
     this.showAllLabels = true;
     this.treeEdgeLabels = new Map();  // key: "startId->endId" → { label, labelHidden }, 树连线标签后备存储
     this.skyRotationSpeed = 1.0;
-    this.startupMode = '3d_full';
+    this.startupMode = '3d_simple';  // 默认启动模式：3D 极简
+    this.startPageBackground = 'ribbon';  // 'ribbon' | 'spaceship'
     this.simpleBgColor = '#000000';
     this.bgColor2D = '#01010c';
     this.gridColor2D = '#1a2a34';
@@ -130,6 +131,7 @@ class AppState {
         if (n.sizeScale === undefined) n.sizeScale = 1.0;
         if (n.ringSpeedFactor === undefined) n.ringSpeedFactor = 1.0;
         if (n.fixedColor === undefined) n.fixedColor = null;
+        if (n.activeMode === undefined) n.activeMode = null; // null=自动推断, 'text'=文本, 'code'=代码
         this.nodeMap.set(n.id, n);
       }
       if (n.children) n.children.forEach(traverse);

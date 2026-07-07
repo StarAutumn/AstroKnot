@@ -30,7 +30,28 @@ export function _pauseSandboxIframe() {
   const iframe = document.getElementById('sandboxPreviewIframe');
   if (iframe && iframe.style.display !== 'none') {
     _sandboxIframeSrcdoc = iframe.srcdoc || '';
+
+    // 导航到 about:blank 立即终止 iframe 内所有 JS 执行
+    // 仅清空 srcdoc 不会停止 setInterval/requestAnimationFrame/WebGL 上下文
+    try {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.location.href = 'about:blank';
+      }
+    } catch (e) {
+      // 跨域或已销毁，忽略
+    }
     iframe.srcdoc = '';
+
+    // 移除并重建 iframe，确保旧文档被 GC 回收（释放 GPU 资源）
+    const parent = iframe.parentElement;
+    if (parent) {
+      const newIframe = document.createElement('iframe');
+      newIframe.id = iframe.id;
+      newIframe.style.cssText = iframe.style.cssText;
+      newIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups');
+      iframe.remove();
+      parent.appendChild(newIframe);
+    }
   }
 }
 
@@ -218,9 +239,10 @@ export function initModalWindowControls() {
   let closeBtn = document.getElementById('closeModalBtn');
   let header = modalRich.querySelector('.rich-modal-header');
 
-  modalRich.addEventListener('mousedown', function () {
-    window._bringModalToFront(modalRich);
-  });
+  // 点击模态框自动置顶（统一由 WindowManager 管理）
+  if (window.WindowManager) {
+    window.WindowManager.registerElement(modalRich);
+  }
 
   if (minBtn) {
     minBtn.addEventListener('click', function () {

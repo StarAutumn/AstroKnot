@@ -63,8 +63,6 @@ coverage
 # =========================================
 .env
 .env.*
-.npmrc
-.cfignore
 
 # =========================================
 #  IDE / 工具
@@ -90,6 +88,10 @@ generated-images/
 # =========================================
 .trae/
 AstroKnot文件/
+AstroKnot-Data/
+.github/
+.trae-cn/
+.trae-cn/memory/projects/-d-AstroKnot/
 
 
 # =========================================

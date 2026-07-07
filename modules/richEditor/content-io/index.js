@@ -2,14 +2,13 @@
 //  content-io/index.js — 聚合导出
 // ============================================================
 
-// ── 全局 Z-Index 管理（两个编辑器共享）──
-if (!window._modalZIndexBase) {
-  window._modalZIndexBase = 1000;
-}
-window._bringModalToFront = window._bringModalToFront || function (modalEl) {
-  window._modalZIndexBase++;
-  modalEl.style.zIndex = window._modalZIndexBase;
-  if (window.Taskbar) {
+// ── 全局 Z-Index 管理已统一迁移到 WindowManager ──
+// WindowManager.bringToFront() 同时支持 WindowInstance 和 DOM 元素
+// WindowManager.registerElement() 注册点击自动置顶
+// 所有模态框共享同一个 z-index 计数器，点击谁谁在最上面
+window._bringModalToFront = function (modalEl) {
+  if (window.WindowManager) {
+    window.WindowManager.bringToFront(modalEl);
   }
 };
 

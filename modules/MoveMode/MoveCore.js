@@ -294,6 +294,10 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
     if (parentId && parentId !== appState.VIRTUAL_ROOT_ID) {
       addSingleTreeLine(parentId, newId);
     }
+    // 派发节点创建事件（供 nodeDiskSync 监听器实时创建磁盘文件夹）
+    window.dispatchEvent(new CustomEvent('astroknot-node-created', {
+      detail: { nodeId: newId, node: newNode }
+    }));
     saveCurrentProjectData();
 
     if (parentId) {
@@ -1255,6 +1259,15 @@ export function pasteNodes() {
     }
 
     rebuildAllLines();
+    // 派发节点创建事件（批量，供 nodeDiskSync 监听器实时创建磁盘文件夹）
+    for (const newId of Object.values(idMap)) {
+      const newNode = appState.nodeMap.get(newId);
+      if (newNode) {
+        window.dispatchEvent(new CustomEvent('astroknot-node-created', {
+          detail: { nodeId: newId, node: newNode }
+        }));
+      }
+    }
     saveCurrentProjectData();
     if (appState.refreshTreePanel) appState.refreshTreePanel();
     if (appState.is2DView && appState.refresh2DView) appState.refresh2DView();

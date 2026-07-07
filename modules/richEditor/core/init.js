@@ -8,6 +8,7 @@ import { modalRich, ckContainer, toolbarDock } from '../dom-refs.js';
 import { state } from '../shared-state.js';
 import { contentStyle } from '../content-style.js';
 import { stripLineNumbersFromHTML } from './code-blocks.js';
+import { stripOverlayBlocksFromHTML } from './overlay/index.js';
 import { bindFormulaEditor } from './formula.js';
 import { saveCurrentContentCK, openRichEditorCK, closeModalCK, initSplitScreenDrag } from '../content-io/index.js';
 import { refreshTreePanel, bindTreeSidebar } from '../tree-panel.js';
@@ -392,6 +393,60 @@ export function initCKEditor() {
         }
       });
 
+      // ── content.html 实时磁盘同步（防抖 3 秒）──
+      let _contentSaveTimer = null;
+      const CONTENT_SAVE_DEBOUNCE = 3000;
+
+      function _scheduleContentSave() {
+        if (_contentSaveTimer) clearTimeout(_contentSaveTimer);
+        _contentSaveTimer = setTimeout(_flushContentToDisk, CONTENT_SAVE_DEBOUNCE);
+      }
+
+      async function _flushContentToDisk() {
+        _contentSaveTimer = null;
+        if (!state.tinyEditor) return;
+        // 快速笔记走自己的保存路径，不同步 content.html
+        if (appState.currentQuickNoteId) return;
+        // 确定目标节点（处理分屏：panel B 激活时编辑的是 splitScreenNodeId）
+        let targetId = appState.currentEditNodeId;
+        if (appState.splitScreenNodeId && appState._activeSplitPanel === 'B') {
+          targetId = appState.splitScreenNodeId;
+        }
+        if (!targetId) return;
+        const node = appState.nodeMap.get(targetId);
+        if (!node) return;
+        // 代码模式由 sandbox 自身同步，跳过
+        if (node.activeMode === 'code') return;
+
+        // 取内容并剥离 overlay 块（与 saveCurrentContentCK 一致）
+        const rawContent = state.tinyEditor.getContent();
+        const htmlContent = stripOverlayBlocksFromHTML(rawContent);
+
+        // 更新内存（全量保存从 nodeMap 读取，保证一致性）
+        node.richContent = htmlContent;
+
+        // 阶段1：仅已保存项目实时写入磁盘
+        const proj = appState.projects?.find(p => p.id === appState.currentProjectId);
+        const folderPath = proj?.folderPath || null;
+        if (!folderPath) return;
+
+        if (!window.api?.writeNodeContent) return;
+        try {
+          await window.api.writeNodeContent(folderPath, targetId, htmlContent);
+        } catch (err) {
+          console.warn('[实时同步] content.html 写入失败:', targetId, err);
+        }
+      }
+
+      // 用户输入（含粘贴后触发的 input）→ 防抖
+      editor.on('input', _scheduleContentSave);
+      // 工具栏格式化命令（加粗/对齐等）→ 防抖
+      editor.on('ExecCommand', _scheduleContentSave);
+      // 加载新内容（切标签页/打开节点）时取消待写定时器，避免把刚加载的内容冗余写回
+      editor.on('SetContent', function () {
+        if (_contentSaveTimer) { clearTimeout(_contentSaveTimer); _contentSaveTimer = null; }
+      });
+
       editor.on('SkinLoaded', function () {
         console.log('[TinyMCE] 皮肤加载完成');
 
@@ -482,14 +537,12 @@ export function initRichEditor() {
   safeClick('closeModalBtn', closeModal);
   safeClick('toggleToolbarBtn', () => document.getElementById('richToolbar').classList.toggle('collapsed'));
 
-  // sandbox 模式下"编辑代码"按钮：关闭文本编辑器并打开代码编辑器
+  // sandbox 模式下"编辑代码"按钮：打开代码编辑器（保持文本编辑器在后台）
   safeClick('editSandboxCodeBtn', () => {
     const nodeId = appState.currentEditNodeId;
     if (!nodeId) return;
-    closeModal();
-    setTimeout(() => {
-      if (window.openHtmlSandboxEditor) window.openHtmlSandboxEditor(nodeId);
-    }, 350);
+    // 不关闭文本编辑器，直接打开代码编辑器
+    if (window.openHtmlSandboxEditor) window.openHtmlSandboxEditor(nodeId);
   });
 
   safeClick('saveRichContentBtn', saveCurrentContent);

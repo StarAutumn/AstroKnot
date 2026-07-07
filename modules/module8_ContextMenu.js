@@ -221,6 +221,17 @@ export function showContextMenu(x, y, nodeId) {
   const convertChildRow = document.getElementById('convertChildRow');
   if (convertChildRow) convertChildRow.style.display = isRoot ? 'flex' : 'none';
 
+  // ── 模式切换按钮（已移至文本编辑器状态栏）──
+  const modeSwitchRow = document.getElementById('modeSwitchRow');
+  if (modeSwitchRow) modeSwitchRow.style.display = 'none';
+
+  // ── 打开代码编辑器按钮：仅在代码模式下显示 ──
+  const openCodeEditorRow = document.getElementById('openCodeEditorRow');
+  const currentMode = node.activeMode || 'text';
+  if (openCodeEditorRow) {
+    openCodeEditorRow.style.display = (currentMode === 'code') ? 'flex' : 'none';
+  }
+
   if (appState._isSidebarContextMenu) {
     document.getElementById('addChildNodeBtn').style.display = 'block';
     document.getElementById('addNextNodeBtn').style.display = 'block';
@@ -618,6 +629,31 @@ export function bindContextMenuEvents() {
       window.openHtmlSandboxEditor(id);
     }
   });
+
+  // ── 模式切换按钮事件 ──
+  const switchToCodeBtn = document.getElementById('switchToCodeModeBtn');
+  if (switchToCodeBtn) {
+    switchToCodeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const id = appState.contextTargetId;
+      if (!id) return;
+      hideContextMenu();
+      if (window.switchNodeToCodeMode) window.switchNodeToCodeMode(id);
+    });
+  }
+
+  const switchToTextBtn = document.getElementById('switchToTextModeBtn');
+  if (switchToTextBtn) {
+    switchToTextBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const id = appState.contextTargetId;
+      if (!id) return;
+      hideContextMenu();
+      if (window.switchNodeToTextMode) window.switchNodeToTextMode(id);
+    });
+  }
 
   const convertToTextRootBtn = document.getElementById('convertToTextRootBtn');
   if (convertToTextRootBtn) {

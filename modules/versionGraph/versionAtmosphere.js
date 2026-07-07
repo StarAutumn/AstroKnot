@@ -70,6 +70,7 @@ async function updateAtmosphere() {
   if (!pid) {
     _decay = 1;
     applyVisual();
+    console.log('[版本氛围] 无项目，_decay = 1');
     return;
   }
   try {
@@ -77,18 +78,21 @@ async function updateAtmosphere() {
     if (!graph || !graph.commits || graph.commits.length === 0) {
       _decay = 1;
       applyVisual();
+      console.log('[版本氛围] 无 commit，_decay = 1');
       return;
     }
     const head = getHeadCommit(graph);
     if (!head) {
       _decay = 1;
       applyVisual();
+      console.log('[版本氛围] 无 HEAD，_decay = 1');
       return;
     }
     _maxDepthCache = computeMaxDepth(graph);
     const headDepth = getAncestors(graph, head.id).length; // 从根到 HEAD 的节点数
     // decay = HEAD深度 / 最大深度；HEAD越靠根，值越小
     _decay = Math.max(0, Math.min(1, headDepth / _maxDepthCache));
+    console.log(`[版本氛围] HEAD深度=${headDepth}, 最大深度=${_maxDepthCache}, _decay=${_decay.toFixed(3)}, 动画速度因子=${(0.005 + _decay * _decay * 0.995).toFixed(3)}`);
     applyVisual();
   } catch (e) {
     console.warn('[版本氛围] 计算失败:', e);

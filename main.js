@@ -6,6 +6,8 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { bindTerminalIPC, killSessionsForWebContents, killAllSessions } = require('./main-terminal');
+const dataSettings = require('./data-settings');
 
 // ── GPU 兼容性：允许在不支持的 GPU 上使用 WebGL ──
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
@@ -38,6 +40,8 @@ function createWindow() {
     console.error('  reason:', details.reason);
     console.error('  exitCode:', details.exitCode);
     console.error('  detailed:', JSON.stringify(details));
+    // 清理崩溃窗口的终端会话，避免僵尸进程
+    killSessionsForWebContents(mainWindow.webContents.id);
     // 崩溃后自动重载窗口
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.session.flushStorageData();
@@ -483,9 +487,15 @@ function collectTreeNodeIds(tree) {
   return ids;
 }
 
-// ── 应急备份目录（系统级持久，不受清缓存影响）──
+// ── 应急备份目录（使用自定义数据目录）──
 function getEmergencyDir() {
-  const dir = path.join(app.getPath('userData'), 'emergency-backups');
+  const dir = dataSettings.getEmergencyBackupsDir();
+  if (!dir) {
+    // 回退到默认 userData（兼容旧版本）
+    const fallbackDir = path.join(app.getPath('userData'), 'emergency-backups');
+    if (!fs.existsSync(fallbackDir)) fs.mkdirSync(fallbackDir, { recursive: true });
+    return fallbackDir;
+  }
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -617,15 +627,21 @@ function bindEmergencyIPC() {
 // ── 版本图目录（内容寻址存储）──
 // 存储 key 可以是：
 //   1. 项目文件夹绝对路径（如 D:\AstroKnot\项目文件\我的项目）→ 存到 <key>/.versiongraph/
-//   2. 临时 projectId（未保存的项目）→ 存到 userData/version-graphs-tmp/<key>/
+//   2. 临时 projectId（未保存的项目）→ 存到数据目录/system/version-graphs-tmp/<key>/
 function getVersionDir(versionKey) {
   let dir;
   if (versionKey && (versionKey.includes('\\') || versionKey.includes('/')) && /^[A-Za-z]:[\\/]|^\//.test(versionKey)) {
     // 是绝对路径 → 存到项目文件夹内的 .versiongraph
     dir = path.join(versionKey, '.versiongraph');
   } else {
-    // 是临时 projectId → 存到 userData 临时目录
-    dir = path.join(app.getPath('userData'), 'version-graphs-tmp', sanitizeFileName(versionKey));
+    // 是临时 projectId → 存到数据目录临时目录
+    const tmpDir = dataSettings.getVersionGraphsTmpDir(versionKey);
+    if (tmpDir) {
+      dir = tmpDir;
+    } else {
+      // 回退到默认 userData（兼容旧版本）
+      dir = path.join(app.getPath('userData'), 'version-graphs-tmp', sanitizeFileName(versionKey));
+    }
   }
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
@@ -769,9 +785,12 @@ function sanitizeFileName(s) {
 function bindFileIPC() {
   // 选择文件夹
   ipcMain.handle('select-folder', async () => {
+    // 默认路径使用数据目录中的 projects 路径
+    const defaultPath = dataSettings.getProjectsDir();
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory'],
-      title: '选择文件夹'
+      title: '选择文件夹',
+      defaultPath: defaultPath || undefined
     });
     if (result.canceled) return { canceled: true };
     return { canceled: false, path: result.filePaths[0] };
@@ -779,9 +798,12 @@ function bindFileIPC() {
 
   // 选择加载文件夹
   ipcMain.handle('select-folder-for-load', async () => {
+    // 默认路径使用数据目录中的 projects 路径
+    const defaultPath = dataSettings.getProjectsDir();
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory'],
-      title: '选择项目文件夹'
+      title: '选择项目文件夹',
+      defaultPath: defaultPath || undefined
     });
     if (result.canceled) return { canceled: true };
     return { canceled: false, path: result.filePaths[0] };
@@ -795,10 +817,13 @@ function bindFileIPC() {
       let rootPath;  // 保存根目录（项目文件夹的父目录），用于回传给渲染进程
 
       if (!savePath) {
+        // 默认使用数据目录中的 projects 路径
+        const defaultPath = dataSettings.getProjectsDir();
         const result = await dialog.showOpenDialog(mainWindow, {
           properties: ['openDirectory'],
           title: '选择保存位置',
-          buttonLabel: '选择此文件夹'
+          buttonLabel: '选择此文件夹',
+          defaultPath: defaultPath || undefined
         });
         if (result.canceled) return { canceled: true };
         // 用户选择的目录作为根目录，在其下创建以项目名命名的子文件夹
@@ -996,6 +1021,344 @@ function bindFileIPC() {
     }
   });
 
+  // ── 在文件管理器中显示沙盒文件所在目录 ──
+  // 支持已保存项目（projectFolderPath 非空）和未保存项目（临时目录）
+  ipcMain.handle('show-sandbox-file-in-folder', async (event, projectFolderPath, nodeId, vfsPath) => {
+    try {
+      // 确定基础目录：已保存项目 vs 未保存项目的临时目录
+      let baseDir;
+      if (projectFolderPath) {
+        baseDir = path.join(projectFolderPath, 'nodes', nodeId, 'sandbox');
+      } else {
+        const tmpDir = dataSettings.getSandboxTmpDir(nodeId);
+        baseDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox');
+      }
+
+      if (!fs.existsSync(baseDir)) {
+        return { success: false, error: 'Sandbox 目录不存在，请先保存文件' };
+      }
+
+      // 拼接 VFS 路径到磁盘路径
+      const relativePath = (vfsPath || '').replace(/^\//, '');
+      const diskPath = relativePath ? path.join(baseDir, relativePath) : baseDir;
+
+      if (fs.existsSync(diskPath)) {
+        shell.showItemInFolder(diskPath);
+        return { success: true };
+      }
+
+      // 如果精确路径不存在，显示 sandbox 目录
+      shell.showItemInFolder(baseDir);
+      return { success: true };
+    } catch (err) {
+      console.error('[show-sandbox-file-in-folder] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── Sandbox 文件实时同步处理器（增量写入磁盘）──
+
+  // 写入单个 sandbox 文件
+  ipcMain.handle('write-sandbox-file', async (event, projectFolderPath, nodeId, vfsPath, content) => {
+    try {
+      // 如果项目未保存，写入临时目录
+      const sandboxDir = projectFolderPath
+        ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
+        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'));
+
+      fs.mkdirSync(sandboxDir, { recursive: true });
+
+      // 处理 VFS 路径（去掉开头的 /）
+      const relativePath = (vfsPath || '').replace(/^\//, '');
+      if (!relativePath) return { success: false, error: '无效的文件路径' };
+
+      const diskPath = path.join(sandboxDir, relativePath);
+
+      // 确保父目录存在
+      const parentDir = path.dirname(diskPath);
+      fs.mkdirSync(parentDir, { recursive: true });
+
+      // 写入文件
+      fs.writeFileSync(diskPath, content || '', 'utf-8');
+
+      return { success: true, diskPath };
+    } catch (err) {
+      console.error('[write-sandbox-file] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 删除单个 sandbox 文件
+  ipcMain.handle('delete-sandbox-file', async (event, projectFolderPath, nodeId, vfsPath) => {
+    try {
+      const sandboxDir = projectFolderPath
+        ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
+        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'));
+
+      const relativePath = (vfsPath || '').replace(/^\//, '');
+      if (!relativePath) return { success: false, error: '无效路径' };
+
+      const diskPath = path.join(sandboxDir, relativePath);
+
+      if (fs.existsSync(diskPath)) {
+        const stat = fs.statSync(diskPath);
+        if (stat.isDirectory()) {
+          fs.rmSync(diskPath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(diskPath);
+        }
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('[delete-sandbox-file] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 重命名 sandbox 文件/目录
+  ipcMain.handle('rename-sandbox-file', async (event, projectFolderPath, nodeId, oldPath, newPath) => {
+    try {
+      const sandboxDir = projectFolderPath
+        ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
+        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'));
+
+      const oldRelativePath = (oldPath || '').replace(/^\//, '');
+      const newRelativePath = (newPath || '').replace(/^\//, '');
+
+      if (!oldRelativePath || !newRelativePath) return { success: false, error: '无效路径' };
+
+      const oldDiskPath = path.join(sandboxDir, oldRelativePath);
+      const newDiskPath = path.join(sandboxDir, newRelativePath);
+
+      if (fs.existsSync(oldDiskPath)) {
+        // 确保新路径的父目录存在
+        const newParentDir = path.dirname(newDiskPath);
+        fs.mkdirSync(newParentDir, { recursive: true });
+        fs.renameSync(oldDiskPath, newDiskPath);
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('[rename-sandbox-file] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 同步整个 sandbox 目录（用于项目保存时全量同步）
+  ipcMain.handle('sync-sandbox-directory', async (event, projectFolderPath, nodeId, fileSystem) => {
+    try {
+      let sandboxDir;
+      if (projectFolderPath) {
+        // 已保存项目，写入项目目录
+        sandboxDir = path.join(projectFolderPath, 'nodes', nodeId, 'sandbox');
+      } else {
+        // 未保存项目，使用临时目录
+        const tmpDir = dataSettings.getSandboxTmpDir(nodeId);
+        sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox');
+      }
+
+      // 先清空旧的 sandbox 目录，避免残留已删除的文件
+      if (fs.existsSync(sandboxDir)) {
+        fs.rmSync(sandboxDir, { recursive: true, force: true });
+      }
+
+      if (fileSystem) {
+        fs.mkdirSync(sandboxDir, { recursive: true });
+        _writeFileSystemToDisk(fileSystem, sandboxDir);
+      }
+
+      return { success: true, diskPath: sandboxDir };
+    } catch (err) {
+      console.error('[sync-sandbox-directory] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 节点级实时磁盘同步处理器（阶段1：仅已保存项目，folderPath 为 null 时跳过）──
+
+  // 创建项目文件夹（新建项目时立即调用，确保后续实时同步可用）
+  // 若 savePath 为空：allowDialog=true 时弹窗选择，false 时静默跳过
+  // 返回 rootPath 供渲染进程回填 currentProjectSavePath
+  ipcMain.handle('create-project-folder', async (event, savePath, projectName, allowDialog) => {
+    try {
+      const safeName = projectName || '未命名项目';
+      let rootPath = savePath;
+
+      // savePath 为空：根据 allowDialog 决定弹窗或跳过
+      if (!rootPath) {
+        if (!allowDialog) return { success: false, skipped: true };
+        const result = await dialog.showOpenDialog(mainWindow, {
+          properties: ['openDirectory'],
+          title: '选择项目保存位置',
+          buttonLabel: '选择此文件夹'
+        });
+        if (result.canceled) return { success: false, canceled: true };
+        rootPath = result.filePaths[0];
+      }
+
+      // 文件夹已存在时自动加后缀，避免覆盖
+      let projectDir = path.join(rootPath, safeName);
+      let counter = 2;
+      while (fs.existsSync(projectDir)) {
+        // 检查是否是孤立文件夹（没有 project.json，或 project.json 中无有效节点）
+        const projectJsonPath = path.join(projectDir, 'project.json');
+        let isOrphaned = false;
+        
+        if (!fs.existsSync(projectJsonPath)) {
+          // 没有 project.json，认为是孤立文件夹
+          isOrphaned = true;
+        } else {
+          try {
+            const projData = JSON.parse(fs.readFileSync(projectJsonPath, 'utf-8'));
+            // methodsTree.children 为空数组或不存在，认为是空项目文件夹
+            const hasChildren = projData.methodsTree?.children?.length > 0;
+            // nodes 目录为空也认为是空项目
+            const nodesDir = path.join(projectDir, 'nodes');
+            let hasNodeFiles = false;
+            if (fs.existsSync(nodesDir)) {
+              hasNodeFiles = fs.readdirSync(nodesDir).length > 0;
+            }
+            if (!hasChildren && !hasNodeFiles) {
+              isOrphaned = true;
+            }
+          } catch (e) {
+            // project.json 解析失败，认为是孤立文件夹
+            isOrphaned = true;
+          }
+        }
+        
+        if (isOrphaned) {
+          // 孤立文件夹（可能之前删除项目时未清理），删除后复用此名称
+          try {
+            fs.rmSync(projectDir, { recursive: true, force: true });
+            console.log('[create-project-folder] 清理孤立文件夹:', projectDir);
+            break;  // 退出循环，使用当前 projectDir
+          } catch (e) {
+            console.warn('[create-project-folder] 清理孤立文件夹失败:', e);
+          }
+        }
+        // 有效项目文件夹（有 project.json 且有节点），加编号避免覆盖
+        projectDir = path.join(rootPath, `${safeName} (${counter})`);
+        counter++;
+      }
+      const finalName = path.basename(projectDir);
+
+      // 创建项目文件夹结构
+      fs.mkdirSync(projectDir, { recursive: true });
+      fs.mkdirSync(path.join(projectDir, 'nodes'), { recursive: true });
+
+      // 写入初始 project.json（空项目结构）
+      const initialData = {
+        projectName: finalName,
+        methodsTree: { id: 'root', name: '根', children: [] },
+        crossEdges: [],
+        positions: {},
+        positions2D: {},
+        layers: [{ id: 'layer_default', name: '默认图层', visible: true, locked: false, nodeIds: [] }],
+        currentLayerId: 'layer_default',
+        treeEdgeLabels: {},
+        cameraView: null
+      };
+      fs.writeFileSync(
+        path.join(projectDir, 'project.json'),
+        JSON.stringify(initialData, null, 2),
+        'utf-8'
+      );
+
+      return { success: true, path: projectDir, rootPath, finalName };
+    } catch (err) {
+      console.error('[create-project-folder] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 创建节点文件夹（nodes/{nodeId}）
+  ipcMain.handle('create-node-folder', async (event, projectFolderPath, nodeId) => {
+    if (!projectFolderPath || !nodeId) return { success: false, skipped: true };
+    try {
+      const nodeDir = path.join(projectFolderPath, 'nodes', nodeId);
+      fs.mkdirSync(nodeDir, { recursive: true });
+      // 预创建 sandbox/ 和 overlays/ 子目录，确保终端等外部工具可立即访问
+      fs.mkdirSync(path.join(nodeDir, 'sandbox'), { recursive: true });
+      fs.mkdirSync(path.join(nodeDir, 'overlays'), { recursive: true });
+      // 不写 content.html —— 与 save-project 一致（无 richContent 时不写）
+      return { success: true, diskPath: nodeDir };
+    } catch (err) {
+      console.error('[create-node-folder] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 删除节点文件夹（递归）
+  ipcMain.handle('delete-node-folder', async (event, projectFolderPath, nodeId) => {
+    if (!projectFolderPath || !nodeId) return { success: false, skipped: true };
+    try {
+      const nodeDir = path.join(projectFolderPath, 'nodes', nodeId);
+      if (fs.existsSync(nodeDir)) {
+        fs.rmSync(nodeDir, { recursive: true, force: true });
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('[delete-node-folder] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 写入节点 content.html（自动创建文件夹，幂等）
+  ipcMain.handle('write-node-content', async (event, projectFolderPath, nodeId, content) => {
+    if (!projectFolderPath || !nodeId) return { success: false, skipped: true };
+    try {
+      const nodeDir = path.join(projectFolderPath, 'nodes', nodeId);
+      fs.mkdirSync(nodeDir, { recursive: true });  // 幂等，撤销重做后重建
+      fs.writeFileSync(path.join(nodeDir, 'content.html'), content || '', 'utf-8');
+      return { success: true };
+    } catch (err) {
+      console.error('[write-node-content] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 删除项目文件夹（递归删除整个项目目录）
+  ipcMain.handle('delete-project-folder', async (event, projectFolderPath) => {
+    if (!projectFolderPath) return { success: false, skipped: true };
+    try {
+      if (fs.existsSync(projectFolderPath)) {
+        fs.rmSync(projectFolderPath, { recursive: true, force: true });
+        console.log('[delete-project-folder] 已删除:', projectFolderPath);
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('[delete-project-folder] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 删除未保存项目的临时文件夹（sandbox-tmp/{projectId}）
+  ipcMain.handle('delete-sandbox-tmp-folder', async (event, projectId) => {
+    if (!projectId) return { success: false, skipped: true };
+    try {
+      // 使用新的数据目录位置，同时兼容旧版 userData
+      const tmpDirNew = dataSettings.getSandboxTmpDir(projectId);
+      const tmpDirOld = path.join(app.getPath('userData'), 'sandbox-tmp', projectId);
+      
+      // 删除新目录
+      if (tmpDirNew && fs.existsSync(tmpDirNew)) {
+        fs.rmSync(tmpDirNew, { recursive: true, force: true });
+        console.log('[delete-sandbox-tmp-folder] 已删除新目录:', tmpDirNew);
+      }
+      // 删除旧目录（兼容）
+      if (fs.existsSync(tmpDirOld)) {
+        fs.rmSync(tmpDirOld, { recursive: true, force: true });
+        console.log('[delete-sandbox-tmp-folder] 已删除旧目录:', tmpDirOld);
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('[delete-sandbox-tmp-folder] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
   // ── 提取 exe 图标 ──
   ipcMain.handle('extract-icon', async (event, filePath) => {
     try {
@@ -1004,6 +1367,60 @@ function bindFileIPC() {
     } catch (err) {
       console.error('[extract-icon] 错误:', err);
       return null;
+    }
+  });
+
+  // ── 另存为项目（复制整个项目文件夹到新位置）──
+  ipcMain.handle('save-project-as', async (event, sourcePath, projectName) => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory'],
+        title: '选择另存为位置',
+        buttonLabel: '选择此文件夹'
+      });
+      if (result.canceled) return { canceled: true };
+
+      const targetParent = result.filePaths[0];
+      const targetPath = path.join(targetParent, projectName);
+
+      // 如果目标已存在，询问是否覆盖
+      if (fs.existsSync(targetPath)) {
+        const confirmResult = await dialog.showMessageBox(mainWindow, {
+          type: 'question',
+          buttons: ['覆盖', '取消'],
+          title: '确认覆盖',
+          message: `目标文件夹 "${projectName}" 已存在，是否覆盖？`
+        });
+        if (confirmResult.response !== 0) return { canceled: true };
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      }
+
+      // 复制整个项目文件夹
+      fs.cpSync(sourcePath, targetPath, { recursive: true });
+
+      return { canceled: false, path: targetPath };
+    } catch (err) {
+      console.error('[save-project-as] 错误:', err);
+      return { canceled: true, error: err.message };
+    }
+  });
+
+  // ── 导出文件（保存内容到指定位置）──
+  ipcMain.handle('export-file', async (event, data) => {
+    try {
+      const { content, defaultName, filters } = data;
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: '另存为',
+        defaultPath: defaultName || 'export.html',
+        filters: filters || [{ name: 'HTML 文件', extensions: ['html'] }]
+      });
+      if (result.canceled) return { canceled: true };
+
+      fs.writeFileSync(result.filePath, content, 'utf-8');
+      return { canceled: false, path: result.filePath };
+    } catch (err) {
+      console.error('[export-file] 错误:', err);
+      return { canceled: true, error: err.message };
     }
   });
 
@@ -1029,7 +1446,9 @@ function bindFileIPC() {
     try {
       let savePath = data.savePath;
       if (!savePath) {
-        savePath = path.join(app.getPath('userData'), 'quicknotes');
+        // 默认使用数据目录中的 quicknotes 路径
+        const quicknotesDir = dataSettings.getQuicknotesDir();
+        savePath = quicknotesDir || path.join(app.getPath('userData'), 'quicknotes');
       }
       fs.mkdirSync(savePath, { recursive: true });
 
@@ -1094,7 +1513,9 @@ function bindFileIPC() {
     try {
       let savePath = data ? data.savePath : null;
       if (!savePath) {
-        savePath = path.join(app.getPath('userData'), 'quicknotes');
+        // 默认使用数据目录中的 quicknotes 路径
+        const quicknotesDir = dataSettings.getQuicknotesDir();
+        savePath = quicknotesDir || path.join(app.getPath('userData'), 'quicknotes');
       }
 
       const manifestPath = path.join(savePath, 'quicknotes.json');
@@ -1160,6 +1581,11 @@ app.on('gpu-process-crashed', (event, killed) => {
 
 // ── 启动 ──
 app.whenReady().then(() => {
+  // ── 初始化数据目录配置（但不立即创建目录，等待用户确认）──
+  const appRoot = __dirname;
+  dataSettings.init(appRoot);
+  // 注意：目录将在用户确认后由 setDataRoot() 创建
+
   // 注册 astroknot-local:// 协议，用于渲染进程访问本地音视频文件
   // 避免将大文件转成 data URI（Chromium 对此支持不好）
   protocol.handle('astroknot-local', (request) => {
@@ -1175,25 +1601,53 @@ app.whenReady().then(() => {
     return net.fetch('file://' + filePath.replace(/\\/g, '/'));
   });
 
-  // ── 首次安装检测：在 userData 目录写入 .installed 标记文件 ──
+  // ── 首次安装检测：检查数据目录是否已初始化 ──
   function checkFirstRun() {
+    // 检查数据目录是否已完成首次设置
+    if (dataSettings.isInitialized()) return false;
+    
+    // 兼容旧版本：检查 userData 目录的标记文件
     const userDataPath = app.getPath('userData');
     const flagFile = path.join(userDataPath, '.astroknot_installed');
-    if (fs.existsSync(flagFile)) return false;
-    try {
-      if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
-      fs.writeFileSync(flagFile, app.getVersion(), 'utf-8');
-    } catch (_) { /* 写入失败也不影响启动 */ }
+    if (fs.existsSync(flagFile)) {
+      // 旧版本用户，自动迁移设置
+      console.log('[首次检测] 发现旧版本标记，自动迁移设置');
+      dataSettings.setDataRoot(path.join(appRoot, dataSettings.DEFAULT_DATA_DIR_NAME));
+      return false;
+    }
+    
+    // 真正的首次运行
     return true;
   }
 
   // ── IPC：首次安装检测 ──
   ipcMain.handle('check-first-run', () => checkFirstRun());
 
+  // ── IPC：数据目录配置 ──
+  ipcMain.handle('get-data-settings', () => dataSettings.getSettings());
+  ipcMain.handle('set-data-root', (event, dataRoot) => {
+    const result = dataSettings.setDataRoot(dataRoot);
+    return { success: result };
+  });
+  ipcMain.handle('get-default-data-root', () => path.join(appRoot, dataSettings.DEFAULT_DATA_DIR_NAME));
+  ipcMain.handle('select-data-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: '选择数据存储位置',
+      buttonLabel: '选择此文件夹',
+      defaultPath: path.join(appRoot, dataSettings.DEFAULT_DATA_DIR_NAME)
+    });
+    if (result.canceled) return { success: false, canceled: true };
+    return { success: true, path: result.filePaths[0] };
+  });
+  ipcMain.handle('get-projects-dir', () => dataSettings.getProjectsDir());
+  ipcMain.handle('get-quicknotes-dir', () => dataSettings.getQuicknotesDir());
+
   bindWindowIPC();
   bindFileIPC();
   bindEmergencyIPC();
   bindVersionGraphIPC();
+  bindTerminalIPC();
   createWindow();
   startHMR();
 
@@ -1206,6 +1660,8 @@ app.whenReady().then(() => {
     if (!win || win.isDestroyed()) return;
     e.preventDefault();
     _flushing = true;
+    // 立即清理所有 pty 进程，避免僵尸进程
+    killAllSessions();
     let done = false;
     const finish = () => {
       if (done) return;

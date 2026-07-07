@@ -173,14 +173,23 @@ function _lineDiff(oldText, newText) {
   const m = oldLines.length;
   const n = newLines.length;
 
-  // 构建 LCS 表
+  // 行数上限保护：超过此阈值时截断，避免 O(m*n) 内存爆炸
+  const MAX_LINES = 5000;
+  const truncatedOld = m > MAX_LINES;
+  const truncatedNew = n > MAX_LINES;
+  const oldSlice = truncatedOld ? oldLines.slice(0, MAX_LINES) : oldLines;
+  const newSlice = truncatedNew ? newLines.slice(0, MAX_LINES) : newLines;
+  const ms = oldSlice.length;
+  const ns = newSlice.length;
+
+  // 构建 LCS 表（使用截断后的行数）
   const dp = [];
-  for (let i = 0; i <= m; i++) {
-    dp.push(new Array(n + 1).fill(0));
+  for (let i = 0; i <= ms; i++) {
+    dp.push(new Array(ns + 1).fill(0));
   }
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (oldLines[i-1] === newLines[j-1]) {
+  for (let i = 1; i <= ms; i++) {
+    for (let j = 1; j <= ns; j++) {
+      if (oldSlice[i-1] === newSlice[j-1]) {
         dp[i][j] = dp[i-1][j-1] + 1;
       } else {
         dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
@@ -190,17 +199,20 @@ function _lineDiff(oldText, newText) {
 
   // 回溯生成 diff
   const result = [];
-  let i = m, j = n;
+  // 截断提示
+  if (truncatedOld) result.push({ type: 'meta', text: `⚠ 旧文件超过 ${MAX_LINES} 行，仅对比前 ${MAX_LINES} 行` });
+  if (truncatedNew) result.push({ type: 'meta', text: `⚠ 新文件超过 ${MAX_LINES} 行，仅对比前 ${MAX_LINES} 行` });
+  let i = ms, j = ns;
   const ops = [];
   while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i-1] === newLines[j-1]) {
-      ops.unshift({ type: 'ctx', line: oldLines[i-1], oldNum: i, newNum: j });
+    if (i > 0 && j > 0 && oldSlice[i-1] === newSlice[j-1]) {
+      ops.unshift({ type: 'ctx', line: oldSlice[i-1], oldNum: i, newNum: j });
       i--; j--;
     } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
-      ops.unshift({ type: 'add', line: newLines[j-1], newNum: j });
+      ops.unshift({ type: 'add', line: newSlice[j-1], newNum: j });
       j--;
     } else if (i > 0) {
-      ops.unshift({ type: 'del', line: oldLines[i-1], oldNum: i });
+      ops.unshift({ type: 'del', line: oldSlice[i-1], oldNum: i });
       i--;
     }
   }

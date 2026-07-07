@@ -12,24 +12,26 @@ import { generateRandomPosition, createNodeMesh, destroyNodeMesh, rebuildAllLine
 import { hideContextMenu } from './module8_ContextMenu.js';
 import { isNextStepNode } from './2DView/Layout.js';
 
-export function showToast(message) {
+export function showToast(message, duration) {
   // 如果已存在提示，先移除
   const old = document.querySelector('.astronot-toast');
   if (old) old.remove();
-  
+
+  const dur = duration || 2500;
   const toast = document.createElement('div');
   toast.className = 'astronot-toast';
   toast.textContent = message;
   toast.style.cssText = `
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    position: fixed; top: calc(var(--titlebar-height, 38px) + 12px); left: 50%; transform: translateX(-50%);
     background: rgba(10,25,40,0.96); backdrop-filter: blur(8px);
     border: 1px solid rgba(0,255,255,0.6); color: #eef;
     padding: 10px 24px; border-radius: 40px;
-    font-size: 14px; z-index: 10000;
-    animation: astronotToastFade 2.5s ease forwards;
+    font-size: 14px; z-index: 100000;
+    max-width: 80vw; max-height: 60vh; overflow: auto; white-space: pre-wrap;
+    animation: astronotToastFade ${dur}ms ease forwards;
     pointer-events: none;
   `;
-  
+
   // 注入动画样式（仅一次）
   if (!document.getElementById('astronot-toast-style')) {
     const style = document.createElement('style');
@@ -38,15 +40,15 @@ export function showToast(message) {
       @keyframes astronotToastFade {
         0% { opacity: 0; transform: translate(-50%, -20px); }
         10% { opacity: 1; transform: translate(-50%, 0); }
-        75% { opacity: 1; transform: translate(-50%, 0); }
+        85% { opacity: 1; transform: translate(-50%, 0); }
         100% { opacity: 0; transform: translate(-50%, -20px); }
       }
     `;
     document.head.appendChild(style);
   }
-  
+
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 2600);
+  setTimeout(() => toast.remove(), dur + 100);
 }
 
 // ==================== 选中操作 ====================
@@ -264,6 +266,12 @@ export const doDeleteSelectedNodes = () => {
     if (id !== appState.VIRTUAL_ROOT_ID && appState.nodeMap.has(id)) collectIds(id);
   }
   for (let id of toDelete) if (id !== appState.VIRTUAL_ROOT_ID && appState.nodeMap.has(id)) deleteNodeRecursively(id);
+  // 派发节点删除事件（批量，供 nodeDiskSync 监听器实时删除磁盘文件夹）
+  if (allDeletedIds.size > 0) {
+    window.dispatchEvent(new CustomEvent('astroknot-node-deleted', {
+      detail: { nodeIds: Array.from(allDeletedIds) }
+    }));
+  }
   clearSelected();
   removeLinesForNodes(allDeletedIds);
   updateLinesVis();
@@ -319,6 +327,12 @@ export const deleteSelectedNodes = function () {
             if (appState.targetNodeId === id) appState.targetNodeId = null;
           }
         }
+        // 派发节点删除事件（批量，供 nodeDiskSync 监听器实时删除磁盘文件夹）
+        if (allIds.size > 0) {
+          window.dispatchEvent(new CustomEvent('astroknot-node-deleted', {
+            detail: { nodeIds: Array.from(allIds) }
+          }));
+        }
         appState.crossEdges = appState.crossEdges.filter(e => !allIds.has(e.source) && !allIds.has(e.target));
         clearSelected();
         removeLinesForNodes(allIds);
@@ -356,6 +370,10 @@ export const addNode = withHistory(function () {
   if (parentId && parentId !== appState.VIRTUAL_ROOT_ID) {
     addSingleTreeLine(parentId, newId);
   }
+  // 派发节点创建事件（供 nodeDiskSync 监听器实时创建磁盘文件夹）
+  window.dispatchEvent(new CustomEvent('astroknot-node-created', {
+    detail: { nodeId: newId, node: newNode }
+  }));
   document.getElementById('newNodeName').value = '';
   saveCurrentProjectData();
   if (typeof window.forceRefreshTreePanel === 'function') window.forceRefreshTreePanel();

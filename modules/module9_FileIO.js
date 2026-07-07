@@ -29,7 +29,7 @@ import { clearSelected, showToast } from './module5_SelectAndEdit.js';
  * @param {string} folderName - 项目名称
  * @param {string} folderPath - 项目路径
  */
-function applyLoadedData(data, folderName, folderPath) {
+export function applyLoadedData(data, folderName, folderPath) {
   // 1. 保存当前项目
   if (appState.currentProjectId) {
     saveCurrentProjectData();
@@ -141,6 +141,26 @@ function applyLoadedData(data, folderName, folderPath) {
     }
   }
 
+  // 7b5. 恢复节点激活模式
+  if (data.nodeActiveModes) {
+    for (let [id, mode] of Object.entries(data.nodeActiveModes)) {
+      if (appState.nodeMap.has(id)) {
+        appState.nodeMap.get(id).activeMode = mode;
+      }
+    }
+  }
+
+  // 旧项目兼容：没有 activeMode 的节点自动推断
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (!node.activeMode) {
+      if (node.sandboxMode || node.fileSystem || (node.htmlSource && node.htmlSource.mode === 'sandbox')) {
+        node.activeMode = 'code';
+      } else {
+        node.activeMode = 'text';
+      }
+    }
+  }
+
   // 7c. 恢复树连线标签后备存储
   appState.treeEdgeLabels = new Map();
   if (data.treeEdgeLabels) {
@@ -207,6 +227,12 @@ export async function saveNetworkToFile() {
     if (node.sandboxHistory) sandboxHistories[id] = node.sandboxHistory;
   }
 
+  // 收集节点激活模式
+  let activeModes = {};
+  for (let [id, node] of appState.nodeMap.entries()) {
+    if (node.activeMode) activeModes[id] = node.activeMode;
+  }
+
   // 收集位置信息（转换为普通对象，便于 JSON 序列化）
   let po = {};
   for (let [id, v] of appState.positions.entries()) {
@@ -257,6 +283,7 @@ export async function saveNetworkToFile() {
     nodeHtmlSources: htmlSources,
     nodeFileSystems: fileSystems,
     nodeSandboxHistories: sandboxHistories,
+    nodeActiveModes: activeModes,
     treeEdgeLabels: tel,
     savePath: appState.currentProjectSavePath,
     cameraView: {

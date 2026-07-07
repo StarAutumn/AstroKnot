@@ -1,0 +1,876 @@
+/* ============================================================
+   开始首页样式
+   ============================================================ */
+#startPage {
+    position: fixed;
+    inset: 0;
+    z-index: 99998;
+    background: linear-gradient(135deg, #0a1a3a 0%, #01010c 50%, #0a2a3a 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+}
+
+/* 向上滑动退出动画 */
+#startPage.slide-up-exit {
+    transform: translateY(-100vh);
+    opacity: 0;
+}
+
+/* 从上方滑入入场动画 */
+#startPage.slide-down-enter {
+    transform: translateY(-100vh);
+    opacity: 0;
+    animation: slideDownEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideDownEnter {
+    from {
+        transform: translateY(-100vh);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* 底层渐变色动画背景 - 不规则变化 */
+#startPage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(90deg,
+        rgba(255, 0, 128, 0.3) 0%,
+        rgba(255, 165, 0, 0.3) 12.5%,
+        rgba(255, 255, 0, 0.2) 25%,
+        rgba(0, 255, 128, 0.3) 37.5%,
+        rgba(0, 200, 255, 0.3) 50%,
+        rgba(100, 100, 255, 0.3) 62.5%,
+        rgba(200, 0, 255, 0.3) 75%,
+        rgba(255, 0, 128, 0.3) 87.5%,
+        rgba(255, 0, 128, 0.3) 100%
+    );
+    background-size: 400% 400%;
+    animation: startPageRainbowFlow 12s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* 第二层渐变动画 - 垂直流动，不同节奏 */
+#startPage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(180deg,
+        rgba(74, 175, 255, 0.06) 0%,
+        rgba(138, 43, 226, 0.06) 16.67%,
+        rgba(0, 255, 200, 0.05) 33.33%,
+        rgba(30, 144, 255, 0.06) 50%,
+        rgba(255, 105, 180, 0.05) 66.67%,
+        rgba(255, 215, 0, 0.04) 83.33%,
+        rgba(74, 175, 255, 0.06) 100%
+    );
+    background-size: 300% 300%;
+    animation: startPageRainbowFlowVertical 16s ease-in-out infinite alternate-reverse;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes startPageRainbowFlow {
+    0% {
+        background-position: 0% 0%;
+        opacity: 0.4;
+    }
+    25% {
+        background-position: 50% 75%;
+        opacity: 0.6;
+    }
+    50% {
+        background-position: 100% 50%;
+        opacity: 0.5;
+    }
+    75% {
+        background-position: 75% 100%;
+        opacity: 0.7;
+    }
+    100% {
+        background-position: 150% 25%;
+        opacity: 0.5;
+    }
+}
+
+@keyframes startPageRainbowFlowVertical {
+    0% {
+        background-position: 0% 0%;
+        opacity: 0.3;
+    }
+    33% {
+        background-position: 100% 50%;
+        opacity: 0.5;
+    }
+    66% {
+        background-position: 50% 100%;
+        opacity: 0.4;
+    }
+    100% {
+        background-position: 200% 150%;
+        opacity: 0.6;
+    }
+}
+
+/* 流光飘带容器 */
+.start-page-ribbons {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 1;
+}
+
+/* 飘带基础样式 - 更宽 */
+.ribbon {
+    position: absolute;
+    width: 80vw;
+    height: 200px;
+    opacity: 0;
+    filter: blur(8px);
+}
+
+/* 飘带1 - 青色弯曲飘带 */
+.ribbon-1 {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(74, 175, 255, 0.7) 15%,
+        rgba(74, 175, 255, 0.7) 50%,
+        rgba(74, 175, 255, 0.5) 85%,
+        transparent 100%
+    );
+    animation: ribbonCurve1 80s ease-in-out infinite;
+}
+
+/* 飘带2 - 紫色弯曲飘带 */
+.ribbon-2 {
+    width: 150vw;
+    height: 30px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(138, 43, 226, 0.4) 10%,
+        rgba(138, 43, 226, 0.6) 50%,
+        rgba(138, 43, 226, 0.4) 90%,
+        transparent 100%
+    );
+    animation: ribbonCurve2 90s ease-in-out infinite;
+}
+
+/* 飘带3 - 蓝绿色弯曲飘带 */
+.ribbon-3 {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 255, 200, 0.45) 20%,
+        rgba(0, 255, 200, 0.7) 50%,
+        rgba(0, 255, 200, 0.45) 80%,
+        transparent 100%
+    );
+    animation: ribbonCurve3 70s ease-in-out infinite reverse;
+}
+
+/* 飘带4 - 深蓝色弯曲飘带 */
+.ribbon-4 {
+    width: 140vw;
+    height: 40px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(30, 144, 255, 0.4) 15%,
+        rgba(30, 144, 255, 0.7) 50%,
+        rgba(30, 144, 255, 0.4) 85%,
+        transparent 100%
+    );
+    animation: ribbonCurve4 85s ease-in-out infinite;
+}
+
+/* 飘带5 - 粉紫色弯曲飘带 */
+.ribbon-5 {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 105, 180, 0.4) 25%,
+        rgba(255, 105, 180, 0.7) 50%,
+        rgba(255, 105, 180, 0.4) 75%,
+        transparent 100%
+    );
+    animation: ribbonCurve5 95s ease-in-out infinite;
+}
+
+/* 飘带6 - 金色弯曲飘带 */
+.ribbon-6 {
+    width: 160vw;
+    height: 22px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 215, 0, 0.35) 20%,
+        rgba(255, 215, 0, 0.6) 50%,
+        rgba(255, 215, 0, 0.35) 80%,
+        transparent 100%
+    );
+    animation: ribbonCurve6 80s ease-in-out infinite;
+}
+
+/* 飘带7 - 青紫色弯曲飘带 */
+.ribbon-7 {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(100, 200, 255, 0.5) 15%,
+        rgba(150, 100, 255, 0.65) 50%,
+        rgba(100, 200, 255, 0.5) 85%,
+        transparent 100%
+    );
+    animation: ribbonCurve7 78s ease-in-out infinite reverse;
+}
+
+/* 飘带8 - 翠绿色弯曲飘带 */
+.ribbon-8 {
+    width: 130vw;
+    height: 26px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 255, 127, 0.4) 25%,
+        rgba(0, 255, 127, 0.65) 50%,
+        rgba(0, 255, 127, 0.4) 75%,
+        transparent 100%
+    );
+    animation: ribbonCurve8 90s ease-in-out infinite;
+}
+
+/* 弯曲飘带动画 - 随机弯曲变化 + 形状扭曲 */
+@keyframes ribbonCurve1 {
+    0% {
+        top: -15%;
+        left: -120%;
+        opacity: 0;
+        transform: rotate(-8deg) skewY(-5deg) scaleX(0.8) scaleY(0.6);
+        border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
+    }
+    15% {
+        opacity: 0.9;
+        transform: rotate(12deg) skewY(8deg) scaleX(1.2) scaleY(1.4);
+        border-radius: 60% 40% 45% 55% / 55% 50% 45% 60%;
+    }
+    30% {
+        transform: rotate(-15deg) skewY(-10deg) scaleX(0.9) scaleY(0.7);
+        border-radius: 35% 65% 60% 40% / 40% 60% 35% 65%;
+    }
+    45% {
+        transform: rotate(8deg) skewY(5deg) scaleX(1.1) scaleY(1.2);
+        border-radius: 50% 50% 45% 55% / 60% 40% 55% 45%;
+    }
+    60% {
+        transform: rotate(-10deg) skewY(-7deg) scaleX(0.85) scaleY(0.75);
+        border-radius: 55% 45% 50% 50% / 45% 55% 60% 40%;
+    }
+    75% {
+        opacity: 0.9;
+        transform: rotate(5deg) skewY(3deg) scaleX(1.05) scaleY(1.1);
+        border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
+    }
+    100% {
+        top: 115%;
+        left: 100%;
+        opacity: 0;
+        transform: rotate(-3deg) skewY(-2deg) scaleX(0.9) scaleY(0.8);
+        border-radius: 45% 55% 50% 50% / 55% 45% 50% 55%;
+    }
+}
+
+@keyframes ribbonCurve2 {
+    0% {
+        top: -25%;
+        left: -70%;
+        opacity: 0;
+        transform: rotate(-20deg) skewY(-15deg) scaleX(0.7) scaleY(0.5);
+        border-radius: 70% 30% 50% 50% / 30% 70% 50% 50%;
+    }
+    12% {
+        opacity: 0.85;
+        transform: rotate(25deg) skewY(18deg) scaleX(1.3) scaleY(1.6);
+        border-radius: 30% 70% 70% 30% / 70% 30% 30% 70%;
+    }
+    28% {
+        transform: rotate(-30deg) skewY(-22deg) scaleX(0.85) scaleY(0.65);
+        border-radius: 55% 45% 40% 60% / 45% 55% 60% 40%;
+    }
+    42% {
+        transform: rotate(15deg) skewY(12deg) scaleX(1.15) scaleY(1.3);
+        border-radius: 40% 60% 55% 45% / 60% 40% 45% 55%;
+    }
+    56% {
+        transform: rotate(-22deg) skewY(-16deg) scaleX(0.95) scaleY(0.8);
+        border-radius: 65% 35% 50% 50% / 35% 65% 50% 50%;
+    }
+    72% {
+        opacity: 0.85;
+        transform: rotate(10deg) skewY(8deg) scaleX(1.08) scaleY(1.15);
+        border-radius: 45% 55% 60% 40% / 55% 45% 40% 60%;
+    }
+    100% {
+        top: 125%;
+        left: 70%;
+        opacity: 0;
+        transform: rotate(-5deg) skewY(-4deg) scaleX(0.9) scaleY(0.85);
+        border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+    }
+}
+
+@keyframes ribbonCurve3 {
+    0% {
+        top: 120%;
+        left: 80%;
+        opacity: 0;
+        transform: rotate(10deg) skewY(6deg) scaleX(0.6) scaleY(0.4);
+        border-radius: 80% 20% 60% 40% / 20% 80% 40% 60%;
+    }
+    14% {
+        opacity: 1;
+        transform: rotate(-18deg) skewY(-12deg) scaleX(1.4) scaleY(1.8);
+        border-radius: 20% 80% 80% 20% / 80% 20% 20% 80%;
+    }
+    32% {
+        transform: rotate(22deg) skewY(15deg) scaleX(0.8) scaleY(0.55);
+        border-radius: 50% 50% 30% 70% / 50% 50% 70% 30%;
+    }
+    48% {
+        transform: rotate(-12deg) skewY(-8deg) scaleX(1.2) scaleY(1.25);
+        border-radius: 35% 65% 55% 45% / 65% 35% 45% 55%;
+    }
+    64% {
+        transform: rotate(6deg) skewY(4deg) scaleX(0.9) scaleY(0.7);
+        border-radius: 60% 40% 45% 55% / 40% 60% 55% 45%;
+    }
+    82% {
+        opacity: 1;
+        transform: rotate(-15deg) skewY(-10deg) scaleX(1.05) scaleY(1.1);
+        border-radius: 45% 55% 50% 50% / 55% 45% 50% 50%;
+    }
+    100% {
+        top: -20%;
+        left: -100%;
+        opacity: 0;
+        transform: rotate(3deg) skewY(2deg) scaleX(0.85) scaleY(0.75);
+        border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+    }
+}
+
+@keyframes ribbonCurve4 {
+    0% {
+        top: 115%;
+        left: -60%;
+        opacity: 0;
+        transform: rotate(18deg) skewY(12deg) scaleX(0.75) scaleY(0.55);
+        border-radius: 65% 35% 45% 55% / 35% 65% 55% 45%;
+    }
+    16% {
+        opacity: 0.8;
+        transform: rotate(-25deg) skewY(-18deg) scaleX(1.25) scaleY(1.5);
+        border-radius: 35% 65% 70% 30% / 65% 35% 30% 70%;
+    }
+    34% {
+        transform: rotate(30deg) skewY(20deg) scaleX(0.88) scaleY(0.68);
+        border-radius: 55% 45% 40% 60% / 45% 55% 60% 40%;
+    }
+    50% {
+        transform: rotate(-15deg) skewY(-10deg) scaleX(1.12) scaleY(1.2);
+        border-radius: 40% 60% 55% 45% / 60% 40% 45% 55%;
+    }
+    66% {
+        transform: rotate(8deg) skewY(6deg) scaleX(0.92) scaleY(0.78);
+        border-radius: 50% 50% 45% 55% / 50% 50% 55% 45%;
+    }
+    84% {
+        opacity: 0.8;
+        transform: rotate(-12deg) skewY(-8deg) scaleX(1.06) scaleY(1.08);
+        border-radius: 45% 55% 50% 50% / 55% 45% 50% 50%;
+    }
+    100% {
+        top: -15%;
+        left: 50%;
+        opacity: 0;
+        transform: rotate(5deg) skewY(3deg) scaleX(0.95) scaleY(0.9);
+        border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+    }
+}
+
+@keyframes ribbonCurve5 {
+    0% {
+        top: -8%;
+        left: -90%;
+        opacity: 0;
+        transform: rotate(-12deg) skewY(-8deg) scaleX(0.65) scaleY(0.45);
+        border-radius: 75% 25% 55% 45% / 25% 75% 45% 55%;
+    }
+    18% {
+        opacity: 0.8;
+        transform: rotate(20deg) skewY(15deg) scaleX(1.35) scaleY(1.7);
+        border-radius: 25% 75% 75% 25% / 75% 25% 25% 75%;
+    }
+    36% {
+        transform: rotate(-25deg) skewY(-18deg) scaleX(0.82) scaleY(0.62);
+        border-radius: 55% 45% 35% 65% / 45% 55% 65% 35%;
+    }
+    52% {
+        transform: rotate(15deg) skewY(10deg) scaleX(1.18) scaleY(1.28);
+        border-radius: 40% 60% 50% 50% / 60% 40% 50% 50%;
+    }
+    68% {
+        transform: rotate(-8deg) skewY(-6deg) scaleX(0.88) scaleY(0.72);
+        border-radius: 60% 40% 55% 45% / 40% 60% 45% 55%;
+    }
+    86% {
+        opacity: 0.8;
+        transform: rotate(12deg) skewY(8deg) scaleX(1.02) scaleY(1.05);
+        border-radius: 45% 55% 50% 50% / 55% 45% 50% 50%;
+    }
+    100% {
+        top: 108%;
+        left: 90%;
+        opacity: 0;
+        transform: rotate(-4deg) skewY(-3deg) scaleX(0.92) scaleY(0.88);
+        border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+    }
+}
+
+@keyframes ribbonCurve6 {
+    0% {
+        top: -18%;
+        left: -80%;
+        opacity: 0;
+        transform: rotate(-28deg) skewY(-20deg) scaleX(0.55) scaleY(0.35);
+        border-radius: 85% 15% 70% 30% / 15% 85% 30% 70%;
+    }
+    20% {
+        opacity: 0.7;
+        transform: rotate(35deg) skewY(25deg) scaleX(1.45) scaleY(1.9);
+        border-radius: 15% 85% 85% 15% / 85% 15% 15% 85%;
+    }
+    40% {
+        transform: rotate(-40deg) skewY(-30deg) scaleX(0.78) scaleY(0.58);
+        border-radius: 50% 50% 25% 75% / 50% 50% 75% 25%;
+    }
+    55% {
+        transform: rotate(20deg) skewY(15deg) scaleX(1.22) scaleY(1.32);
+        border-radius: 30% 70% 60% 40% / 70% 30% 40% 60%;
+    }
+    70% {
+        transform: rotate(-15deg) skewY(-10deg) scaleX(0.94) scaleY(0.82);
+        border-radius: 65% 35% 45% 55% / 35% 65% 55% 45%;
+    }
+    88% {
+        opacity: 0.7;
+        transform: rotate(8deg) skewY(6deg) scaleX(1.04) scaleY(1.06);
+        border-radius: 45% 55% 50% 50% / 55% 45% 50% 50%;
+    }
+    100% {
+        top: 118%;
+        left: 80%;
+        opacity: 0;
+        transform: rotate(-6deg) skewY(-4deg) scaleX(0.88) scaleY(0.82);
+        border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+    }
+}
+
+@keyframes ribbonCurve7 {
+    0% {
+        top: 112%;
+        left: 70%;
+        opacity: 0;
+        transform: rotate(15deg) skewY(10deg) scaleX(0.72) scaleY(0.52);
+        border-radius: 60% 40% 50% 50% / 40% 60% 50% 50%;
+    }
+    22% {
+        opacity: 0.7;
+        transform: rotate(-22deg) skewY(-16deg) scaleX(1.28) scaleY(1.55);
+        border-radius: 40% 60% 65% 35% / 60% 40% 35% 65%;
+    }
+    38% {
+        transform: rotate(28deg) skewY(18deg) scaleX(0.86) scaleY(0.66);
+        border-radius: 55% 45% 40% 60% / 45% 55% 60% 40%;
+    }
+    54% {
+        transform: rotate(-18deg) skewY(-12deg) scaleX(1.14) scaleY(1.22);
+        border-radius: 35% 65% 55% 45% / 65% 35% 45% 55%;
+    }
+    70% {
+        transform: rotate(10deg) skewY(7deg) scaleX(0.96) scaleY(0.84);
+        border-radius: 50% 50% 45% 55% / 50% 50% 55% 45%;
+    }
+    90% {
+        opacity: 0.7;
+        transform: rotate(-8deg) skewY(-5deg) scaleX(1.03) scaleY(1.04);
+        border-radius: 45% 55% 50% 50% / 55% 45% 50% 50%;
+    }
+    100% {
+        top: -12%;
+        left: -70%;
+        opacity: 0;
+        transform: rotate(4deg) skewY(3deg) scaleX(0.9) scaleY(0.86);
+        border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+    }
+}
+
+@keyframes ribbonCurve8 {
+    0% {
+        top: 135%;
+        left: -50%;
+        opacity: 0;
+        transform: rotate(25deg) skewY(18deg) scaleX(0.68) scaleY(0.48);
+        border-radius: 70% 30% 60% 40% / 30% 70% 40% 60%;
+    }
+    24% {
+        opacity: 0.6;
+        transform: rotate(-32deg) skewY(-25deg) scaleX(1.32) scaleY(1.6);
+        border-radius: 30% 70% 70% 30% / 70% 30% 30% 70%;
+    }
+    42% {
+        transform: rotate(38deg) skewY(28deg) scaleX(0.84) scaleY(0.64);
+        border-radius: 50% 50% 30% 70% / 50% 50% 70% 30%;
+    }
+    58% {
+        transform: rotate(-20deg) skewY(-15deg) scaleX(1.16) scaleY(1.26);
+        border-radius: 40% 60% 55% 45% / 60% 40% 45% 55%;
+    }
+    74% {
+        transform: rotate(12deg) skewY(8deg) scaleX(0.92) scaleY(0.76);
+        border-radius: 55% 45% 50% 50% / 45% 55% 50% 50%;
+    }
+    92% {
+        opacity: 0.6;
+        transform: rotate(-10deg) skewY(-7deg) scaleX(1.02) scaleY(1.03);
+        border-radius: 45% 55% 50% 50% / 55% 45% 50% 50%;
+    }
+    100% {
+        top: -35%;
+        left: 40%;
+        opacity: 0;
+        transform: rotate(6deg) skewY(4deg) scaleX(0.88) scaleY(0.84);
+        border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+    }
+}
+
+/* 飘带发光效果增强 - 更强的光晕 */
+.ribbon::before {
+    content: '';
+    position: absolute;
+    inset: -15px 0;
+    background: inherit;
+    filter: blur(25px);
+    opacity: 0.6;
+}
+
+.ribbon::after {
+    content: '';
+    position: absolute;
+    inset: -30px 0;
+    background: inherit;
+    filter: blur(50px);
+    opacity: 0.3;
+}
+
+.start-page-container {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    max-width: 600px;
+    width: 100%;
+    padding: 40px 60px;
+}
+
+/* 磨砂玻璃背景 - 上下延伸到屏幕边缘，两边渐变消失 */
+.start-page-container::before {
+    content: '';
+    position: absolute;
+    top: -50vh;
+    bottom: -50vh;
+    left: -30px;
+    right: -30px;
+    background: rgba(0, 20, 40, 0.5);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: none;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+    z-index: -1;
+    /* 两边渐变消失效果 */
+    mask-image: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 0, 0, 0.6) 8%,
+        black 25%,
+        black 75%,
+        rgba(0, 0, 0, 0.6) 92%,
+        transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 0, 0, 0.6) 8%,
+        black 25%,
+        black 75%,
+        rgba(0, 0, 0, 0.6) 92%,
+        transparent 100%
+    );
+}
+
+/* 右下角按钮组 */
+.start-page-corner-actions {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+}
+
+.start-page-corner-btn {
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    background: rgba(0, 20, 40, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.start-page-corner-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.start-page-corner-btn:hover {
+    background: rgba(0, 40, 80, 0.6);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.95);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.start-page-corner-btn:active {
+    transform: translateY(0);
+}
+
+.start-page-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.start-page-logo {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 30px rgba(74, 175, 255, 0.3));
+    animation: logoFloat 3s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.start-page-title {
+    font-size: 48px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    background: linear-gradient(90deg, #4aafff, #b8d4e8, #d0d8e0);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 40px rgba(74, 175, 255, 0.2);
+    margin: 0;
+}
+
+.start-page-subtitle {
+    font-size: 16px;
+    color: rgba(184, 212, 232, 0.7);
+    letter-spacing: 2px;
+    margin: 0;
+}
+
+.start-page-actions {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.start-page-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px 24px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.start-page-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.start-page-btn:hover::before {
+    transform: translateX(100%);
+}
+
+.start-page-btn.primary {
+    background: linear-gradient(135deg, #4aafff, #2a8fdf);
+    color: white;
+    box-shadow: 0 4px 20px rgba(74, 175, 255, 0.3);
+}
+
+.start-page-btn.primary:hover {
+    box-shadow: 0 6px 30px rgba(74, 175, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+.start-page-btn.secondary {
+    background: rgba(74, 175, 255, 0.1);
+    color: #4aafff;
+    border: 1px solid rgba(74, 175, 255, 0.3);
+}
+
+.start-page-btn.secondary:hover {
+    background: rgba(74, 175, 255, 0.2);
+    border-color: rgba(74, 175, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+.btn-icon {
+    font-size: 20px;
+}
+
+.btn-text {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.start-page-recent {
+    width: 100%;
+    max-width: 500px;
+}
+
+.recent-title {
+    font-size: 14px;
+    color: rgba(184, 212, 232, 0.6);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(74, 175, 255, 0.2);
+}
+
+.recent-projects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.recent-project-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(74, 175, 255, 0.05);
+    border: 1px solid rgba(74, 175, 255, 0.15);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.recent-project-item:hover {
+    background: rgba(74, 175, 255, 0.1);
+    border-color: rgba(74, 175, 255, 0.3);
+    transform: translateX(4px);
+}
+
+.recent-project-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.recent-project-name {
+    font-size: 15px;
+    color: #e0e8f0;
+    font-weight: 500;
+}
+
+.recent-project-meta {
+    font-size: 12px;
+    color: rgba(184, 212, 232, 0.5);
+}
+
+.recent-project-open {
+    padding: 6px 12px;
+    background: rgba(74, 175, 255, 0.15);
+    border: 1px solid rgba(74, 175, 255, 0.3);
+    border-radius: 6px;
+    color: #4aafff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.recent-project-open:hover {
+    background: rgba(74, 175, 255, 0.25);
+    border-color: rgba(74, 175, 255, 0.5);
+}
+
+.start-page-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: rgba(184, 212, 232, 0.5);
+    font-size: 14px;
+}
+
+/* 滚动条样式 */
+.recent-projects-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.recent-projects-list::-webkit-scrollbar-track {
+    background: rgba(7, 22, 31, 0.85);
+    border-radius: 10px;
+}
+
+.recent-projects-list::-webkit-scrollbar-thumb {
+    background: rgba(74, 175, 255, 0.3);
+    border-radius: 10px;
+}
+
+.recent-projects-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(74, 175, 255, 0.5);
+}

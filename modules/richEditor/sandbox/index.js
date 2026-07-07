@@ -17,16 +17,29 @@
 // ============================================================
 
 import { appState } from '../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
-import { showToast } from '../../module5_SelectAndEdit.js';
-import { VirtualFileSystem, migrateHtmlSource } from './sandbox-virtual-fs.js';
-import { FileTreeComponent } from './sandbox-file-tree.js';
-import { FileTabsComponent } from './sandbox-tabs.js';
-import { SandboxMonacoEditor } from './sandbox-monaco-editor.js';
-import { needsEsbuild, buildBundledHtml } from './sandbox-bundler.js';
-import { getTemplates, applyTemplate } from './sandbox-templates.js';
-import { SandboxHistory } from './sandbox-history.js';
-import { SandboxSearch } from './sandbox-search.js';
+import { VirtualFileSystem, migrateHtmlSource } from './core/virtual-fs.js';
+import { FileTreeComponent } from './editors/file-tree.js';
+import { FileTabsComponent } from './editors/tabs.js';
+import { SandboxMonacoEditor } from './editors/monaco-editor.js';
+import { SandboxHistory } from './features/history.js';
+import { SandboxSearch } from './editors/search.js';
+import { SandboxTerminal } from './editors/terminal.js';
+import { SandboxContext } from './core/context.js';
+import { SandboxConsole } from './panels/console.js';
+import { SandboxAutoRun } from './features/auto-run.js';
+import { SandboxPreview } from './panels/preview.js';
+import { SandboxCommands } from './features/commands.js';
+import { SandboxMenuBar } from './layout/menubar.js';
+import { SandboxActivityBar } from './layout/activity-bar.js';
+import { SandboxStatusBar } from './layout/statusbar.js';
+import { SandboxSettings } from './features/settings.js';
+import { SandboxBreadcrumb } from './layout/breadcrumb.js';
+import { SandboxImagePreview } from './panels/image-preview.js';
+import { SandboxMarkdownPreview } from './panels/markdown-preview.js';
+import { SandboxSplitEditor } from './panels/split-editor.js';
+import { SandboxTemplateHistory } from './features/template-history.js';
+import { SandboxResize } from './layout/resize.js';
+import { SandboxFileOps } from './features/file-ops.js';
 
 // ════════════════════════════════════════════════════════════
 //  DOM 元素引用
@@ -37,6 +50,27 @@ const _preview = document.getElementById('htmlSandboxPreview');
 const _consoleOut = document.getElementById('htmlConsoleOutput');
 const _nodeName = document.getElementById('htmlSandboxNodeName');
 const _statusText = document.getElementById('sandboxStatusText');
+
+// ── SandboxContext（共享上下文） ──
+const _ctx = new SandboxContext();
+_ctx.initDOMRefs();
+
+// ── 功能模块实例 ──
+let _consoleModule = null; // SandboxConsole
+let _autoRunModule = null; // SandboxAutoRun
+let _previewModule = null; // SandboxPreview
+let _commandsModule = null; // SandboxCommands
+let _menuBarModule = null; // SandboxMenuBar
+let _activityBarModule = null; // SandboxActivityBar
+let _statusBarModule = null; // SandboxStatusBar
+let _settingsModule = null; // SandboxSettings
+let _breadcrumbModule = null; // SandboxBreadcrumb
+let _imagePreviewModule = null; // SandboxImagePreview
+let _markdownModule = null; // SandboxMarkdownPreview
+let _splitEditorModule = null; // SandboxSplitEditor
+let _templateHistoryModule = null; // SandboxTemplateHistory
+let _resizeModule = null; // SandboxResize
+let _fileOpsModule = null; // SandboxFileOps
 
 let _currentNodeId = null;
 let _openTimestamp = 0;
@@ -49,6 +83,7 @@ let _fileTabs = null;      // FileTabsComponent
 let _monacoEditor = null;  // SandboxMonacoEditor
 let _search = null;        // SandboxSearch
 let _history = null;       // SandboxHistory
+let _terminal = null;      // SandboxTerminal
 
 // 预览缓存
 let _lastPreviewHtml = '';
@@ -59,20 +94,31 @@ let _autoRunEnabled = true;
 let _autoRunTimer = null;
 const AUTO_RUN_DEBOUNCE = 800;
 
-// 控制台状态
-let _consoleFilter = 'all';
-let _consoleCounts = { log: 0, error: 0, warn: 0, info: 0 };
-let _consoleLines = []; // 缓存所有日志行用于过滤
+// 自动保存到磁盘（实时同步）
+let _autoSaveTimer = null;
+const AUTO_SAVE_DELAY = 3000; // 3秒防抖
+let _lastAutoSavePath = null; // 记录上次自动保存的文件路径
+let _isRunningPreview = false; // runPreview 防重入标记
+
+// 控制台状态（已迁移到 SandboxConsole 模块，此处变量已移除）
 
 // 全屏预览状态
 let _previewFullscreen = false;
 
+// Activity Bar 和侧边面板状态（已迁移到 SandboxContext: ctx.activePanel, ctx.isPreviewTab）
+// 预览标签状态（已迁移到 SandboxContext: ctx.isPreviewTab）
+
 // 热注入：记录上次预览时各文件的内容
 let _lastPreviewFiles = new Map(); // path → content
 
-// 模板/历史面板引用
-let _templateModal = null;
-let _historyPanel = null;
+// 模板/历史面板（已迁移到 SandboxTemplateHistory 模块）
+// Resize 分隔条（已迁移到 SandboxResize 模块）
+
+// 状态栏（已迁移到 SandboxStatusBar 模块）
+// 面包屑（已迁移到 SandboxBreadcrumb 模块）
+// 图片预览（已迁移到 SandboxImagePreview 模块）
+// Markdown 预览（已迁移到 SandboxMarkdownPreview 模块）
+// 分屏编辑（已迁移到 SandboxSplitEditor 模块）
 
 // ════════════════════════════════════════════════════════════
 //  初始化窗口管理器
@@ -80,9 +126,6 @@ let _historyPanel = null;
 function initHtmlSandboxWindow() {
   if (!_modal || !_content) return;
   if (_windowInstance) return;  // 已初始化
-
-  _templateModal = document.getElementById('sandboxTemplateModal');
-  _historyPanel = document.getElementById('sandboxHistoryPanel');
 
   _windowInstance = WindowManager.create({
     id: 'html-sandbox',
@@ -96,13 +139,33 @@ function initHtmlSandboxWindow() {
     defaultHeight: '80vh',
     resizable: true,
     onClose: () => {
+      // 关闭前：取消挂起的自动保存定时器，并立即执行最后一次保存
+      // 注意：无论 _autoSaveTimer 是否存在，都要保存，因为定时器可能已经执行完毕
+      if (_autoSaveTimer) {
+        clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = null;
+      }
+      // 始终执行最后一次保存（不仅限于有挂起定时器时）
+      if (_currentNodeId && _monacoEditor && _vfs) {
+        _monacoEditor.syncAllToFS(_vfs);
+        if (_splitEditorModule && _splitEditorModule.monacoEditor2) _splitEditorModule.monacoEditor2.syncAllToFS(_vfs);
+        const node = appState.nodeMap.get(_currentNodeId);
+        if (node) {
+          node.fileSystem = _vfs.toJSON();
+          // 异步触发磁盘全量同步（不阻塞关闭）
+          _vfs.syncAllToDisk(_getProjectFolderPath(), _currentNodeId);
+        }
+      }
       // 退出全屏预览
       if (_previewFullscreen) _togglePreviewFullscreen();
-      _pausePreview();
+      // 注意：不再单独调用 _pausePreview()，由 _destroyIDEComponents 内的 _previewModule.destroy() 处理
+      // 这样确保 iframe 清理只发生一次，避免重复操作
       _currentNodeId = null;
+      _ctx.currentNodeId = null;  // 同步清理上下文，避免模块读到过期节点
+      _lastAutoSavePath = null;
       if (_nodeName) _nodeName.textContent = '';
       window._pause3DAnimation = false;
-      // 销毁 IDE 组件
+      // 销毁 IDE 组件（内部会调用 _previewModule.destroy() → pausePreview() 清理 iframe）
       _destroyIDEComponents();
     },
     onStateChange: (newState, prevState) => {
@@ -126,17 +189,8 @@ function initHtmlSandboxWindow() {
   const minBtn = document.getElementById('sandboxMinimizeBtn');
   const maxBtn = document.getElementById('sandboxMaximizeBtn');
   const closeBtn = document.getElementById('sandboxCloseBtn');
-  const runBtn = document.getElementById('runSandboxBtn');
-  const saveBtn = document.getElementById('saveSandboxBtn');
-  const syncBtn = document.getElementById('syncSandboxBtn');
-  const exportBtn = document.getElementById('exportSandboxBtn');
-  const toggleConsoleBtn = document.getElementById('toggleConsoleBtn');
-  const clearConsoleBtn = document.getElementById('clearConsoleBtn');
   const refreshPreviewBtn = document.getElementById('sandboxRefreshPreviewBtn');
-  const searchBtn = document.getElementById('searchSandboxBtn');
-  const templateBtn = document.getElementById('templateSandboxBtn');
-  const historyBtn = document.getElementById('historySandboxBtn');
-  const autoRunBtn = document.getElementById('autoRunToggleBtn');
+  const mdSyncBtn = document.getElementById('mdPreviewSyncBtn');
 
   if (minBtn) minBtn.addEventListener('click', () => {
     if (Date.now() - _openTimestamp < 300) return;
@@ -144,17 +198,8 @@ function initHtmlSandboxWindow() {
   });
   if (maxBtn) maxBtn.addEventListener('click', () => _windowInstance.toggleMaximize());
   if (closeBtn) closeBtn.addEventListener('click', () => closeHtmlSandboxEditor());
-  if (runBtn) runBtn.addEventListener('click', () => runPreview(true));
-  if (saveBtn) saveBtn.addEventListener('click', () => saveHtmlSource());
-  if (syncBtn) syncBtn.addEventListener('click', () => syncToNote());
-  if (exportBtn) exportBtn.addEventListener('click', () => exportAsHtml());
-  if (toggleConsoleBtn) toggleConsoleBtn.addEventListener('click', () => _toggleConsole());
-  if (clearConsoleBtn) clearConsoleBtn.addEventListener('click', () => _clearConsole());
   if (refreshPreviewBtn) refreshPreviewBtn.addEventListener('click', () => runPreview(true));
-  if (searchBtn) searchBtn.addEventListener('click', () => _toggleSearch());
-  if (templateBtn) templateBtn.addEventListener('click', () => _showTemplateModal());
-  if (historyBtn) historyBtn.addEventListener('click', () => _showHistoryPanel());
-  if (autoRunBtn) autoRunBtn.addEventListener('click', () => _toggleAutoRun());
+  if (mdSyncBtn) mdSyncBtn.addEventListener('click', () => _renderMarkdownPreview());
 
   // 控制台过滤按钮
   document.querySelectorAll('.console-filter-btn').forEach(btn => {
@@ -165,10 +210,9 @@ function initHtmlSandboxWindow() {
   const previewFullscreenBtn = document.getElementById('previewFullscreenBtn');
   if (previewFullscreenBtn) previewFullscreenBtn.addEventListener('click', () => _togglePreviewFullscreen());
 
-  // ESC 退出全屏预览
-  document.addEventListener('keydown', _onFullscreenKeydown);
+  // ESC 退出全屏预览（已迁移到 SandboxPreview 模块，此处不再重复注册）
 
-  // 模板/历史面板关闭
+  // 模板/历史面板关闭（委托到 SandboxTemplateHistory 模块）
   const templateCloseBtn = document.getElementById('templateCloseBtn');
   const historyCloseBtn = document.getElementById('historyCloseBtn');
   const historyRestoreBtn = document.getElementById('historyRestoreBtn');
@@ -176,9 +220,26 @@ function initHtmlSandboxWindow() {
   if (historyCloseBtn) historyCloseBtn.addEventListener('click', () => _hideHistoryPanel());
   if (historyRestoreBtn) historyRestoreBtn.addEventListener('click', () => _restoreHistoryVersion());
 
-  // 置顶
-  _modal.addEventListener('mousedown', () => {
-    WindowManager.bringToFront(_windowInstance);
+  // 点击模态框自动置顶（统一由 WindowManager 管理）
+  if (window.WindowManager) {
+    window.WindowManager.registerElement(_modal);
+  }
+
+  // ── Activity Bar 按钮 ──
+  document.querySelectorAll('.sandbox-activity-bar .activity-bar-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = btn.dataset.panel;
+      if (panel === 'preview') {
+        _activatePreviewTab();
+      } else {
+        _toggleSidePanel(panel);
+      }
+    });
+  });
+
+  // ── 底部面板 Tab 切换 ──
+  document.querySelectorAll('.bottom-panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => _showBottomPanel(tab.dataset.tab));
   });
 
   // ── 快捷键事件（由 Monaco 派发） ──
@@ -190,15 +251,138 @@ function initHtmlSandboxWindow() {
       if (path) _onTabClose(path);
     }
   });
-  document.addEventListener('sandbox-toggle-console', () => _toggleConsole());
+  document.addEventListener('sandbox-toggle-console', () => _toggleBottomPanel());
+  document.addEventListener('sandbox-new-terminal', () => _newTerminal());
   document.addEventListener('sandbox-global-search', () => _toggleSearch());
   document.addEventListener('sandbox-quick-open', () => _showQuickOpen());
+  document.addEventListener('sandbox-command-palette', () => _showCommandPalette());
 
-  // 控制台消息监听（只注册一次）
+  // ── 兼容过渡期：监听模块事件 ──
+  _ctx.on('activatePreviewTab', () => _activatePreviewTab());
+  _ctx.on('syncSplitEditor', (vfs) => {
+    if (_splitEditorModule && _splitEditorModule.monacoEditor2) _splitEditorModule.monacoEditor2.syncAllToFS(vfs);
+  });
+  _ctx.on('executeMenuAction', (action) => _executeCommandAction(action));
+  _ctx.on('executeCommand', (action) => _executeCommandAction(action));
+  _ctx.on('closeImagePreview', () => _closeImagePreview());
+  _ctx.on('exitMarkdownMode', () => _exitMarkdownMode());
+  _ctx.on('openFileInEditor', (filePath) => _openFileInEditor(filePath));
+  _ctx.on('runPreview', () => runPreview(true));
+  _ctx.on('updateStatusBar', () => _updateStatusBar());
+  _ctx.on('updateBreadcrumb', (data) => {
+    if (_breadcrumbModule) {
+      if (data && data.barEl) {
+        _breadcrumbModule.updateBreadcrumbIn(data.barEl, data.filePath);
+      } else {
+        _breadcrumbModule.updateBreadcrumb(data);
+      }
+    }
+  });
+  _ctx.on('contentChange', (filePath) => _onContentChange(filePath));
+  _ctx.on('copyPath', (filePath) => _onCopyPath(filePath));
+  _ctx.on('revealInTree', (filePath) => _onRevealInTree(filePath));
+  _ctx.on('toggleSidePanel', (panel) => {
+    // 模块侧边面板状态变更通知 → 同步 ctx 状态
+    const sidePanel = document.getElementById('sandboxSidePanel');
+    const searchPanel = document.getElementById('sandboxSearchPanel');
+    const fileTreePanel = document.getElementById('sandboxFileTreeContainer');
+    if (panel) {
+      _ctx.activePanel = panel;
+      if (sidePanel) sidePanel.classList.remove('collapsed');
+      // 根据面板类型切换显示搜索面板/文件树
+      if (panel === 'search') {
+        if (searchPanel) searchPanel.style.display = 'flex';
+        if (fileTreePanel) fileTreePanel.style.display = 'none';
+        // 聚焦搜索输入框
+        const searchInput = document.getElementById('sandboxSearchInput');
+        if (searchInput) searchInput.focus();
+      } else if (panel === 'explorer') {
+        if (searchPanel) searchPanel.style.display = 'none';
+        if (fileTreePanel) fileTreePanel.style.display = 'flex';
+      }
+    } else {
+      _ctx.activePanel = null;
+      if (sidePanel) sidePanel.classList.add('collapsed');
+    }
+  });
+  // SandboxTemplateHistory 模块事件
+  _ctx.on('fileSystemChange', () => _onFileSystemChange());
+  _ctx.on('autoRunPreview', () => { if (_autoRunEnabled) runPreview(false); });
+  _ctx.on('statusChange', (text) => _setStatus(text));
+  // SandboxFileOps 模块事件
+  _ctx.on('deactivatePreviewTab', () => _deactivatePreviewTab());
+  _ctx.on('closePreviewTab', () => _closePreviewTab());
+  _ctx.on('updateActivityBarButtons', (panel) => _updateActivityBarButtons(panel));
+
+  // 拖拽打开文件
+  _initDragOpen();
+
+  // Resize 分隔条（已迁移到 SandboxResize 模块，由 _initIDEComponents 初始化）
+}
+
+// ════════════════════════════════════════════════════════════
+//  功能模块初始化（每次打开 IDE 时调用）
+//
+//  这些模块在 _destroyIDEComponents() 中会被销毁并置 null，
+//  而 initHtmlSandboxWindow() 受 _windowInstance 守卫只执行一次，
+//  因此必须在每次 openHtmlSandboxEditor() 时重新初始化，
+//  否则关闭后再次打开时菜单栏/预览/控制台/命令面板等将失效
+//  （_activatePreviewTab / _toggleSidePanel 等委托函数因
+//   if (_activityBarModule) 守卫而静默无效）。
+// ════════════════════════════════════════════════════════════
+function _initFeatureModules() {
+  // 菜单栏（_initMenuBar 内部已含 if (!_menuBarModule) 守卫）
+  _initMenuBar();
+  // 命令面板
+  _initCommandPalette();
+  // 控制台消息监听
   _initConsoleListener();
+  // AutoRun 模块
+  if (!_autoRunModule) {
+    _autoRunModule = new SandboxAutoRun(_ctx);
+    _ctx.registerModule('autoRun', _autoRunModule);
+  }
+  _autoRunModule.init();
+  // Preview 模块
+  if (!_previewModule) {
+    _previewModule = new SandboxPreview(_ctx);
+    _ctx.registerModule('preview', _previewModule);
+  }
+  _previewModule.init();
+  // ActivityBar 模块
+  if (!_activityBarModule) {
+    _activityBarModule = new SandboxActivityBar(_ctx);
+    _ctx.registerModule('activityBar', _activityBarModule);
+  }
+  _activityBarModule.init();
+}
 
-  // Resize 分隔条
-  _initResizeHandles();
+function _initDragOpen() {
+  const editorArea = document.querySelector('.sandbox-editor-area');
+  if (!editorArea) return;
+
+  editorArea.addEventListener('dragover', (e) => {
+    if (e.dataTransfer.types.includes('text/plain')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'open';
+      editorArea.classList.add('drag-over');
+    }
+  });
+
+  editorArea.addEventListener('dragleave', (e) => {
+    if (!editorArea.contains(e.relatedTarget)) {
+      editorArea.classList.remove('drag-over');
+    }
+  });
+
+  editorArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    editorArea.classList.remove('drag-over');
+    const filePath = e.dataTransfer.getData('text/plain');
+    if (filePath && _vfs && _vfs.getFile(filePath)) {
+      _openFileInEditor(filePath);
+    }
+  });
 }
 
 function _updateMaxIcon(state) {
@@ -214,284 +398,185 @@ function _updateMaxIcon(state) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  控制台消息监听（支持对象展开/过滤/计数）
+//  菜单栏 (已迁移到 SandboxMenuBar，此处保留委托)
+// ════════════════════════════════════════════════════════════
+
+function _initMenuBar() {
+  if (!_menuBarModule) {
+    _menuBarModule = new SandboxMenuBar(_ctx);
+    _ctx.registerModule('menuBar', _menuBarModule);
+  }
+  _menuBarModule.init();
+}
+
+function _closeAllMenus() {
+  if (_menuBarModule) _menuBarModule._closeAllMenus();
+}
+
+function _executeMenuAction(action) {
+  if (_menuBarModule) {
+    _menuBarModule._executeMenuAction(action);
+  }
+}
+
+function _monacoEditorAction(actionId) {
+  if (_menuBarModule) {
+    _menuBarModule._monacoEditorAction(actionId);
+  }
+}
+
+function _showShortcutsHelp() {
+  if (_menuBarModule) _menuBarModule._showShortcutsHelp();
+}
+
+function _showAboutDialog() {
+  if (_menuBarModule) _menuBarModule._showAboutDialog();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Activity Bar 和侧边面板管理（已迁移到 SandboxActivityBar，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _toggleSidePanel(panel) {
+  if (_activityBarModule) {
+    _activityBarModule.toggleSidePanel(panel);
+    // 同步 ctx 状态（模块 emit toggleSidePanel 事件也会处理 DOM）
+    _ctx.activePanel = _activityBarModule._activePanel;
+  }
+}
+
+function _updateActivityBarButtons(activePanel) {
+  if (_activityBarModule) _activityBarModule.updateActivityBarButtons(activePanel);
+}
+
+function _activatePreviewTab() {
+  if (_activityBarModule) {
+    _activityBarModule.activatePreviewTab();
+    _ctx.isPreviewTab = true; // 同步 ctx 状态
+  }
+}
+
+function _deactivatePreviewTab() {
+  if (_activityBarModule) {
+    _activityBarModule.deactivatePreviewTab();
+    _ctx.isPreviewTab = false; // 同步 ctx 状态
+  }
+}
+
+function _closePreviewTab() {
+  if (_activityBarModule) {
+    _activityBarModule.closePreviewTab();
+    _ctx.isPreviewTab = false; // 同步 ctx 状态
+  }
+}
+
+function _renderPreviewTab() {
+  if (_activityBarModule) _activityBarModule.renderPreviewTab();
+}
+
+function _showPreviewTabContextMenu(x, y) {
+  if (_activityBarModule) _activityBarModule.showPreviewTabContextMenu(x, y);
+}
+
+// ════════════════════════════════════════════════════════════
+//  控制台消息监听（已迁移到 SandboxConsole，此处保留委托）
 // ════════════════════════════════════════════════════════════
 function _initConsoleListener() {
-  window.addEventListener('message', (e) => {
-    if (!e.data || e.data.type !== 'sandbox-console') return;
-    if (!_consoleOut) return;
-
-    const level = e.data.level || 'log';
-    const args = e.data.args || [{ type: 'string', value: e.data.message || '' }];
-
-    _addConsoleLine(level, args);
-  });
+  if (!_consoleModule) {
+    _consoleModule = new SandboxConsole(_ctx);
+    _ctx.registerModule('console', _consoleModule);
+  }
+  _consoleModule.init();
 }
 
 function _addConsoleLine(level, args) {
-  const time = new Date();
-  const timeStr = String(time.getHours()).padStart(2,'0') + ':' +
-                  String(time.getMinutes()).padStart(2,'0') + ':' +
-                  String(time.getSeconds()).padStart(2,'0');
-
-  const line = document.createElement('div');
-  line.className = 'console-line level-' + level;
-  line.dataset.level = level;
-
-  const icon = level === 'error' ? '✕' : level === 'warn' ? '⚠' : level === 'info' ? 'ℹ' : '›';
-
-  const timeEl = document.createElement('span');
-  timeEl.className = 'console-time';
-  timeEl.textContent = timeStr;
-
-  const iconEl = document.createElement('span');
-  iconEl.className = 'console-icon';
-  iconEl.textContent = icon;
-
-  const contentEl = document.createElement('span');
-  contentEl.className = 'console-content';
-  args.forEach((arg, idx) => {
-    if (idx > 0) contentEl.appendChild(document.createTextNode(' '));
-    contentEl.appendChild(_renderConsoleArg(arg));
-  });
-
-  line.appendChild(timeEl);
-  line.appendChild(iconEl);
-  line.appendChild(contentEl);
-
-  // 缓存用于过滤
-  _consoleLines.push(line);
-
-  // 计数
-  _consoleCounts[level] = (_consoleCounts[level] || 0) + 1;
-  _updateConsoleCounts();
-
-  // 根据过滤决定是否显示
-  if (_consoleFilter === 'all' || _consoleFilter === level) {
-    _consoleOut.appendChild(line);
-    _consoleOut.scrollTop = _consoleOut.scrollHeight;
-  }
+  if (_consoleModule) _consoleModule.addConsoleLine(level, args);
 }
 
 function _renderConsoleArg(arg) {
-  if (!arg || typeof arg !== 'object') {
-    return document.createTextNode(String(arg));
-  }
-
-  const type = arg.type;
-  const value = arg.value;
-
-  if (type === 'string') {
-    return document.createTextNode(value);
-  }
-  if (type === 'number') {
-    const span = document.createElement('span');
-    span.className = 'console-obj-number';
-    span.textContent = value;
-    return span;
-  }
-  if (type === 'boolean') {
-    const span = document.createElement('span');
-    span.className = 'console-obj-bool';
-    span.textContent = value;
-    return span;
-  }
-  if (type === 'null') {
-    const span = document.createElement('span');
-    span.className = 'console-obj-null';
-    span.textContent = value;
-    return span;
-  }
-  if (type === 'function') {
-    const span = document.createElement('span');
-    span.style.color = '#fc8';
-    span.textContent = value;
-    return span;
-  }
-
-  // 对象/数组：可展开
-  return _renderExpandable(arg);
+  return _consoleModule ? _consoleModule._renderArg(arg) : document.createTextNode(String(arg));
 }
 
 function _renderExpandable(arg) {
-  const wrapper = document.createElement('span');
-  const toggle = document.createElement('span');
-  toggle.className = 'console-obj-toggle';
-  toggle.textContent = '▶ ';
-
-  const preview = document.createElement('span');
-  const children = document.createElement('div');
-  children.className = 'console-obj-children';
-  children.style.display = 'none';
-
-  const isArr = arg.type === 'array';
-  const val = arg.value;
-
-  if (isArr) {
-    preview.textContent = '[' + (val.length) + ']';
-    val.forEach((item, idx) => {
-      const row = document.createElement('div');
-      const key = document.createElement('span');
-      key.className = 'console-obj-key';
-      key.textContent = idx + ': ';
-      row.appendChild(key);
-      row.appendChild(_renderConsoleArg(item));
-      children.appendChild(row);
-    });
-  } else {
-    const keys = Object.keys(val);
-    preview.textContent = '{' + keys.length + ' keys}';
-    keys.forEach(k => {
-      const row = document.createElement('div');
-      const key = document.createElement('span');
-      key.className = 'console-obj-key';
-      key.textContent = k + ': ';
-      row.appendChild(key);
-      row.appendChild(_renderConsoleArg(val[k]));
-      children.appendChild(row);
-    });
-  }
-
-  toggle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const isHidden = children.style.display === 'none';
-    children.style.display = isHidden ? 'block' : 'none';
-    toggle.textContent = isHidden ? '▼ ' : '▶ ';
-  });
-
-  wrapper.appendChild(toggle);
-  wrapper.appendChild(preview);
-  wrapper.appendChild(children);
-  return wrapper;
+  return _consoleModule ? _consoleModule._renderExpandable(arg) : document.createTextNode('');
 }
 
 function _setConsoleFilter(filter) {
-  _consoleFilter = filter;
-  document.querySelectorAll('.console-filter-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === filter);
-  });
-  // 重新渲染
-  _consoleOut.innerHTML = '';
-  for (const line of _consoleLines) {
-    if (filter === 'all' || line.dataset.level === filter) {
-      _consoleOut.appendChild(line);
-    }
-  }
-  _consoleOut.scrollTop = _consoleOut.scrollHeight;
+  if (_consoleModule) _consoleModule.setConsoleFilter(filter);
 }
 
 function _updateConsoleCounts() {
-  document.querySelectorAll('.filter-count').forEach(el => {
-    const cnt = el.dataset.count;
-    if (cnt === 'all') {
-      el.textContent = _consoleLines.length;
-    } else {
-      el.textContent = _consoleCounts[cnt] || 0;
-    }
-  });
-  // 错误徽标
-  const badge = document.getElementById('consoleErrorBadge');
-  if (badge) {
-    const errCount = _consoleCounts.error || 0;
-    if (errCount > 0) {
-      badge.textContent = errCount > 99 ? '99+' : errCount;
-      badge.style.display = 'inline-block';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
+  if (_consoleModule) _consoleModule._updateCounts();
 }
 
 function _clearConsole() {
-  if (_consoleOut) _consoleOut.textContent = '';
-  _consoleLines = [];
-  _consoleCounts = { log: 0, error: 0, warn: 0, info: 0 };
-  _updateConsoleCounts();
+  if (_consoleModule) _consoleModule.clearConsole();
+}
+
+// ── 底部面板管理（已迁移到 SandboxConsole，此处保留委托）──
+function _showBottomPanel(tab) {
+  if (_consoleModule) _consoleModule.showBottomPanel(tab);
+}
+
+function _hideBottomPanel() {
+  if (_consoleModule) _consoleModule.hideBottomPanel();
+}
+
+function _toggleBottomPanel(tab) {
+  if (_consoleModule) _consoleModule.toggleBottomPanel(tab);
 }
 
 function _toggleConsole() {
-  const panel = document.getElementById('sandboxConsolePanel');
-  if (!panel) return;
-  if (panel.style.display === 'none' || !panel.style.display) {
-    panel.style.display = 'flex';
-  } else {
-    panel.style.display = 'none';
-  }
-  if (_monacoEditor) setTimeout(() => _monacoEditor.layout(), 50);
+  if (_consoleModule) _consoleModule.toggleConsole();
+}
+
+function _toggleTerminal() {
+  if (_consoleModule) _consoleModule.toggleTerminal();
+}
+
+function _newTerminal() {
+  if (_consoleModule) _consoleModule.newTerminal();
+}
+
+function _killAllTerminals() {
+  if (_consoleModule) _consoleModule.killAllTerminals();
 }
 
 // ════════════════════════════════════════════════════════════
-//  自动运行
+//  自动运行（已迁移到 SandboxAutoRun，此处保留委托）
 // ════════════════════════════════════════════════════════════
 function _toggleAutoRun() {
-  _autoRunEnabled = !_autoRunEnabled;
-  const btn = document.getElementById('autoRunToggleBtn');
-  if (btn) btn.classList.toggle('active', _autoRunEnabled);
-  if (!_autoRunEnabled && _autoRunTimer) {
-    clearTimeout(_autoRunTimer);
-    _autoRunTimer = null;
-  }
-  _setStatus(_autoRunEnabled ? '自动运行已开启' : '自动运行已关闭');
+  if (_autoRunModule) _autoRunModule.toggleAutoRun();
 }
 
 function _onContentChange(filePath) {
-  if (!_autoRunEnabled) return;
-  if (_autoRunTimer) clearTimeout(_autoRunTimer);
-  _autoRunTimer = setTimeout(() => {
-    _autoRunTimer = null;
-    runPreview(false);
-  }, AUTO_RUN_DEBOUNCE);
+  if (_autoRunModule) _autoRunModule.onContentChange(filePath);
 }
 
 // ════════════════════════════════════════════════════════════
-//  全屏预览
+//  自动保存到磁盘（已迁移到 SandboxAutoRun，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _triggerAutoSave(filePath) {
+  if (_autoRunModule) _autoRunModule.triggerAutoSave(filePath);
+}
+
+async function _autoSaveCurrentFile() {
+  if (_autoRunModule) await _autoRunModule._autoSaveCurrentFile();
+}
+
+// ════════════════════════════════════════════════════════════
+//  全屏预览（已迁移到 SandboxPreview，此处保留委托）
 // ════════════════════════════════════════════════════════════
 function _togglePreviewFullscreen() {
-  _previewFullscreen = !_previewFullscreen;
-  const area = _content ? _content.querySelector('.sandbox-preview-area') : null;
-  if (area) {
-    area.classList.toggle('fullscreen-mode', _previewFullscreen);
-  }
-
-  // 更新原始按钮图标
-  const btn = document.getElementById('previewFullscreenBtn');
-  if (btn) {
-    btn.textContent = _previewFullscreen ? '✕' : '⛶';
-    btn.title = _previewFullscreen ? '退出全屏 (ESC)' : '全屏预览';
-    btn.classList.toggle('exit-fullscreen', _previewFullscreen);
-  }
-
-  // 全屏时在 body 上添加浮动退出按钮（避免被父元素 CSS 干扰）
-  const exitBtn = document.getElementById('sandboxFullscreenExit');
-  if (_previewFullscreen) {
-    if (!exitBtn) {
-      const el = document.createElement('button');
-      el.id = 'sandboxFullscreenExit';
-      el.className = 'sandbox-fullscreen-exit';
-      el.innerHTML = '✕ 退出全屏';
-      el.title = '退出全屏 (ESC)';
-      el.addEventListener('click', () => _togglePreviewFullscreen());
-      document.body.appendChild(el);
-    }
-  } else {
-    if (exitBtn) exitBtn.remove();
-  }
-
-  if (_monacoEditor) setTimeout(() => _monacoEditor.layout(), 50);
-}
-
-function _onFullscreenKeydown(e) {
-  if (e.key === 'Escape' && _previewFullscreen) {
-    _togglePreviewFullscreen();
-  }
+  if (_previewModule) _previewModule.togglePreviewFullscreen();
 }
 
 // ════════════════════════════════════════════════════════════
 //  全局搜索
 // ════════════════════════════════════════════════════════════
 function _toggleSearch() {
-  if (!_search) return;
-  _search.toggle();
+  _toggleSidePanel('search');
 }
 
 function _showQuickOpen() {
@@ -504,265 +589,30 @@ function _showQuickOpen() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  模板选择器
+//  模板选择器 & 本地历史记录（已迁移到 SandboxTemplateHistory，此处保留委托）
 // ════════════════════════════════════════════════════════════
+
 function _showTemplateModal() {
-  if (!_templateModal || !_vfs) return;
-  const grid = document.getElementById('templateGrid');
-  if (!grid) return;
-
-  grid.innerHTML = '';
-  for (const tpl of getTemplates()) {
-    const card = document.createElement('div');
-    card.className = 'template-card';
-    card.innerHTML =
-      '<div class="tpl-icon">' + tpl.icon + '</div>' +
-      '<div class="tpl-name">' + tpl.name + '</div>' +
-      '<div class="tpl-desc">' + tpl.desc + '</div>' +
-      '<div class="tpl-files">' + tpl.files.length + ' 个文件</div>';
-    card.addEventListener('click', () => {
-      _applyTemplate(tpl);
-      _hideTemplateModal();
-    });
-    grid.appendChild(card);
-  }
-
-  _templateModal.style.display = 'flex';
+  if (_templateHistoryModule) _templateHistoryModule.showTemplateModal();
 }
 
 function _hideTemplateModal() {
-  if (_templateModal) _templateModal.style.display = 'none';
+  if (_templateHistoryModule) _templateHistoryModule.hideTemplateModal();
 }
-
-function _applyTemplate(template) {
-  if (!_vfs) return;
-  const createdPaths = applyTemplate(_vfs, template, '');
-  if (_fileTree) _fileTree.refresh();
-  // 打开第一个创建的文件
-  if (createdPaths.length > 0) {
-    _openFileInEditor(createdPaths[0]);
-  }
-  _setStatus('已从模板创建 ' + createdPaths.length + ' 个文件');
-  showToast('✅ 已创建模板: ' + template.name);
-  // 触发自动运行
-  if (_autoRunEnabled) runPreview(false);
-}
-
-// ════════════════════════════════════════════════════════════
-//  本地历史记录
-// ════════════════════════════════════════════════════════════
-let _historySelectedFile = null;
-let _historySelectedVersion = null;
 
 function _showHistoryPanel() {
-  if (!_historyPanel || !_history) return;
-  _renderHistoryFiles();
-  _historyPanel.style.display = 'flex';
+  if (_templateHistoryModule) _templateHistoryModule.showHistoryPanel();
 }
 
 function _hideHistoryPanel() {
-  if (_historyPanel) _historyPanel.style.display = 'none';
-}
-
-function _renderHistoryFiles() {
-  const listEl = document.getElementById('historyFileList');
-  if (!listEl) return;
-  const files = _history.getFiles();
-  if (files.length === 0) {
-    listEl.innerHTML = '<div class="history-empty">暂无历史记录<br><small>保存文件后会自动记录</small></div>';
-    return;
-  }
-  listEl.innerHTML = '';
-  for (const f of files) {
-    const versions = _history.getVersions(f);
-    const last = versions[versions.length - 1];
-    const item = document.createElement('div');
-    item.className = 'history-list-item';
-    if (f === _historySelectedFile) item.classList.add('active');
-    item.innerHTML =
-      '<div class="h-name">' + f + '</div>' +
-      '<div class="h-time">' + versions.length + ' 个版本 · ' + _formatTime(last.timestamp) + '</div>';
-    item.addEventListener('click', () => {
-      _historySelectedFile = f;
-      _renderHistoryFiles();
-      _renderHistoryVersions();
-    });
-    listEl.appendChild(item);
-  }
-}
-
-function _renderHistoryVersions() {
-  const listEl = document.getElementById('historyVersionList');
-  const diffEl = document.getElementById('historyDiffView');
-  if (!listEl) return;
-  if (!_historySelectedFile) {
-    listEl.innerHTML = '<div class="history-empty">请选择文件</div>';
-    if (diffEl) diffEl.innerHTML = '';
-    return;
-  }
-  const versions = _history.getVersions(_historySelectedFile);
-  if (versions.length === 0) {
-    listEl.innerHTML = '<div class="history-empty">无版本</div>';
-    return;
-  }
-  listEl.innerHTML = '';
-  // 倒序显示（最新在上）
-  for (let i = versions.length - 1; i >= 0; i--) {
-    const v = versions[i];
-    const item = document.createElement('div');
-    item.className = 'history-list-item';
-    if (v.timestamp === _historySelectedVersion) item.classList.add('active');
-    const actionLabel = v.action === 'auto' ? '自动' : v.action === 'manual' ? '手动' : '保存';
-    item.innerHTML =
-      '<div class="h-name">v' + (i + 1) + ' · ' + actionLabel + '</div>' +
-      '<div class="h-time">' + _formatTime(v.timestamp) + '</div>';
-    item.addEventListener('click', () => {
-      _historySelectedVersion = v.timestamp;
-      _renderHistoryVersions();
-      _renderHistoryDiff();
-    });
-    listEl.appendChild(item);
-  }
-}
-
-function _renderHistoryDiff() {
-  const diffEl = document.getElementById('historyDiffView');
-  const restoreBtn = document.getElementById('historyRestoreBtn');
-  if (!diffEl) return;
-  if (!_historySelectedFile || !_historySelectedVersion) {
-    diffEl.innerHTML = '<div class="history-empty">请选择版本</div>';
-    if (restoreBtn) restoreBtn.style.display = 'none';
-    return;
-  }
-
-  // 获取当前文件内容
-  let currentContent = '';
-  if (_monacoEditor) {
-    currentContent = _monacoEditor.getContent(_historySelectedFile);
-  }
-  if (!currentContent && _vfs) {
-    const f = _vfs.getFile(_historySelectedFile);
-    if (f) currentContent = f.content;
-  }
-
-  const diff = _history.diffWithCurrent(_historySelectedFile, _historySelectedVersion, currentContent);
-  if (diff.length === 0) {
-    diffEl.innerHTML = '<div class="history-empty">无差异</div>';
-  } else {
-    let html = '';
-    for (const line of diff) {
-      const cls = line.type === 'add' ? 'diff-line-add' :
-                  line.type === 'del' ? 'diff-line-del' :
-                  line.type === 'meta' ? 'diff-line-meta' : 'diff-line-ctx';
-      html += '<div class="' + cls + '">' + _escapeHtml(line.text) + '</div>';
-    }
-    diffEl.innerHTML = html;
-  }
-  if (restoreBtn) restoreBtn.style.display = 'inline-block';
+  if (_templateHistoryModule) _templateHistoryModule.hideHistoryPanel();
 }
 
 function _restoreHistoryVersion() {
-  if (!_historySelectedFile || !_historySelectedVersion || !_vfs) return;
-  const content = _history.getVersionContent(_historySelectedFile, _historySelectedVersion);
-  if (content == null) return;
-
-  // 恢复到 VFS
-  _vfs.setFile(_historySelectedFile, content);
-
-  // 恢复到 Monaco（直接设置 model 内容）
-  if (_monacoEditor) {
-    // 确保文件已打开
-    const file = _vfs.getFile(_historySelectedFile);
-    if (file) {
-      const isOpen = _monacoEditor.getCurrentFilePath() === _historySelectedFile;
-      if (!isOpen) _openFileInEditor(_historySelectedFile);
-      _monacoEditor.setFileContent(_historySelectedFile, content);
-    }
-  }
-
-  // 刷新文件树
-  if (_fileTree) _fileTree.refresh();
-
-  showToast('✅ 已恢复 ' + _historySelectedFile);
-  _setStatus('已恢复历史版本');
-  _hideHistoryPanel();
-
-  // 重新预览
-  if (_autoRunEnabled) runPreview(false);
+  if (_templateHistoryModule) _templateHistoryModule.restoreHistoryVersion();
 }
 
-function _formatTime(ts) {
-  const d = new Date(ts);
-  return String(d.getMonth()+1).padStart(2,'0') + '/' +
-         String(d.getDate()).padStart(2,'0') + ' ' +
-         String(d.getHours()).padStart(2,'0') + ':' +
-         String(d.getMinutes()).padStart(2,'0');
-}
-
-// ════════════════════════════════════════════════════════════
-//  Resize 分隔条
-// ════════════════════════════════════════════════════════════
-function _initResizeHandles() {
-  const sidebarHandle = _content ? _content.querySelector('.sandbox-resize-sidebar') : null;
-  if (sidebarHandle) _initSingleResize(sidebarHandle, 'sidebar');
-  const editorHandle = _content ? _content.querySelector('.sandbox-resize-editor') : null;
-  if (editorHandle) _initSingleResize(editorHandle, 'editor');
-}
-
-function _initSingleResize(handle, type) {
-  let startX = 0;
-  let startW = 0;
-  let targetEl = null;
-
-  handle.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    startX = e.clientX;
-
-    if (type === 'sidebar') {
-      targetEl = document.getElementById('sandboxFileTreeContainer');
-      if (targetEl) startW = targetEl.offsetWidth;
-    } else {
-      targetEl = _content ? _content.querySelector('.sandbox-preview-area') : null;
-      if (targetEl) startW = targetEl.offsetWidth;
-    }
-
-    handle.classList.add('active');
-
-    // 拖拽期间禁用 iframe 的鼠标事件，防止 iframe 吞噬 mousemove/mouseup
-    if (_preview) _preview.style.pointerEvents = 'none';
-    // 同时禁用 Monaco 的鼠标事件
-    const monacoEl = document.getElementById('sandboxMonacoContainer');
-    if (monacoEl) monacoEl.style.pointerEvents = 'none';
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  });
-
-  function onMove(e) {
-    if (!targetEl) return;
-    let newW;
-    if (type === 'sidebar') {
-      newW = startW + (e.clientX - startX);
-      newW = Math.max(120, Math.min(400, newW));
-    } else {
-      newW = startW - (e.clientX - startX);
-      newW = Math.max(200, Math.min(600, newW));
-    }
-    targetEl.style.width = newW + 'px';
-    targetEl.style.flex = 'none';
-    if (_monacoEditor) _monacoEditor.layout();
-  }
-
-  function onUp() {
-    handle.classList.remove('active');
-    // 恢复 iframe 和 Monaco 的鼠标事件
-    if (_preview) _preview.style.pointerEvents = '';
-    const monacoEl = document.getElementById('sandboxMonacoContainer');
-    if (monacoEl) monacoEl.style.pointerEvents = '';
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-  }
-}
+// Resize 分隔条（已迁移到 SandboxResize 模块，初始化由 _initIDEComponents 处理）
 
 // ════════════════════════════════════════════════════════════
 //  IDE 组件初始化/销毁
@@ -776,20 +626,22 @@ async function _initIDEComponents(node) {
   } else if (node.htmlSource) {
     treeData = migrateHtmlSource(node.htmlSource);
     node.fileSystem = treeData;
-    node.sandboxMode = true;
+    node.activeMode = 'code';
   } else {
     treeData = migrateHtmlSource(null);
     node.fileSystem = treeData;
-    node.sandboxMode = true;
+    node.activeMode = 'code';
   }
 
   _vfs = new VirtualFileSystem(treeData);
   _vfs.expandAll();
+  _ctx.vfs = _vfs;
 
   // 2. 初始化历史记录
   _history = new SandboxHistory();
   _history.attachToNode(_currentNodeId);
   _history.loadFromNode(node);
+  _ctx.history = _history;
 
   // 3. 初始化文件树
   const treeContainer = document.getElementById('sandboxFileTreeContainer');
@@ -799,18 +651,30 @@ async function _initIDEComponents(node) {
       onFileDelete: (path, isDir) => _onFileDelete(path, isDir),
       onFileRename: (path, newName) => _onFileRename(path, newName),
       onFileCreate: (dirPath, name, type) => _onFileCreate(dirPath, name, type),
+      onFileSystemChange: () => _onFileSystemChange(),
     });
     _fileTree.render();
   }
+  _ctx.fileTree = _fileTree;
 
   // 4. 初始化标签页
   const tabsContainer = document.getElementById('sandboxTabsContainer');
   if (tabsContainer) {
     _fileTabs = new FileTabsComponent(tabsContainer,
       (filePath) => _onFileSelect(filePath),
-      (filePath) => _onTabClose(filePath)
+      (filePath) => _onTabClose(filePath),
+      {
+        onCloseOthers: (keepPath) => _onCloseOthers(keepPath),
+        onCloseAll: () => _onCloseAll(),
+        onCloseSaved: () => _onCloseSaved(),
+        onCopyPath: (filePath) => _onCopyPath(filePath),
+        onRevealInTree: (filePath) => _onRevealInTree(filePath),
+        onClosePreviewTab: () => _closePreviewTab(),
+        onSplitRight: (filePath) => _onSplitRight(filePath)
+      }
     );
   }
+  _ctx.fileTabs = _fileTabs;
 
   // 5. 初始化 Monaco 编辑器（传入内容变更回调用于自动运行）
   const monacoContainer = document.getElementById('sandboxMonacoContainer');
@@ -825,6 +689,71 @@ async function _initIDEComponents(node) {
       (filePath) => _onContentChange(filePath)
     );
     await _monacoEditor.init(monacoContainer);
+    _ctx.monacoEditor = _monacoEditor;
+
+    // 初始化状态栏模块
+    if (!_statusBarModule) {
+      _statusBarModule = new SandboxStatusBar(_ctx);
+      _ctx.registerModule('statusBar', _statusBarModule);
+    }
+    _statusBarModule.init();
+
+    // 初始化设置模块
+    if (!_settingsModule) {
+      _settingsModule = new SandboxSettings(_ctx);
+      _ctx.registerModule('settings', _settingsModule);
+    }
+    _settingsModule.init();
+    _settingsModule.applyPersistedSettings();
+
+    // 初始化面包屑模块
+    if (!_breadcrumbModule) {
+      _breadcrumbModule = new SandboxBreadcrumb(_ctx);
+      _ctx.registerModule('breadcrumb', _breadcrumbModule);
+    }
+    _breadcrumbModule.init();
+
+    // 初始化图片预览模块
+    if (!_imagePreviewModule) {
+      _imagePreviewModule = new SandboxImagePreview(_ctx);
+      _ctx.registerModule('imagePreview', _imagePreviewModule);
+    }
+    _imagePreviewModule.init();
+
+    // 初始化 Markdown 预览模块
+    if (!_markdownModule) {
+      _markdownModule = new SandboxMarkdownPreview(_ctx);
+      _ctx.registerModule('markdown', _markdownModule);
+    }
+    _markdownModule.init();
+
+    // 初始化分屏编辑模块
+    if (!_splitEditorModule) {
+      _splitEditorModule = new SandboxSplitEditor(_ctx);
+      _ctx.registerModule('splitEditor', _splitEditorModule);
+    }
+    _splitEditorModule.init();
+
+    // 初始化模板/历史面板模块
+    if (!_templateHistoryModule) {
+      _templateHistoryModule = new SandboxTemplateHistory(_ctx);
+      _ctx.registerModule('templateHistory', _templateHistoryModule);
+    }
+    _templateHistoryModule.init();
+
+    // 初始化 Resize 模块
+    if (!_resizeModule) {
+      _resizeModule = new SandboxResize(_ctx);
+      _ctx.registerModule('resize', _resizeModule);
+    }
+    _resizeModule.init();
+
+    // 初始化文件操作模块
+    if (!_fileOpsModule) {
+      _fileOpsModule = new SandboxFileOps(_ctx);
+      _ctx.registerModule('fileOps', _fileOpsModule);
+    }
+    _fileOpsModule.init();
   }
 
   // 6. 初始化搜索组件
@@ -844,9 +773,39 @@ async function _initIDEComponents(node) {
         _search.hide();
       }
     );
+    _ctx.search = _search;
+
+    // 重写 hide()：关闭搜索面板后自动切回资源管理器，避免侧边面板空白
+    const _originalSearchHide = _search.hide.bind(_search);
+    _search.hide = function () {
+      _originalSearchHide();
+      const fileTreePanel = document.getElementById('sandboxFileTreeContainer');
+      if (fileTreePanel) fileTreePanel.style.display = 'flex';
+      if (_activityBarModule) {
+        _activityBarModule._activePanel = 'explorer';
+        _activityBarModule.updateActivityBarButtons('explorer');
+      }
+      _ctx.activePanel = 'explorer';
+    };
   }
 
-  // 7. 打开入口文件
+  // 7. 初始化终端组件
+  const terminalPanel = document.getElementById('sandboxTerminalPanel');
+  if (terminalPanel) {
+    _terminal = new SandboxTerminal(
+      terminalPanel,
+      // getCwd 回调：通过 IPC 获取 sandbox 磁盘路径（兼容未保存项目）
+      async () => {
+        const projectFolderPath = _getProjectFolderPath();
+        const result = await window.api.terminalGetSandboxCwd(projectFolderPath, _currentNodeId);
+        return result.success ? result.cwd : null;
+      },
+      (statusText) => _setStatus(statusText)
+    );
+    _ctx.terminal = _terminal;
+  }
+
+  // 8. 打开入口文件
   const entryPath = _vfs.getEntryPoint();
   if (entryPath) {
     _openFileInEditor(entryPath);
@@ -856,6 +815,9 @@ async function _initIDEComponents(node) {
 }
 
 function _destroyIDEComponents() {
+  // 关闭分屏（已迁移到 SandboxSplitEditor 模块）
+  if (_splitEditorModule) _splitEditorModule.closeSplitEditor();
+
   if (_monacoEditor) {
     _monacoEditor.dispose();
     _monacoEditor = null;
@@ -866,88 +828,157 @@ function _destroyIDEComponents() {
   }
   if (_fileTabs) {
     _fileTabs.closeAll();
+    _fileTabs.destroy();
     _fileTabs = null;
   }
   if (_search) {
     _search = null;
   }
+  // 销毁终端组件（关键：kill 所有 pty 进程，避免僵尸进程）
+  if (_terminal) {
+    _terminal.destroy();
+    _terminal = null;
+  }
+  // 重置底部面板状态（_bottomPanelTab 已迁移到 SandboxConsole）
+  const bottomTabs = document.getElementById('sandboxBottomPanelTabs');
+  if (bottomTabs) bottomTabs.style.display = 'none';
+  const termPanel = document.getElementById('sandboxTerminalPanel');
+  if (termPanel) termPanel.style.display = 'none';
   _vfs = null;
   _history = null;
+  // 同步清除 ctx 核心引用
+  _ctx.vfs = null;
+  _ctx.fileTree = null;
+  _ctx.fileTabs = null;
+  _ctx.monacoEditor = null;
+  _ctx.search = null;
+  _ctx.history = null;
+  _ctx.terminal = null;
+  // 预览状态已迁移到 SandboxPreview 模块
+  // 控制台状态已迁移到 SandboxConsole 模块
+  if (_consoleModule) { _consoleModule.destroy(); _consoleModule = null; }
+  if (_autoRunModule) { _autoRunModule.destroy(); _autoRunModule = null; }
+  if (_previewModule) { _previewModule.destroy(); _previewModule = null; }
+  if (_menuBarModule) { _menuBarModule.destroy(); _menuBarModule = null; }
+  if (_activityBarModule) { _activityBarModule.destroy(); _activityBarModule = null; }
+  if (_statusBarModule) { _statusBarModule.destroy(); _statusBarModule = null; }
+  if (_settingsModule) { _settingsModule.destroy(); _settingsModule = null; }
+  if (_breadcrumbModule) { _breadcrumbModule.destroy(); _breadcrumbModule = null; }
+  if (_imagePreviewModule) { _imagePreviewModule.destroy(); _imagePreviewModule = null; }
+  if (_markdownModule) { _markdownModule.destroy(); _markdownModule = null; }
+  if (_splitEditorModule) { _splitEditorModule.destroy(); _splitEditorModule = null; }
+  if (_templateHistoryModule) { _templateHistoryModule.destroy(); _templateHistoryModule = null; }
+  if (_resizeModule) { _resizeModule.destroy(); _resizeModule = null; }
+  if (_fileOpsModule) { _fileOpsModule.destroy(); _fileOpsModule = null; }
+  // 兼容旧变量引用
   _lastPreviewFiles.clear();
-  _consoleLines = [];
-  _consoleCounts = { log: 0, error: 0, warn: 0, info: 0 };
-  if (_autoRunTimer) {
-    clearTimeout(_autoRunTimer);
-    _autoRunTimer = null;
+  _lastPreviewHtml = '';
+  _isRunningPreview = false;
+  _previewFullscreen = false;
+
+  // 重置状态栏
+  // 状态栏已迁移到 SandboxStatusBar 模块
+
+  // 重置图片预览（已迁移到 SandboxImagePreview 模块）
+  if (_imagePreviewModule) _imagePreviewModule.closeImagePreview();
+
+  // 退出 Markdown 模式（已迁移到 SandboxMarkdownPreview 模块）
+  if (_markdownModule) _markdownModule.exitMarkdownMode();
+
+  // 清理面包屑下拉（已迁移到 SandboxBreadcrumb 模块）
+
+  // 重置预览标签状态
+  _ctx.isPreviewTab = false;
+  _ctx.activePanel = 'explorer';
+
+  // 移除预览标签 DOM
+  const previewTab = document.querySelector('.sandbox-tab[data-preview-tab]');
+  if (previewTab) previewTab.remove();
+
+  // 移除预览右键菜单
+  const previewCtxMenu = document.getElementById('sandboxPreviewCtxMenu');
+  if (previewCtxMenu) previewCtxMenu.remove();
+
+  // 重置容器可见性
+  const monacoContainer = document.getElementById('sandboxMonacoContainer');
+  const previewContainer = document.getElementById('sandboxPreviewContainer');
+  const breadcrumb = document.getElementById('sandboxBreadcrumbBar');
+  if (monacoContainer) monacoContainer.style.display = '';
+  if (previewContainer) previewContainer.style.display = 'none';
+  if (breadcrumb) {
+    breadcrumb.style.display = '';
+    breadcrumb.innerHTML = '';
   }
+
+  // 重置侧边面板
+  const sidePanel = document.getElementById('sandboxSidePanel');
+  if (sidePanel) sidePanel.classList.remove('collapsed');
+  const searchPanel = document.getElementById('sandboxSearchPanel');
+  const fileTreeContainer = document.getElementById('sandboxFileTreeContainer');
+  if (searchPanel) searchPanel.style.display = 'none';
+  if (fileTreeContainer) fileTreeContainer.style.display = 'flex';
+  _updateActivityBarButtons('explorer');
 }
 
 // ════════════════════════════════════════════════════════════
-//  文件操作回调
+//  文件操作回调（已迁移到 SandboxFileOps，此处保留委托）
 // ════════════════════════════════════════════════════════════
 
 function _openFileInEditor(filePath) {
-  if (!_vfs || !_monacoEditor || !_fileTabs) return;
-  const file = _vfs.getFile(filePath);
-  if (!file) return;
-  _fileTabs.openTab(filePath, file.name);
-  _monacoEditor.openFile(file);
-  if (_fileTree) _fileTree.setActive(filePath);
+  if (_fileOpsModule) _fileOpsModule.openFileInEditor(filePath);
 }
 
 function _onFileSelect(filePath) {
-  _openFileInEditor(filePath);
+  if (_fileOpsModule) _fileOpsModule.onFileSelect(filePath);
 }
 
 function _onTabClose(filePath) {
-  if (_fileTabs) _fileTabs.closeTab(filePath);
-  if (_monacoEditor) _monacoEditor.closeFile(filePath);
-  if (_fileTabs && _fileTabs.getActivePath()) {
-    _openFileInEditor(_fileTabs.getActivePath());
-  }
+  if (_fileOpsModule) _fileOpsModule.onTabClose(filePath);
+}
+
+function _onCloseOthers(keepPath) {
+  if (_fileOpsModule) _fileOpsModule.onCloseOthers(keepPath);
+}
+
+function _onCloseAll() {
+  if (_fileOpsModule) _fileOpsModule.onCloseAll();
+}
+
+function _onCloseSaved() {
+  if (_fileOpsModule) _fileOpsModule.onCloseSaved();
+}
+
+function _onCopyPath(filePath) {
+  if (_fileOpsModule) _fileOpsModule.onCopyPath(filePath);
+}
+
+function _onRevealInTree(filePath) {
+  if (_fileOpsModule) _fileOpsModule.onRevealInTree(filePath);
 }
 
 function _onFileDelete(path, isDirectory) {
-  if (!_vfs) return;
-  if (isDirectory) {
-    _vfs.deleteDirectory(path);
-  } else {
-    _vfs.deleteFile(path);
-    if (_monacoEditor) _monacoEditor.deleteFile(path);
-    if (_fileTabs) _fileTabs.closeTab(path);
-  }
-  if (_fileTree) _fileTree.refresh();
-  _setStatus('已删除: ' + path.split('/').pop());
-  if (_autoRunEnabled) runPreview(false);
+  if (_fileOpsModule) _fileOpsModule.onFileDelete(path, isDirectory);
 }
 
 function _onFileRename(path, newName) {
-  if (!_vfs) return;
-  const newPath = _vfs.rename(path, newName);
-  if (newPath) {
-    if (_monacoEditor) _monacoEditor.renameFile(path, newPath, newName);
-    if (_fileTabs) _fileTabs.renamePath(path, newPath, newName);
-    if (_fileTree) _fileTree.refresh();
-    _setStatus('已重命名: ' + newName);
-  }
+  if (_fileOpsModule) _fileOpsModule.onFileRename(path, newName);
 }
 
 function _onFileCreate(dirPath, name, type) {
-  if (!_vfs) return;
-  if (type === 'file') {
-    const file = _vfs.createFile(dirPath || '', name);
-    if (file && _fileTree) {
-      _fileTree.refresh();
-      _openFileInEditor(file.path);
-    }
-  } else {
-    _vfs.createDirectory(dirPath || '', name);
-    if (_fileTree) _fileTree.refresh();
-  }
+  if (_fileOpsModule) _fileOpsModule.onFileCreate(dirPath, name, type);
+}
+
+function _onFileSystemChange() {
+  if (_fileOpsModule) _fileOpsModule.onFileSystemChange();
 }
 
 function _setStatus(text) {
   if (_statusText) _statusText.textContent = text;
+}
+
+function _getProjectFolderPath() {
+  const proj = appState.projects?.find(p => p.id === appState.currentProjectId);
+  return proj?.folderPath || null;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -956,8 +987,11 @@ function _setStatus(text) {
 
 export async function openHtmlSandboxEditor(nodeId) {
   initHtmlSandboxWindow();
+  // 每次打开都重新初始化功能模块（关闭时已被 _destroyIDEComponents 销毁）
+  _initFeatureModules();
 
   _currentNodeId = nodeId;
+  _ctx.currentNodeId = nodeId;  // 同步到上下文，供 file-ops/auto-run 等模块读取
   _openTimestamp = Date.now();
 
   const node = appState.nodeMap.get(nodeId);
@@ -989,8 +1023,10 @@ export async function openHtmlSandboxEditor(nodeId) {
   // 初始化 IDE 组件
   await _initIDEComponents(node);
 
-  // 自动运行预览
-  setTimeout(() => runPreview(false), 200);
+  // 重置面板状态
+  _ctx.activePanel = 'explorer';
+  _ctx.isPreviewTab = false;
+  _updateActivityBarButtons('explorer');
 }
 
 export function closeHtmlSandboxEditor() {
@@ -998,360 +1034,58 @@ export function closeHtmlSandboxEditor() {
   _destroyIDEComponents();
   _windowInstance.close();
   _currentNodeId = null;
+  _ctx.currentNodeId = null;
   if (_nodeName) _nodeName.textContent = '';
   if (window.Taskbar) window.Taskbar.removeEditor('html-sandbox');
 }
 
 // ════════════════════════════════════════════════════════════
-//  性能优化：暂停/恢复预览 iframe
+//  性能优化：暂停/恢复预览 iframe（已迁移到 SandboxPreview）
 // ════════════════════════════════════════════════════════════
 
 function _pausePreview() {
-  if (_preview) _preview.srcdoc = '';
+  if (_previewModule) _previewModule.pausePreview();
 }
 
 function _resumePreview() {
-  if (_preview && _lastPreviewHtml) _preview.srcdoc = _lastPreviewHtml;
+  if (_previewModule) _previewModule.resumePreview();
 }
 
 // ════════════════════════════════════════════════════════════
-//  代码运行与保存（支持热注入）
+//  代码运行与保存（预览部分已迁移到 SandboxPreview，此处保留委托）
 // ════════════════════════════════════════════════════════════
 
 async function runPreview(forceFullReload = true) {
-  if (!_preview || !_vfs) return;
-
-  // 同步 Monaco 内容到 VFS
-  if (_monacoEditor) _monacoEditor.syncAllToFS(_vfs);
-
-  // 清空控制台
-  _clearConsole();
-
-  // 尝试热注入（非强制刷新且已有预览）
-  if (!forceFullReload && _lastPreviewHtml && _lastPreviewFiles.size > 0) {
-    const injectResult = _tryHotInject();
-    if (injectResult) {
-      _setStatus('热更新 ✓');
-      return;
-    }
-  }
-
-  _setStatus('正在构建...');
-
-  try {
-    let fullHtml;
-
-    if (needsEsbuild(_vfs)) {
-      _setStatus('正在打包 (esbuild)...');
-      try {
-        fullHtml = await buildBundledHtml(_vfs);
-      } catch (err) {
-        console.warn('[sandbox] esbuild 打包失败，回退到简单模式:', err);
-        fullHtml = _vfs.buildSimpleHtml();
-        _setStatus('打包失败，使用简单模式');
-      }
-    } else {
-      fullHtml = _vfs.buildSimpleHtml();
-      // 注入控制台重定向（简单模式）
-      fullHtml = _injectConsoleRedirect(fullHtml);
-    }
-
-    _lastPreviewHtml = fullHtml;
-    _preview.srcdoc = fullHtml;
-
-    // 记录当前文件内容（用于下次热注入比较）
-    _lastPreviewFiles.clear();
-    for (const [path, file] of _vfs.getAllFiles()) {
-      _lastPreviewFiles.set(path, file.content);
-    }
-
-    _setStatus('运行中 ✓');
-  } catch (err) {
-    _setStatus('运行错误: ' + err.message);
-    console.error('[sandbox] 运行预览失败:', err);
-  }
-}
-
-/**
- * 尝试热注入：检测改动类型，仅更新 CSS 或 JS 而不刷新 iframe
- * @returns {boolean} 是否成功热注入
- */
-function _tryHotInject() {
-  if (!_preview || !_preview.contentWindow) return false;
-
-  let changedCss = null;
-  let changedJs = null;
-  let htmlChanged = false;
-  let otherChanged = false;
-
-  for (const [path, file] of _vfs.getAllFiles()) {
-    const oldContent = _lastPreviewFiles.get(path);
-    const newContent = file.content;
-    if (oldContent === newContent) continue;
-
-    if (file.language === 'css' || path.endsWith('.css')) {
-      changedCss = { path, content: newContent };
-    } else if (file.language === 'javascript' || path.endsWith('.js') || path.endsWith('.mjs')) {
-      changedJs = changedJs || [];
-      changedJs.push({ path, content: newContent });
-    } else if (file.language === 'html' || path.endsWith('.html')) {
-      htmlChanged = true;
-    } else {
-      otherChanged = true;
-    }
-  }
-
-  // HTML 或其他文件改动 → 无法热注入，需全量刷新
-  if (htmlChanged || otherChanged) return false;
-
-  // 仅 CSS 改动 → 注入新样式
-  if (changedCss && !changedJs) {
-    try {
-      _preview.contentWindow.postMessage({
-        type: 'sandbox-hot-update-css',
-        css: changedCss.content,
-        path: changedCss.path
-      }, '*');
-      _lastPreviewFiles.set(changedCss.path, changedCss.content);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // 仅 JS 改动 → 重新执行脚本
-  if (changedJs && !changedCss) {
-    try {
-      // 合并所有 JS 文件内容
-      let allJs = '';
-      for (const j of changedJs) {
-        allJs += '// ' + j.path + '\n' + j.content + '\n\n';
-        _lastPreviewFiles.set(j.path, j.content);
-      }
-      _preview.contentWindow.postMessage({
-        type: 'sandbox-hot-update-js',
-        js: allJs
-      }, '*');
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // CSS + JS 都改了 → 注入两者
-  if (changedCss && changedJs) {
-    try {
-      _preview.contentWindow.postMessage({
-        type: 'sandbox-hot-update-css',
-        css: changedCss.content,
-        path: changedCss.path
-      }, '*');
-      let allJs = '';
-      for (const j of changedJs) {
-        allJs += '// ' + j.path + '\n' + j.content + '\n\n';
-        _lastPreviewFiles.set(j.path, j.content);
-      }
-      _preview.contentWindow.postMessage({
-        type: 'sandbox-hot-update-js',
-        js: allJs
-      }, '*');
-      _lastPreviewFiles.set(changedCss.path, changedCss.content);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  return false;
+  if (_previewModule) await _previewModule.runPreview(forceFullReload);
 }
 
 function _injectConsoleRedirect(html) {
-  const redirect = _consoleRedirectCode();
-  // 注入热更新监听器
-  const hotUpdateListener = _hotUpdateListenerCode();
-  const injectCode = redirect + '\n' + hotUpdateListener;
-
-  if (html.includes('<script>')) {
-    return html.replace('<script>', '<script>\n' + injectCode);
-  }
-  if (html.includes('</head>')) {
-    return html.replace('</head>', '<script>\n' + injectCode + '\n</script>\n</head>');
-  }
-  return html;
+  return _previewModule ? _previewModule._injectConsoleRedirect(html) : html;
 }
 
 function _consoleRedirectCode() {
-  return `(function(){
-    function ser(v,depth){
-      depth=depth||0;
-      if(depth>4) return {type:'string',value:'...'};
-      if(v===null) return {type:'null',value:'null'};
-      if(v===undefined) return {type:'null',value:'undefined'};
-      var t=typeof v;
-      if(t==='string') return {type:'string',value:v.length>200?v.slice(0,200)+'...':v};
-      if(t==='number'||t==='boolean') return {type:t,value:String(v)};
-      if(t==='function') return {type:'function',value:'ƒ '+(v.name||'anonymous')+'()'};
-      if(t==='symbol') return {type:'string',value:v.toString()};
-      try{
-        if(v instanceof Error) return {type:'string',value:v.name+': '+v.message+(v.stack?'\\n'+v.stack:'')};
-        if(v instanceof HTMLElement) return {type:'string',value:'<'+v.tagName.toLowerCase()+'>'};
-        if(Array.isArray(v)){
-          var arr=v.slice(0,100).map(function(x){return ser(x,depth+1);});
-          if(v.length>100) arr.push({type:'string',value:'... +'+(v.length-100)});
-          return {type:'array',value:arr};
-        }
-        if(t==='object'){
-          var keys=Object.keys(v).slice(0,100);
-          var obj={};
-          keys.forEach(function(k){obj[k]=ser(v[k],depth+1);});
-          return {type:'object',value:obj};
-        }
-      }catch(e){return {type:'string',value:'[无法序列化]'};}
-      return {type:'string',value:String(v)};
-    }
-    function send(level,args){
-      var parts=[].slice.call(args).map(function(a){return ser(a);});
-      try{window.parent.postMessage({type:'sandbox-console',level:level,args:parts},'*')}catch(x){}
-    }
-    ['log','error','warn','info'].forEach(function(lv){
-      var orig=console[lv];
-      console[lv]=function(){send(lv,arguments);if(orig)orig.apply(console,arguments);};
-    });
-    window.onerror=function(m,s,l,c,err){
-      if(err) console.error(err);
-      else console.error(m+' ('+s+':'+l+')');
-    };
-    window.addEventListener('unhandledrejection',function(e){
-      console.error('Unhandled Promise Rejection: '+(e.reason&&e.reason.message||e.reason));
-    });
-  })();`;
+  return _previewModule ? _previewModule._consoleRedirectCode() : '';
 }
 
 function _hotUpdateListenerCode() {
-  return `(function(){
-    window.addEventListener('message', function(e){
-      var d = e.data;
-      if (!d) return;
-      // 热更新 CSS
-      if (d.type === 'sandbox-hot-update-css') {
-        var style = document.getElementById('__sandbox_hot_style__');
-        if (!style) {
-          style = document.createElement('style');
-          style.id = '__sandbox_hot_style__';
-          document.head.appendChild(style);
-        }
-        style.textContent = '/* hot: ' + (d.path||'') + ' */\\n' + d.css;
-      }
-      // 热更新 JS
-      if (d.type === 'sandbox-hot-update-js') {
-        var old = document.getElementById('__sandbox_hot_script__');
-        if (old) old.remove();
-        var s = document.createElement('script');
-        s.id = '__sandbox_hot_script__';
-        s.textContent = d.js;
-        document.body.appendChild(s);
-      }
-    });
-  })();`;
+  return _previewModule ? _previewModule._hotUpdateListenerCode() : '';
 }
 
 function saveHtmlSource() {
-  if (!_currentNodeId) {
-    showToast('请先选择一个节点');
-    return;
-  }
-
-  const node = appState.nodeMap.get(_currentNodeId);
-  if (!node) {
-    showToast('节点不存在');
-    return;
-  }
-
-  // 同步 Monaco 内容到 VFS
-  if (_monacoEditor && _vfs) {
-    _monacoEditor.syncAllToFS(_vfs);
-    // 序列化 VFS 到节点
-    node.fileSystem = _vfs.toJSON();
-    // 标记所有文件已保存
-    _monacoEditor.markAllSaved();
-  }
-
-  // 标记为沙盒模式
-  node.sandboxMode = true;
-
-  // 记录历史快照
-  if (_history) {
-    _history.recordAllFiles(_vfs, 'manual');
-    _history.saveToNode(node);
-  }
-
-  // 触发保存
-  saveCurrentProjectData();
-  showToast('✅ 代码已保存');
-  _setStatus('已保存 ✓');
+  if (_fileOpsModule) _fileOpsModule.saveHtmlSource();
 }
 
 function syncToNote() {
-  if (!_currentNodeId) return;
-
-  const node = appState.nodeMap.get(_currentNodeId);
-  if (!node) return;
-
-  if (_monacoEditor && _vfs) {
-    _monacoEditor.syncAllToFS(_vfs);
-  }
-
-  let synced = false;
-  try {
-    const previewDoc = _preview ? _preview.contentDocument : null;
-    if (previewDoc && previewDoc.body) {
-      node.content = previewDoc.body.innerHTML;
-      synced = true;
-    }
-  } catch (e) {}
-
-  if (!synced && _vfs) {
-    const entryPath = _vfs.getEntryPoint();
-    if (entryPath) {
-      const content = _vfs.getFileContent(entryPath);
-      if (content) {
-        node.content = content;
-        synced = true;
-      }
-    }
-  }
-
-  if (synced) {
-    saveCurrentProjectData();
-    showToast('✅ 已同步到笔记内容');
-  } else {
-    showToast('⚠️ 没有可同步的内容');
-  }
+  if (_fileOpsModule) _fileOpsModule.syncToNote();
 }
 
 function exportAsHtml() {
-  if (_monacoEditor && _vfs) {
-    _monacoEditor.syncAllToFS(_vfs);
-  }
-  if (!_vfs) return;
-
-  const fullHtml = _vfs.buildSimpleHtml();
-  const blob = new Blob([fullHtml], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'exported.html';
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('✅ 已导出为 HTML 文件');
+  if (_fileOpsModule) _fileOpsModule.exportAsHtml();
 }
 
 // ════════════════════════════════════════════════════════════
-//  辅助函数
+//  辅助函数（_escapeHtml 已迁移到各模块内部）
 // ════════════════════════════════════════════════════════════
-function _escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 // ════════════════════════════════════════════════════════════
 //  双击节点显示沙盒内容（对外 API）
@@ -1360,7 +1094,11 @@ function _escapeHtml(s) {
 export function isNodeSandbox(nodeId) {
   const node = appState.nodeMap.get(nodeId);
   if (!node) return false;
-  return !!(node.sandboxMode || (node.htmlSource && node.htmlSource.mode === 'sandbox') || node.fileSystem);
+  if (node.activeMode === 'code') return true;
+  if (!node.activeMode) {
+    return !!(node.sandboxMode || (node.htmlSource && node.htmlSource.mode === 'sandbox') || node.fileSystem);
+  }
+  return false;
 }
 
 export function getSandboxHtml(nodeId) {
@@ -1405,6 +1143,143 @@ export function renderSandboxContent(container, nodeId) {
 window.openHtmlSandboxEditor = openHtmlSandboxEditor;
 window.closeHtmlSandboxEditor = closeHtmlSandboxEditor;
 window.isNodeSandbox = isNodeSandbox;
+
+// ════════════════════════════════════════════════════════════
+//  状态栏（已迁移到 SandboxStatusBar，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _updateStatusBar() {
+  if (_statusBarModule) _statusBarModule.update();
+}
+
+function _toggleMinimap() {
+  if (_statusBarModule) _statusBarModule.toggleMinimap();
+}
+
+// ════════════════════════════════════════════════════════════
+//  设置面板（已迁移到 SandboxSettings，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _showSettingsPanel() {
+  if (_settingsModule) _settingsModule.showSettingsPanel();
+}
+
+// ════════════════════════════════════════════════════════════
+//  命令面板（已迁移到 SandboxCommands，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _initCommandPalette() {
+  if (!_commandsModule) {
+    _commandsModule = new SandboxCommands(_ctx);
+    _ctx.registerModule('commands', _commandsModule);
+  }
+  _commandsModule.init();
+}
+
+function _showCommandPalette() {
+  if (_commandsModule) _commandsModule.show();
+}
+
+/** 跳转到指定行（弹出行号输入框） */
+function _gotoLine() {
+  if (!_monacoEditor) return;
+  const lineStr = prompt('跳转到行号:', '1');
+  if (lineStr === null) return;
+  const line = parseInt(lineStr, 10);
+  if (isNaN(line) || line < 1) return;
+  const filePath = _monacoEditor.getCurrentFilePath();
+  if (filePath) _monacoEditor.revealLine(filePath, line, 1);
+}
+
+function _executeCommandAction(action) {
+  // 命令分发：优先使用 ctx action 注册表，回退到本地处理
+  const result = _ctx.executeAction(action);
+  if (result !== undefined) return;
+
+  // 本地回退：处理尚未迁移到模块的 action
+  switch (action) {
+    case 'save':         saveHtmlSource(); break;
+    case 'export':       exportAsHtml(); break;
+    case 'template':     _showTemplateModal(); break;
+    case 'history':      _showHistoryPanel(); break;
+    case 'close':        closeHtmlSandboxEditor(); break;
+    case 'search':       _toggleSearch(); break;
+    case 'toggleMinimap': _toggleMinimap(); break;
+    case 'toggleSplit':  _toggleSplitEditor(); break;
+    case 'settings':     _showSettingsPanel(); break;
+    case 'undo':         _monacoEditorAction('undo'); break;
+    case 'redo':         _monacoEditorAction('redo'); break;
+    case 'format':       _monacoEditorAction('editor.action.formatDocument'); break;
+    case 'quickOpen':    _showQuickOpen(); break;
+    case 'gotoLine':     _gotoLine(); break;
+    case 'refreshPreview': runPreview(true); break;
+    case 'toggleBookmark': if (_monacoEditor) _monacoEditor.toggleBookmark(); _updateStatusBar(); break;
+    case 'nextBookmark':   if (_monacoEditor) _monacoEditor.nextBookmark(); break;
+    case 'prevBookmark':   if (_monacoEditor) _monacoEditor.prevBookmark(); break;
+    case 'clearBookmarks': if (_monacoEditor) _monacoEditor.clearBookmarks(); _updateStatusBar(); break;
+    case 'showPreview':     _activatePreviewTab(); break;
+    case 'zoomIn':        if (_monacoEditor) _monacoEditor.zoomFont(1); _updateStatusBar(); break;
+    case 'zoomOut':       if (_monacoEditor) _monacoEditor.zoomFont(-1); _updateStatusBar(); break;
+    case 'zoomReset':     if (_monacoEditor) _monacoEditor.setFontSize(14); _updateStatusBar(); break;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  面包屑导航（已迁移到 SandboxBreadcrumb，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _updateBreadcrumb(filePath) {
+  if (_breadcrumbModule) _breadcrumbModule.updateBreadcrumb(filePath);
+}
+
+// ════════════════════════════════════════════════════════════
+//  图片预览（已迁移到 SandboxImagePreview，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _isImageFile(filePath) {
+  return SandboxImagePreview.isImageFile(filePath);
+}
+
+function _openImagePreview(filePath) {
+  if (_imagePreviewModule) _imagePreviewModule.openImagePreview(filePath);
+}
+
+function _closeImagePreview() {
+  if (_imagePreviewModule) _imagePreviewModule.closeImagePreview();
+}
+
+// ════════════════════════════════════════════════════════════
+//  Markdown 预览（已迁移到 SandboxMarkdownPreview，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+function _isMarkdownFile(filePath) {
+  return SandboxMarkdownPreview.isMarkdownFile(filePath);
+}
+
+function _enterMarkdownMode() {
+  if (_markdownModule) _markdownModule.enterMarkdownMode();
+}
+
+function _exitMarkdownMode() {
+  if (_markdownModule) _markdownModule.exitMarkdownMode();
+}
+
+function _renderMarkdownPreview() {
+  if (_markdownModule) _markdownModule.renderMarkdownPreview();
+}
+
+// ════════════════════════════════════════════════════════════
+//  分屏编辑（已迁移到 SandboxSplitEditor，此处保留委托）
+// ════════════════════════════════════════════════════════════
+
+async function _toggleSplitEditor() {
+  if (_splitEditorModule) await _splitEditorModule.toggleSplitEditor();
+}
+
+async function _onSplitRight(filePath) {
+  if (_splitEditorModule) await _splitEditorModule.onSplitRight(filePath);
+}
+
 window.getSandboxHtml = getSandboxHtml;
 
 console.log('[html-sandbox-editor] 模块已加载（VSCode 风格 IDE + 扩展功能）');

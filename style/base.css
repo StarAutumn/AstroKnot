@@ -193,7 +193,8 @@ body.light-mode #taskbar.no-rainbow::before {
     align-items: center;
     gap: 8px;
     padding: 0 6px 0 14px;
-    z-index: 10000;
+    /* 标题栏必须始终在最顶层，高于所有模态框（11000-13000） */
+    z-index: 99999;
     -webkit-app-region: drag;
     user-select: none;
     border-bottom: 1px solid rgba(0, 255, 255, 0.1);
@@ -244,7 +245,8 @@ body.light-mode #taskbar.no-rainbow::before {
 /* 标题栏右键菜单 */
 .titlebar-context-menu {
     position: fixed;
-    z-index: 11000;
+    /* 标题栏相关元素必须始终在最顶层 */
+    z-index: 99999;
     background: var(--panel-bg);
     backdrop-filter: blur(12px);
     border: 1px solid var(--panel-border);

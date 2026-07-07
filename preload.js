@@ -51,8 +51,63 @@ contextBridge.exposeInMainWorld('api', {
   // 在文件管理器中显示文件所在目录
   showFileInFolder: (filePath) => ipcRenderer.invoke('show-file-in-folder', filePath),
 
+  // 在文件管理器中显示沙盒文件所在目录
+  showSandboxFileInFolder: (projectFolderPath, nodeId, vfsPath) => ipcRenderer.invoke('show-sandbox-file-in-folder', projectFolderPath, nodeId, vfsPath),
+
+  // ── Sandbox 文件实时同步（增量写入磁盘）──
+  // 写入单个 sandbox 文件（projectFolderPath 为 null 时写入临时目录）
+  writeSandboxFile: (projectFolderPath, nodeId, vfsPath, content) => ipcRenderer.invoke('write-sandbox-file', projectFolderPath, nodeId, vfsPath, content),
+  // 删除单个 sandbox 文件
+  deleteSandboxFile: (projectFolderPath, nodeId, vfsPath) => ipcRenderer.invoke('delete-sandbox-file', projectFolderPath, nodeId, vfsPath),
+  // 重命名 sandbox 文件/目录
+  renameSandboxFile: (projectFolderPath, nodeId, oldPath, newPath) => ipcRenderer.invoke('rename-sandbox-file', projectFolderPath, nodeId, oldPath, newPath),
+  // 同步整个 sandbox 目录（用于项目保存或全量同步）
+  syncSandboxDirectory: (projectFolderPath, nodeId, fileSystem) => ipcRenderer.invoke('sync-sandbox-directory', projectFolderPath, nodeId, fileSystem),
+
+  // ── 节点级实时磁盘同步（阶段1：仅已保存项目）──
+  // 创建项目文件夹（新建项目时立即调用，确保后续实时同步可用）
+  createProjectFolder: (savePath, projectName, allowDialog) => ipcRenderer.invoke('create-project-folder', savePath, projectName, allowDialog),
+  // 创建节点文件夹（nodes/{nodeId}）
+  createNodeFolder: (projectFolderPath, nodeId) => ipcRenderer.invoke('create-node-folder', projectFolderPath, nodeId),
+  // 删除节点文件夹（递归）
+  deleteNodeFolder: (projectFolderPath, nodeId) => ipcRenderer.invoke('delete-node-folder', projectFolderPath, nodeId),
+  // 写入节点 content.html（自动创建文件夹）
+  writeNodeContent: (projectFolderPath, nodeId, content) => ipcRenderer.invoke('write-node-content', projectFolderPath, nodeId, content),
+  // 删除项目文件夹（递归删除整个项目目录）
+  deleteProjectFolder: (projectFolderPath) => ipcRenderer.invoke('delete-project-folder', projectFolderPath),
+  // 删除未保存项目的临时文件夹（sandbox-tmp/{projectId}）
+  deleteSandboxTmpFolder: (projectId) => ipcRenderer.invoke('delete-sandbox-tmp-folder', projectId),
+
+  // 另存为项目（复制项目文件夹到新位置）
+  saveProjectAs: (sourcePath, projectName) => ipcRenderer.invoke('save-project-as', sourcePath, projectName),
+
+  // 导出文件（保存内容到指定位置）
+  exportFile: (data) => ipcRenderer.invoke('export-file', data),
+
   // 提取 exe 图标（返回 data URI）
   extractExeIcon: (filePath) => ipcRenderer.invoke('extract-icon', filePath),
+
+  // ── 内置终端 ──
+  // 创建终端会话（返回 sessionId）
+  terminalSpawn: (opts) => ipcRenderer.invoke('terminal-spawn', opts),
+  // 写入终端输入（单向，高频流式）
+  terminalInput: (id, data) => ipcRenderer.send('terminal-input', { id, data }),
+  // 调整终端尺寸
+  terminalResize: (id, cols, rows) => ipcRenderer.send('terminal-resize', { id, cols, rows }),
+  // 销毁单个终端
+  terminalKill: (id) => ipcRenderer.send('terminal-kill', { id }),
+  // 获取 sandbox 工作目录（兼容未保存项目）
+  terminalGetSandboxCwd: (projectFolderPath, nodeId) => ipcRenderer.invoke('terminal-get-sandbox-cwd', projectFolderPath, nodeId),
+  // 列出 npm 脚本
+  terminalListNpmScripts: (cwd) => ipcRenderer.invoke('terminal-list-npm-scripts', cwd),
+  // 监听主进程推送的终端数据流
+  onTerminalData: (callback) => {
+    ipcRenderer.on('terminal-data', (_e, payload) => callback(payload));
+  },
+  // 监听终端退出事件
+  onTerminalExit: (callback) => {
+    ipcRenderer.on('terminal-exit', (_e, payload) => callback(payload));
+  },
 
   // 关闭应用程序
   closeApp: () => ipcRenderer.send('close-app'),
@@ -103,5 +158,13 @@ contextBridge.exposeInMainWorld('api', {
   versionSaveBlobs: (projectId, hashToContent) => ipcRenderer.invoke('version-save-blobs', projectId, hashToContent),
   versionLoadBlob: (projectId, hash) => ipcRenderer.invoke('version-load-blob', projectId, hash),
   versionListGraphs: () => ipcRenderer.invoke('version-list-graphs'),
-  versionDeleteGraph: (versionKey) => ipcRenderer.invoke('version-delete-graph', versionKey)
+  versionDeleteGraph: (versionKey) => ipcRenderer.invoke('version-delete-graph', versionKey),
+
+  // ── 数据目录配置 ──
+  getDataSettings: () => ipcRenderer.invoke('get-data-settings'),
+  setDataRoot: (dataRoot) => ipcRenderer.invoke('set-data-root', dataRoot),
+  getDefaultDataRoot: () => ipcRenderer.invoke('get-default-data-root'),
+  selectDataFolder: () => ipcRenderer.invoke('select-data-folder'),
+  getProjectsDir: () => ipcRenderer.invoke('get-projects-dir'),
+  getQuicknotesDir: () => ipcRenderer.invoke('get-quicknotes-dir')
 });

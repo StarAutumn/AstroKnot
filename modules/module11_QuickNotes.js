@@ -175,6 +175,9 @@ export function renderQuickNotesList() {
             e.stopPropagation();
             hideItemContextMenu();
             let noteId = this.dataset.id;
+            const note = appState.quickNotes.find(n => n.id === noteId);
+            const noteTitle = note ? (note.title || getFirstSentence(note.content) || '未命名笔记') : '笔记';
+
             showItemContextMenu(e.clientX, e.clientY, [
                 { label: '📋 复制笔记', action: function () {
                     let orig = appState.quickNotes.find(function (n) { return n.id === noteId; });
@@ -183,12 +186,46 @@ export function renderQuickNotesList() {
                     appState.quickNotes.push({
                         id: newId,
                         title: (orig.title || '未命名笔记') + ' (副本)',
-                        content: orig.content || ''
+                        content: orig.content || '',
+                        overlayImages: orig.overlayImages || [],
+                        drawData: orig.drawData || null
                     });
                     saveQuickNotes();
                     renderQuickNotesList();
                 }},
                 { label: '✏️ 重命名', action: function () { startQuickNoteRename(item); } },
+                { sep: true },
+                { label: '📄 另存为 HTML...', action: async function () {
+                    if (!note) return;
+                    const htmlContent = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(noteTitle) + '</title><style>body{font-family:system-ui,sans-serif;padding:20px;line-height:1.6;}</style></head><body>' + (note.content || '') + '</body></html>';
+                    if (window.api && window.api.exportFile) {
+                        const result = await window.api.exportFile({
+                            content: htmlContent,
+                            defaultName: noteTitle + '.html',
+                            filters: [{ name: 'HTML 文件', extensions: ['html'] }]
+                        });
+                        if (!result.canceled) {
+                            showToast('已导出: ' + result.path);
+                        }
+                    }
+                }},
+                { label: '📝 另存为 Markdown...', action: async function () {
+                    if (!note) return;
+                    // 简单 HTML 转 Markdown：提取纯文本
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = note.content || '';
+                    const mdContent = '# ' + noteTitle + '\n\n' + tempDiv.textContent.replace(/\n+/g, '\n\n');
+                    if (window.api && window.api.exportFile) {
+                        const result = await window.api.exportFile({
+                            content: mdContent,
+                            defaultName: noteTitle + '.md',
+                            filters: [{ name: 'Markdown 文件', extensions: ['md'] }]
+                        });
+                        if (!result.canceled) {
+                            showToast('已导出: ' + result.path);
+                        }
+                    }
+                }},
                 { sep: true },
                 { label: '🗑️ 删除', action: function () {
                     showConfirm('确定删除这条笔记？', function () {

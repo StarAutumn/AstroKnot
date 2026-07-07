@@ -422,7 +422,8 @@ class WindowInstance {
  */
 const WindowManager = {
   _windows: new Map(),
-  _topZIndex: 11000,
+  _topZIndex: 1500, // 模态框 z-index 从 1500 起，低于任务栏 2000
+  _registeredElements: new Map(), // el → mousedown handler
 
   create(options) {
     const win = new WindowInstance(options);
@@ -432,9 +433,43 @@ const WindowManager = {
 
   get(id) { return this._windows.get(id); },
 
-  bringToFront(win) {
+  /**
+   * 统一置顶方法，支持 WindowInstance 或 DOM 元素
+   * 所有模态框/窗口共享同一个 z-index 计数器，点击谁谁在最上面
+   */
+  bringToFront(target) {
     this._topZIndex++;
-    win.container.style.zIndex = this._topZIndex;
+    // 上限 1999，不超过任务栏 z-index: 2000
+    if (this._topZIndex >= 2000) this._topZIndex = 1501;
+    const el = (target instanceof WindowInstance) ? target.container : target;
+    if (el) el.style.zIndex = this._topZIndex;
+  },
+
+  /**
+   * 注册 DOM 元素，点击时自动置顶
+   * 用于非 WindowInstance 的模态框（如笔记编辑器、版本图等）
+   * @param {HTMLElement} el - 要注册的元素
+   * @param {Function} [onToFront] - 置顶时的回调，参数为新 z-index
+   */
+  registerElement(el, onToFront) {
+    if (!el || this._registeredElements.has(el)) return;
+    const handler = () => {
+      this.bringToFront(el);
+      if (onToFront) onToFront(this._topZIndex);
+    };
+    el.addEventListener('mousedown', handler);
+    this._registeredElements.set(el, { handler, onToFront });
+  },
+
+  /**
+   * 取消注册
+   */
+  unregisterElement(el) {
+    const entry = this._registeredElements.get(el);
+    if (entry) {
+      el.removeEventListener('mousedown', entry.handler);
+      this._registeredElements.delete(el);
+    }
   },
 
   destroy(id) { this._windows.delete(id); }

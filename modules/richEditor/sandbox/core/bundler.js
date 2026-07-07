@@ -224,7 +224,7 @@ export async function buildBundledHtml(vfs) {
   // 找 JS 入口文件
   let jsEntry = null;
   for (const [path, file] of vfs.getAllFiles()) {
-    if ((file.language === 'javascript' || path.endsWith('.js')) && /\bimport\b/i.test(file.content)) {
+    if ((file.language === 'javascript' || path.endsWith('.js')) && /\bimport\b/.test(file.content)) {
       jsEntry = path;
       break;
     }

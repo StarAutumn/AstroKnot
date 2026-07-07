@@ -507,6 +507,7 @@ export function saveSettingsToStorage() {
     simple3D: appState.simple3D,
     startupMode: appState.startupMode || '3d_full',
     startupWindowMode: appState.startupWindowMode || 'windowed',
+    startPageBackground: appState.startPageBackground || 'ribbon',
     simpleBgColor: appState.simpleBgColor,
     bgColor2D: appState.bgColor2D,
     gridColor2D: appState.gridColor2D,
@@ -559,6 +560,7 @@ function loadSettingsFromStorage() {
   if (typeof saved.simple3D === 'boolean') appState.simple3D = saved.simple3D;
   if (saved.startupMode) appState.startupMode = saved.startupMode;
   if (saved.startupWindowMode) appState.startupWindowMode = saved.startupWindowMode;
+  if (saved.startPageBackground) appState.startPageBackground = saved.startPageBackground;
   if (saved.simpleBgColor) appState.simpleBgColor = saved.simpleBgColor;
   if (saved.bgColor2D) appState.bgColor2D = saved.bgColor2D;
   if (saved.gridColor2D) appState.gridColor2D = saved.gridColor2D;

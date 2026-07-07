@@ -51,8 +51,20 @@ function _applySandboxUI(nodeId) {
   if (clearFormatBtn) clearFormatBtn.style.display = 'none';
   const wcBtn = document.getElementById('wcBtn');
   if (wcBtn) wcBtn.style.display = 'none';
+
+  // ── 模式切换按钮：代码模式下显示"笔记模式" ──
+  const toggleModeBtn = document.getElementById('toggleModeBtn');
+  if (toggleModeBtn) {
+    toggleModeBtn.textContent = '🔄 笔记模式';
+    toggleModeBtn.style.borderColor = '#5a8aaa';
+    toggleModeBtn.style.color = '#5a8aaa';
+  }
+
+  // ── 编辑代码按钮：代码模式下显示 ──
   const editCodeBtn = document.getElementById('editSandboxCodeBtn');
   if (editCodeBtn) editCodeBtn.style.display = 'inline-block';
+  const editSourceBtn = document.getElementById('editSourceCodeBtn');
+  if (editSourceBtn) editSourceBtn.style.display = 'none';
 
   const ckEl = document.getElementById('ckEditorContainer');
   if (ckEl) {
@@ -88,8 +100,23 @@ function _applyNormalUI(node) {
   if (clearFormatBtn) clearFormatBtn.style.display = '';
   const wcBtn = document.getElementById('wcBtn');
   if (wcBtn) wcBtn.style.display = '';
+
+  // ── 模式切换按钮：文本模式下显示"Web项目" ──
+  const toggleModeBtn = document.getElementById('toggleModeBtn');
+  if (toggleModeBtn) {
+    toggleModeBtn.textContent = '🔄 Web项目';
+    toggleModeBtn.style.borderColor = '#5a8aaa';
+    toggleModeBtn.style.color = '#5a8aaa';
+  }
+
+  // ── 源码按钮：文本模式下显示 ──
   const editCodeBtn = document.getElementById('editSandboxCodeBtn');
   if (editCodeBtn) editCodeBtn.style.display = 'none';
+  const editSourceBtn = document.getElementById('editSourceCodeBtn');
+  if (editSourceBtn) {
+    editSourceBtn.style.display = 'inline-block';
+    editSourceBtn.textContent = '📝 HTML源码模式';
+  }
 
   state.tinyEditor.setContent(node ? (node.richContent || '') : '');
   setOverlayImagesData(node ? (node.overlayImages || []) : []);
@@ -99,7 +126,13 @@ function _applyNormalUI(node) {
 
 function _isNodeSandbox(node) {
   if (!node) return false;
-  return !!(node.sandboxMode || (node.htmlSource && node.htmlSource.mode === 'sandbox') || node.fileSystem);
+  // activeMode 为 'code' 时视为沙盒模式
+  if (node.activeMode === 'code') return true;
+  // 兼容：旧节点没有 activeMode 但有沙盒标志
+  if (!node.activeMode) {
+    return !!(node.sandboxMode || (node.htmlSource && node.htmlSource.mode === 'sandbox') || node.fileSystem);
+  }
+  return false;
 }
 
 // ── 标签页切换（内容感知）──
@@ -107,6 +140,11 @@ function _isNodeSandbox(node) {
 function _switchToTab(tabKey) {
   if (!state.tinyEditor) return;
   if (tabKey === getActiveTabKey()) return;
+
+  // 退出源码模式
+  if (_sourceModeActive) {
+    _exitSourceMode();
+  }
 
   if (appState.splitScreenNodeId) {
     deactivateSplitScreen();
@@ -199,6 +237,10 @@ function _closeTab(tabKey) {
 // ── 内容保存 ──
 
 export function saveCurrentContentCK() {
+  // 如果处于源码模式，先退出再保存
+  if (_sourceModeActive) {
+    _exitSourceMode();
+  }
   if (!state.tinyEditor) return;
   const rawContent = state.tinyEditor.getContent();
   const htmlContent = stripOverlayBlocksFromHTML(rawContent);
@@ -222,6 +264,12 @@ export function saveCurrentContentCK() {
 
   if (appState.currentEditNodeId) {
     const node = appState.nodeMap.get(appState.currentEditNodeId);
+    // 代码模式下触发沙盒保存事件，不保存 TinyMCE 内容到 richContent
+    if (node && node.activeMode === 'code') {
+      document.dispatchEvent(new CustomEvent('sandbox-save'));
+      showSavedToast();
+      return;
+    }
     if (node) {
       if (appState.splitScreenNodeId && appState._activeSplitPanel === 'B') {
         const secNode = appState.nodeMap.get(appState.splitScreenNodeId);
@@ -400,6 +448,11 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
 // ── 关闭编辑器 ──
 
 export function closeModalCK() {
+  // 退出源码模式
+  if (_sourceModeActive) {
+    _exitSourceMode();
+  }
+
   function _cleanupAndHide() {
     deactivateSplitScreen();
     window._pause3DAnimation = false;
@@ -471,6 +524,167 @@ export function loadTinyContent(content) {
   state.tinyEditor.focus();
   state.tinyInitialContent = state.tinyEditor.getContent();
 }
+
+// ════════════════════════════════════════════════════════════
+//  源码编辑模式（在文本编辑器内用 Monaco 编辑 richContent 原生 HTML）
+// ════════════════════════════════════════════════════════════
+
+let _sourceModeActive = false;
+let _sourceMonacoEditor = null;
+let _sourceMonacoContainer = null;
+
+function _enterSourceMode() {
+  if (!state.tinyEditor) return;
+
+  // 先退出已有的源码模式
+  if (_sourceModeActive) return;
+
+  // 获取当前 richContent 的原生HTML
+  const rawHtml = state.tinyEditor.getContent();
+
+  // 创建/显示 Monaco 容器
+  const ckEl = document.getElementById('ckEditorContainer');
+  if (!ckEl) return;
+
+  if (!_sourceMonacoContainer) {
+    _sourceMonacoContainer = document.createElement('div');
+    _sourceMonacoContainer.id = 'sourceMonacoContainer';
+    _sourceMonacoContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;background:#0d1b23;';
+    ckEl.style.position = 'relative';
+    ckEl.appendChild(_sourceMonacoContainer);
+  }
+
+  _sourceMonacoContainer.style.display = 'block';
+
+  const editSourceBtn = document.getElementById('editSourceCodeBtn');
+  if (editSourceBtn) editSourceBtn.textContent = '📝 可视化';
+
+  _sourceModeActive = true;
+
+  // 使用已有的 ensureMonaco 加载 Monaco
+  import('../core/code-blocks.js').then(({ ensureMonaco }) => {
+    ensureMonaco(() => {
+      if (_sourceMonacoEditor) {
+        _sourceMonacoEditor.dispose();
+      }
+      _sourceMonacoEditor = monaco.editor.create(_sourceMonacoContainer, {
+        value: rawHtml,
+        language: 'html',
+        theme: 'astroknot-dark',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 13,
+        wordWrap: 'on',
+        scrollBeyondLastLine: false,
+      });
+      _sourceMonacoEditor.focus();
+    });
+  });
+}
+
+function _exitSourceMode() {
+  if (!_sourceMonacoEditor || !state.tinyEditor) return;
+
+  const newHtml = _sourceMonacoEditor.getValue();
+
+  // 销毁 Monaco 实例
+  _sourceMonacoEditor.dispose();
+  _sourceMonacoEditor = null;
+
+  // 隐藏容器
+  if (_sourceMonacoContainer) {
+    _sourceMonacoContainer.style.display = 'none';
+  }
+
+  // 将源码设置回 TinyMCE（TinyMCE 会过滤不安全标签）
+  state.tinyEditor.setContent(newHtml);
+  state.tinyEditor.focus();
+
+  const editSourceBtn = document.getElementById('editSourceCodeBtn');
+  if (editSourceBtn) editSourceBtn.textContent = '📝 HTML源码模式';
+
+  _sourceModeActive = false;
+}
+
+function _toggleSourceMode() {
+  if (_sourceModeActive) {
+    _exitSourceMode();
+  } else {
+    _enterSourceMode();
+  }
+}
+
+// 绑定源码按钮事件
+const _editSourceCodeBtn = document.getElementById('editSourceCodeBtn');
+if (_editSourceCodeBtn) {
+  _editSourceCodeBtn.addEventListener('click', () => _toggleSourceMode());
+}
+
+// ── 模式切换按钮事件 ──
+const _toggleModeBtn = document.getElementById('toggleModeBtn');
+if (_toggleModeBtn) {
+  _toggleModeBtn.addEventListener('click', function () {
+    const nodeId = appState.currentEditNodeId;
+    const node = appState.nodeMap.get(nodeId);
+    if (!node) return;
+
+    const currentMode = node.activeMode || 'text';
+    if (currentMode === 'text') {
+      // 文本模式 → 切换到代码模式
+      window.switchNodeToCodeMode(nodeId);
+    } else {
+      // 代码模式 → 切换到文本模式
+      window.switchNodeToTextMode(nodeId);
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  模式切换全局函数（供右键菜单等外部模块通过 window 调用）
+// ════════════════════════════════════════════════════════════
+
+window.switchNodeToCodeMode = async function(nodeId) {
+  const node = appState.nodeMap.get(nodeId);
+  if (!node) return;
+
+  // 保存当前文本内容
+  if (appState.currentEditNodeId === nodeId) {
+    saveCurrentContentCK();
+  }
+
+  // 确保 fileSystem 存在
+  if (!node.fileSystem) {
+    const { migrateHtmlSource } = await import('../sandbox/core/virtual-fs.js');
+    node.fileSystem = migrateHtmlSource(null);
+  }
+
+  node.activeMode = 'code';
+  saveCurrentProjectData();
+  showToast('已切换为代码模式，双击节点将打开代码编辑器');
+
+  // 如果当前正在编辑此节点，立即切换UI
+  if (appState.currentEditNodeId === nodeId && appState.editorOpen) {
+    if (_applySandboxUI(nodeId)) {
+      state.tinyInitialContent = getSandboxHtml(nodeId);
+    }
+  }
+};
+
+window.switchNodeToTextMode = function(nodeId) {
+  const node = appState.nodeMap.get(nodeId);
+  if (!node) return;
+
+  node.activeMode = 'text';
+  saveCurrentProjectData();
+  showToast('已切换为文本模式，双击节点将打开文本编辑器');
+
+  // 如果当前正在编辑此节点，立即切换UI
+  if (appState.currentEditNodeId === nodeId && appState.editorOpen) {
+    _applyNormalUI(node);
+    state.tinyEditor.focus();
+    state.tinyInitialContent = state.tinyEditor.getContent();
+  }
+};
 
 // ── 全局引用 ──
 window._taskbarOpenEditor = openRichEditorCK;

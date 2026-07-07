@@ -308,6 +308,16 @@ export function bindToolbarButtons() {
       <option value="fullscreen">\u5168\u5C4F</option>
     </select>
   </div>
+  <div style="margin-top: 12px; padding-top: 12px; border-top:1px solid var(--divider);">
+    <div style="font-size:12px; color:var(--text-secondary); margin-bottom:10px;">\uD83C\uDF20 \u5F00\u59CB\u9875\u9762\u80CC\u666F</div>
+    <style>
+      #startPageBackgroundSelect option { background:var(--panel-bg); color:var(--accent-light) !important; }
+    </style>
+    <select id="startPageBackgroundSelect" style="width:100%; background:transparent; color:var(--accent-light); height:26px; font-size:12px; border:1px solid var(--divider); border-radius:4px; padding:0 6px; cursor:pointer; outline:none;">
+      <option value="ribbon">\uD83C\uDF08 \u7011\u5E03\u5149\u5E26</option>
+      <option value="spaceship">\uD83D\uDEF0\uFE0F \u5B87\u5B99\u98DE\u8239</option>
+    </select>
+  </div>
   </div>
   <div class="settings-tab-panel" data-panel="notification" style="display:none; padding:8px 16px 14px;">
     <div class="setting-section">
@@ -397,16 +407,14 @@ export function bindToolbarButtons() {
         settingsHelpContent.appendChild(helpModalBody.cloneNode(true));
       }
 
-      // ── 动态 Z-Index 管理（与编辑器模态框共享同一层级栈）──
-      if (!window._modalZIndexBase) window._modalZIndexBase = 1000;
-      window._modalZIndexBase += 10;
-      popup.style.zIndex = window._modalZIndexBase;
-      overlay.style.zIndex = window._modalZIndexBase - 1;
-      popup.addEventListener('mousedown', function () {
-        window._modalZIndexBase += 10;
-        popup.style.zIndex = window._modalZIndexBase;
-        overlay.style.zIndex = window._modalZIndexBase - 1;
-      });
+      // ── 动态 Z-Index 管理（统一由 WindowManager 管理）──
+      if (window.WindowManager) {
+        window.WindowManager.registerElement(popup, (zi) => {
+          if (overlay) overlay.style.zIndex = zi - 1;
+        });
+        window.WindowManager.bringToFront(popup);
+        if (overlay) overlay.style.zIndex = window.WindowManager._topZIndex - 1;
+      }
 
       const slider = popup.querySelector('.glow-slider');
       const valueSpan = popup.querySelector('.glow-value');
@@ -663,6 +671,16 @@ export function bindToolbarButtons() {
         });
       }
 
+      // 绑定开始页面背景下拉
+      const startPageBackgroundSelect = document.getElementById('startPageBackgroundSelect');
+      if (startPageBackgroundSelect) {
+        startPageBackgroundSelect.value = appState.startPageBackground || 'ribbon';
+        startPageBackgroundSelect.addEventListener('change', () => {
+          appState.startPageBackground = startPageBackgroundSelect.value;
+          saveSettingsToStorage();
+        });
+      }
+
       // 绑定界面模式（深色/浅色）下拉框
       const uiModeSelect = popup.querySelector('#uiModeSelect');
       if (uiModeSelect) {
@@ -834,6 +852,8 @@ export function bindToolbarButtons() {
         if (startupModeSelect) startupModeSelect.value = appState.startupMode || '3d_full';
         const startupWindowModeSelect = gp.popup.querySelector('#startupWindowModeSelect');
         if (startupWindowModeSelect) startupWindowModeSelect.value = appState.startupWindowMode || 'windowed';
+        const startPageBackgroundSelect = gp.popup.querySelector('#startPageBackgroundSelect');
+        if (startPageBackgroundSelect) startPageBackgroundSelect.value = appState.startPageBackground || 'ribbon';
         // 恢复简洁模式背景颜色
         const bgRow = gp.popup.querySelector('#simpleBgRow');
         if (bgRow) bgRow.style.display = appState.simple3D ? 'flex' : 'none';
@@ -1010,6 +1030,8 @@ export function bindToolbarButtons() {
           }
         })();
         const popup = gp.popup;
+        // 恢复 z-index
+        popup.style.zIndex = '';
         // 最大化模式：直接关闭，无动画
         if (popup.classList.contains('maximized')) {
           popup.classList.remove('maximized');
@@ -1566,6 +1588,7 @@ export function bindToolbarButtons() {
           };
         }
       });
+      if (window.WindowManager) window.WindowManager.registerElement(popup);
       if (window._bringModalToFront) window._bringModalToFront(popup);
     }
 
@@ -1792,6 +1815,9 @@ export function bindToolbarButtons() {
               collapsed2D: snap.collapsed2D || [],
               nodeRichContents: snap.nodeRichContents || {},
               nodeOverlayImages: snap.nodeOverlayImages || {},
+              nodeFileSystems: snap.nodeFileSystems || {},
+              nodeHtmlSources: snap.nodeHtmlSources || {},
+              nodeActiveModes: snap.nodeActiveModes || {},
               layers: (snap.layers || []).map(l => ({
                 id: l.id, name: l.name, order: l.order,
                 nodeIds: new Set(l.nodeIds || []),

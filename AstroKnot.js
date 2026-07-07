@@ -53,6 +53,7 @@ import { saveNetworkToFile, loadNetworkFromFile } from './modules/module9_FileIO
 import { initEmergencyBackup } from './modules/emergencyBackup.js';
 import { initVersionAutoSave } from './modules/versionGraph/versionAutoSave.js';
 import { initVersionAtmosphere } from './modules/versionGraph/versionAtmosphere.js';
+import { initNodeDiskSync } from './modules/nodeDiskSync.js';
 
 // ---------- 模块10：富文本编辑器 ----------
 import { initRichEditor } from './modules/richEditor/index.js';
@@ -95,6 +96,12 @@ import './modules/UI/window-manager.js';
 // ---------- 新手引导 ----------
 import { initGuide, startGuideIfNeeded } from './modules/Guide/index.js';
 
+// ---------- 数据目录首次设置 ----------
+import { startDataSetup } from './modules/DataSetup/index.js';
+
+// ---------- 开始首页 ----------
+import { showStartPage, hideStartPage } from './modules/StartPage/index.js';
+
 
 
 // ============================================================
@@ -105,12 +112,15 @@ initQuickNotes();
 initAIChat(); 
 bindContextMenuEvents();
 initMoveMode();
-initProjects();
+
+// 初始化项目并决定是否显示开始首页
+const hasProjects = initProjects();
 
 // ---------- 应急备份初始化 ----------
 initEmergencyBackup();
 initVersionAutoSave();
 initVersionAtmosphere();
+initNodeDiskSync();
 
 init2DView();
 initLayerManager();
@@ -124,6 +134,11 @@ bindResize();
 bindSearch();
 bindGlobalSearch();
 bindKeyboardMovement();
+
+// ---------- 显示开始首页（移到 bindToolbarButtons 之后，确保 __glowPopup 已初始化） ----------
+if (!hasProjects) {
+  showStartPage();
+}
 
 // ---------- 快捷启动 Dock ----------
 initDock();
@@ -369,8 +384,12 @@ document.getElementById('modeToggleBtn').addEventListener('click', toggle2DView)
 
 animate();
 
-// ── 新手引导：首次启动自动弹出 ──
-startGuideIfNeeded();
+// ── 数据目录首次设置：首次启动引导用户选择存储位置 ──
+(async function initDataSetupAndGuide() {
+  await startDataSetup();
+  // 数据目录设置完成后，启动新手引导
+  startGuideIfNeeded();
+})();
 
 // ── 启动闪屏：首帧渲染完成后渐变消失 ──
 requestAnimationFrame(function () {
