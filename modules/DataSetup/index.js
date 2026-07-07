@@ -156,26 +156,41 @@ async function _showSetupUI() {
   
   // 确认按钮
   const confirmBtn = _overlay.querySelector('#confirmSetupBtn');
-  
+
   return new Promise((resolve) => {
     confirmBtn.addEventListener('click', async () => {
+      // 显示加载状态
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '正在设置...';
+
       try {
         // 设置数据目录
         const result = await window.api.setDataRoot(selectedPath);
         if (result.success) {
           _hideSetupUI();
           _isSetupComplete = true;
-          
+
           // 显示成功提示
           _showSuccessToast(selectedPath);
-          
+
           resolve(true);
         } else {
-          _showErrorToast('设置失败，请重试');
+          // 显示具体的错误原因
+          let errorMsg = '设置失败，请重试';
+          if (result.error) {
+            errorMsg = result.error;
+          } else if (selectedPath.includes('Program Files')) {
+            errorMsg = '无法在 Program Files 创建目录，请选择其他位置';
+          }
+          _showErrorToast(errorMsg);
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = '确认并开始使用';
         }
       } catch (e) {
         console.error('[DataSetup] 设置失败:', e);
-        _showErrorToast('设置失败: ' + e.message);
+        _showErrorToast('设置失败: ' + (e.message || '未知错误'));
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '确认并开始使用';
         resolve(false);
       }
     });

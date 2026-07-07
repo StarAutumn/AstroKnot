@@ -5,6 +5,7 @@
 const { ipcMain, BrowserWindow, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const dataSettings = require('./data-settings');
 
 // 延迟加载 node-pty（N-API 预编译二进制，兼容 Electron）
 let nodePty = null;
@@ -171,7 +172,7 @@ function bindTerminalIPC() {
     if (!nodeId) return { success: false, error: '缺少 nodeId' };
     const sandboxDir = projectFolderPath
       ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
-      : path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox');
+      : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox')); // fallback
     fs.mkdirSync(sandboxDir, { recursive: true });
     return { success: true, cwd: sandboxDir };
   });

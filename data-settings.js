@@ -7,6 +7,9 @@
 //  
 //  首次启动时引导用户选择数据目录位置，
 //  之后配置保存在 settings.json 中。
+//
+//  支持应用移动后自动定位：存储相对路径 + 保存时的应用位置，
+//  启动时检测位置变化，自动重新定位数据目录。
 // ============================================================
 
 const fs = require('fs');
@@ -46,12 +49,14 @@ const SYSTEM_SUBDIR_NAMES = {
 
 /**
  * @typedef DataSettings
- * @property {string} dataRoot        数据根目录（包含 system/projects/quicknotes）
- * @property {string} systemDir       系统数据目录（可自定义，默认在 dataRoot/system）
- * @property {string} projectsDir     项目目录（可自定义，默认在 dataRoot/projects）
- * @property {string} quicknotesDir   快速笔记目录（可自定义，默认在 dataRoot/quicknotes）
- * @property {boolean} initialized    是否已完成首次设置引导
- * @property {string} lastProjectPath 上次打开的项目路径
+ * @property {string} dataRoot            数据根目录（包含 system/projects/quicknotes）
+ * @property {string|null} dataRootRelative 数据根目录相对于应用目录的路径（用于移动后自动定位）
+ * @property {string|null} appRootAtSave   保存配置时的应用目录位置（用于检测是否被移动）
+ * @property {string} systemDir           系统数据目录（可自定义，默认在 dataRoot/system）
+ * @property {string} projectsDir         项目目录（可自定义，默认在 dataRoot/projects）
+ * @property {string} quicknotesDir       快速笔记目录（可自定义，默认在 dataRoot/quicknotes）
+ * @property {boolean} initialized        是否已完成首次设置引导
+ * @property {string|null} lastProjectPath 上次打开的项目路径
  */
 
 /** @type {DataSettings|null} */
@@ -81,9 +86,9 @@ function init(appRoot) {
     try {
       const legacySettings = JSON.parse(fs.readFileSync(legacySettingsPath, 'utf-8'));
       if (legacySettings.dataRoot) {
-        // 已有配置，使用旧配置的路径
-        _settings = legacySettings;
-        console.log('[data-settings] 使用现有配置:', _settings.dataRoot);
+        // 已有配置，迁移到新格式（添加相对路径字段）
+        _settings = migrateSettings(legacySettings, appRoot);
+        console.log('[data-settings] 迁移旧配置:', _settings.dataRoot);
         return _settings;
       }
     } catch (e) {
@@ -94,7 +99,9 @@ function init(appRoot) {
   // 检查是否存在新配置（应用目录下）
   if (fs.existsSync(newSettingsPath)) {
     try {
-      _settings = JSON.parse(fs.readFileSync(newSettingsPath, 'utf-8'));
+      const loadedSettings = JSON.parse(fs.readFileSync(newSettingsPath, 'utf-8'));
+      // 检查应用是否被移动，自动重新定位
+      _settings = relocateIfNeeded(loadedSettings, appRoot);
       console.log('[data-settings] 使用新配置:', _settings.dataRoot);
       return _settings;
     } catch (e) {
@@ -106,6 +113,8 @@ function init(appRoot) {
   const defaultDataRoot = path.join(appRoot, DEFAULT_DATA_DIR_NAME);
   _settings = {
     dataRoot: defaultDataRoot,
+    dataRootRelative: DEFAULT_DATA_DIR_NAME,
+    appRootAtSave: appRoot,
     systemDir: path.join(defaultDataRoot, SUBDIR_NAMES.system),
     projectsDir: path.join(defaultDataRoot, SUBDIR_NAMES.projects),
     quicknotesDir: path.join(defaultDataRoot, SUBDIR_NAMES.quicknotes),
@@ -118,11 +127,109 @@ function init(appRoot) {
 }
 
 /**
- * 获取旧配置路径（C 盘 userData）
+ * 迁移旧配置到新格式（添加相对路径字段）
+ * @param {Object} oldSettings - 旧配置对象
+ * @param {string} appRoot - 当前应用目录
+ * @returns {DataSettings}
+ */
+function migrateSettings(oldSettings, appRoot) {
+  // 计算相对路径：如果数据目录在应用目录下，提取相对路径
+  let dataRootRelative = DEFAULT_DATA_DIR_NAME;
+  if (oldSettings.dataRoot && oldSettings.dataRoot.startsWith(appRoot)) {
+    dataRootRelative = oldSettings.dataRoot.substring(appRoot.length + 1);
+  } else if (oldSettings.dataRoot) {
+    // 数据目录不在应用目录下，无法计算相对路径
+    dataRootRelative = null;
+  }
+
+  return {
+    ...oldSettings,
+    dataRootRelative: dataRootRelative,
+    appRootAtSave: appRoot,
+    systemDir: oldSettings.systemDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.system),
+    projectsDir: oldSettings.projectsDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.projects),
+    quicknotesDir: oldSettings.quicknotesDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.quicknotes)
+  };
+}
+
+/**
+ * 检查应用是否被移动，如果是则重新定位数据目录
+ * @param {DataSettings} settings - 已加载的配置
+ * @param {string} currentAppRoot - 当前应用目录
+ * @returns {DataSettings}
+ */
+function relocateIfNeeded(settings, currentAppRoot) {
+  const savedAppRoot = settings.appRootAtSave;
+
+  // 检查是否有相对路径信息
+  if (settings.dataRootRelative) {
+    // 使用相对路径计算新位置
+    const newDataRoot = path.join(currentAppRoot, settings.dataRootRelative);
+
+    // 检查应用是否被移动
+    if (savedAppRoot && savedAppRoot !== currentAppRoot) {
+      console.log('[data-settings] 应用已移动！从', savedAppRoot, '到', currentAppRoot);
+      console.log('[data-settings] 数据目录自动更新为:', newDataRoot);
+
+      // 检查数据目录是否存在于新位置
+      if (fs.existsSync(newDataRoot)) {
+        // 更新所有路径
+        const relocated = {
+          ...settings,
+          dataRoot: newDataRoot,
+          appRootAtSave: currentAppRoot,
+          systemDir: path.join(newDataRoot, SUBDIR_NAMES.system),
+          projectsDir: path.join(newDataRoot, SUBDIR_NAMES.projects),
+          quicknotesDir: path.join(newDataRoot, SUBDIR_NAMES.quicknotes)
+        };
+        // 临时设置 _settings 以便 saveSettings 能工作
+        _settings = relocated;
+        saveSettings();
+        return relocated;
+      } else {
+        console.warn('[data-settings] 数据目录在新位置不存在:', newDataRoot);
+        // 数据目录不存在，可能用户只移动了应用没移动数据目录
+        // 检查旧位置的目录是否还存在
+        if (settings.dataRoot && fs.existsSync(settings.dataRoot)) {
+          console.log('[data-settings] 旧数据目录仍存在，继续使用:', settings.dataRoot);
+          return settings;
+        }
+        // 否则标记为未初始化，重新引导
+        console.warn('[data-settings] 数据目录丢失，需要重新设置');
+        settings.initialized = false;
+        return settings;
+      }
+    }
+  }
+
+  // 没有相对路径信息或应用没移动，检查绝对路径是否有效
+  if (settings.dataRoot && !fs.existsSync(settings.dataRoot)) {
+    console.warn('[data-settings] 数据目录不存在:', settings.dataRoot);
+    // 尝试用默认相对路径
+    const defaultPath = path.join(currentAppRoot, DEFAULT_DATA_DIR_NAME);
+    if (fs.existsSync(defaultPath)) {
+      console.log('[data-settings] 使用默认数据目录:', defaultPath);
+      return {
+        ...settings,
+        dataRoot: defaultPath,
+        dataRootRelative: DEFAULT_DATA_DIR_NAME,
+        appRootAtSave: currentAppRoot,
+        systemDir: path.join(defaultPath, SUBDIR_NAMES.system),
+        projectsDir: path.join(defaultPath, SUBDIR_NAMES.projects),
+        quicknotesDir: path.join(defaultPath, SUBDIR_NAMES.quicknotes)
+      };
+    }
+    settings.initialized = false;
+  }
+
+  return settings;
+}
+
+/**
+ * 获取旧配置路径（C 盘 AppData）
+ * 注意：app.setPath('userData') 已重定向，不能用 app.getPath('userData') 获取旧路径
  */
 function getLegacySettingsPath() {
-  // 这个函数在渲染进程中不适用，主进程需要传入 userData 路径
-  // 临时返回一个占位路径
   return path.join(process.env.APPDATA || '', 'astroknot', 'settings.json');
 }
 
@@ -140,11 +247,21 @@ function getNewSettingsPath() {
 
 /**
  * 保存配置到磁盘
+ * 每次保存时自动计算相对路径，确保移动后能自动定位
  */
 function saveSettings() {
   if (!_settings || !_appRoot) return false;
 
   try {
+    // 计算并保存相对路径（用于移动后自动定位）
+    if (_settings.dataRoot && _settings.dataRoot.startsWith(_appRoot)) {
+      _settings.dataRootRelative = _settings.dataRoot.substring(_appRoot.length + 1);
+    } else if (!_settings.dataRootRelative) {
+      // 数据目录不在应用目录下，无法计算相对路径
+      _settings.dataRootRelative = null;
+    }
+    _settings.appRootAtSave = _appRoot;
+
     // 确保系统目录存在
     const systemDir = _settings.systemDir;
     if (!fs.existsSync(systemDir)) {
@@ -155,6 +272,7 @@ function saveSettings() {
     const settingsPath = path.join(systemDir, SYSTEM_SUBDIR_NAMES.settings);
     fs.writeFileSync(settingsPath, JSON.stringify(_settings, null, 2), 'utf-8');
     console.log('[data-settings] 配置已保存:', settingsPath);
+    console.log('[data-settings] 相对路径:', _settings.dataRootRelative);
     return true;
   } catch (e) {
     console.error('[data-settings] 保存配置失败:', e);
@@ -221,6 +339,14 @@ function getVersionGraphsTmpDir(projectId) {
 }
 
 /**
+ * 获取版本图临时数据的根目录（包含所有项目的子目录）
+ */
+function getVersionGraphsTmpRoot() {
+  if (!_settings) return '';
+  return path.join(_settings.systemDir, SYSTEM_SUBDIR_NAMES.versionGraphsTmp);
+}
+
+/**
  * 获取数据根目录
  */
 function getDataRoot() {
@@ -241,6 +367,7 @@ function getAppRoot() {
 /**
  * 设置数据根目录（首次启动引导使用）
  * @param {string} dataRoot - 用户选择的数据根目录
+ * @returns {boolean} 是否成功
  */
 function setDataRoot(dataRoot) {
   if (!dataRoot) {
@@ -255,12 +382,33 @@ function setDataRoot(dataRoot) {
       console.log('[data-settings] 创建数据根目录:', dataRoot);
     } catch (e) {
       console.error('[data-settings] 创建数据根目录失败:', e);
+      if (e.code === 'EACCES' || e.code === 'EPERM') {
+        console.error('[data-settings] 权限不足，请选择其他位置');
+      }
       return false;
     }
   }
 
+  // 检查目录是否可写
+  try {
+    const testFile = path.join(dataRoot, '.write_test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+  } catch (e) {
+    console.error('[data-settings] 目录不可写:', e);
+    return false;
+  }
+
+  // 计算相对路径
+  let dataRootRelative = null;
+  if (dataRoot.startsWith(_appRoot)) {
+    dataRootRelative = dataRoot.substring(_appRoot.length + 1);
+  }
+
   _settings = {
     dataRoot: dataRoot,
+    dataRootRelative: dataRootRelative,
+    appRootAtSave: _appRoot,
     systemDir: path.join(dataRoot, SUBDIR_NAMES.system),
     projectsDir: path.join(dataRoot, SUBDIR_NAMES.projects),
     quicknotesDir: path.join(dataRoot, SUBDIR_NAMES.quicknotes),
@@ -269,10 +417,20 @@ function setDataRoot(dataRoot) {
   };
 
   // 创建子目录结构
-  ensureDirectories();
+  try {
+    ensureDirectories();
+  } catch (e) {
+    console.error('[data-settings] 创建子目录失败:', e);
+    return false;
+  }
 
   // 保存配置
-  saveSettings();
+  try {
+    saveSettings();
+  } catch (e) {
+    console.error('[data-settings] 保存配置失败:', e);
+    return false;
+  }
 
   console.log('[data-settings] 数据根目录已设置:', dataRoot);
   return true;
@@ -355,6 +513,7 @@ module.exports = {
   getEmergencyBackupsDir,
   getSandboxTmpDir,
   getVersionGraphsTmpDir,
+  getVersionGraphsTmpRoot,
   getDataRoot,
   getAppRoot,
   setDataRoot,

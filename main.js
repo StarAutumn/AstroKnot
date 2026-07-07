@@ -12,6 +12,31 @@ const dataSettings = require('./data-settings');
 // ── GPU 兼容性：允许在不支持的 GPU 上使用 WebGL ──
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
+// ════════════════════════════════════════════════════════════
+//  核心路径设置：在 app.whenReady() 之前设置 userData 路径
+//  这影响 localStorage、缓存、Session 等所有 Electron 内部存储
+//  确保打包后不会读取开发环境的设置
+// ════════════════════════════════════════════════════════════
+let appRoot;
+if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+  // 开发环境：使用 __dirname，不改变 userData 路径
+  appRoot = __dirname;
+  dataSettings.init(appRoot);
+  // 开发环境保留默认的 userData（C 盘），方便调试
+  console.log('[main] 开发环境，userData 保持默认:', app.getPath('userData'));
+} else {
+  // 打包后：使用 resources 的父目录（应用安装目录）
+  appRoot = path.dirname(process.resourcesPath);
+  dataSettings.init(appRoot);
+  // 将 Electron 的 userData 路径重定向到自定义数据目录
+  // 这样 localStorage、缓存等都不会存在 C 盘的 AppData 中
+  const customUserData = dataSettings.getSystemDir();
+  if (customUserData) {
+    app.setPath('userData', customUserData);
+    console.log('[main] 打包环境，userData 重定向到:', customUserData);
+  }
+}
+
 /** 全局窗口引用（热更新发送 IPC 用） */
 let mainWindow = null;
 
@@ -491,7 +516,8 @@ function collectTreeNodeIds(tree) {
 function getEmergencyDir() {
   const dir = dataSettings.getEmergencyBackupsDir();
   if (!dir) {
-    // 回退到默认 userData（兼容旧版本）
+    // 回退：dataSettings 未初始化时使用系统目录
+    console.warn('[应急备份] dataSettings 未初始化，使用默认路径');
     const fallbackDir = path.join(app.getPath('userData'), 'emergency-backups');
     if (!fs.existsSync(fallbackDir)) fs.mkdirSync(fallbackDir, { recursive: true });
     return fallbackDir;
@@ -639,7 +665,8 @@ function getVersionDir(versionKey) {
     if (tmpDir) {
       dir = tmpDir;
     } else {
-      // 回退到默认 userData（兼容旧版本）
+      // 回退：dataSettings 未初始化时使用系统目录
+      console.warn('[版本图] dataSettings 未初始化，使用默认路径');
       dir = path.join(app.getPath('userData'), 'version-graphs-tmp', sanitizeFileName(versionKey));
     }
   }
@@ -740,7 +767,8 @@ function bindVersionGraphIPC() {
   // 列出所有项目版本图（用于跨项目视图）
   ipcMain.handle('version-list-graphs', async () => {
     try {
-      const rootDir = path.join(app.getPath('userData'), 'version-graphs');
+      // 使用数据目录下的版本图临时目录根
+      const rootDir = dataSettings.getVersionGraphsTmpRoot() || path.join(app.getPath('userData'), 'version-graphs');
       if (!fs.existsSync(rootDir)) return { success: true, list: [] };
       const list = [];
       fs.readdirSync(rootDir).forEach(function (name) {
@@ -1031,7 +1059,7 @@ function bindFileIPC() {
         baseDir = path.join(projectFolderPath, 'nodes', nodeId, 'sandbox');
       } else {
         const tmpDir = dataSettings.getSandboxTmpDir(nodeId);
-        baseDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox');
+        baseDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'); // fallback
       }
 
       if (!fs.existsSync(baseDir)) {
@@ -1064,7 +1092,7 @@ function bindFileIPC() {
       // 如果项目未保存，写入临时目录
       const sandboxDir = projectFolderPath
         ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
-        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'));
+        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox')); // fallback
 
       fs.mkdirSync(sandboxDir, { recursive: true });
 
@@ -1093,7 +1121,7 @@ function bindFileIPC() {
     try {
       const sandboxDir = projectFolderPath
         ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
-        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'));
+        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox')); // fallback
 
       const relativePath = (vfsPath || '').replace(/^\//, '');
       if (!relativePath) return { success: false, error: '无效路径' };
@@ -1121,7 +1149,7 @@ function bindFileIPC() {
     try {
       const sandboxDir = projectFolderPath
         ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
-        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'));
+        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox')); // fallback
 
       const oldRelativePath = (oldPath || '').replace(/^\//, '');
       const newRelativePath = (newPath || '').replace(/^\//, '');
@@ -1155,7 +1183,7 @@ function bindFileIPC() {
       } else {
         // 未保存项目，使用临时目录
         const tmpDir = dataSettings.getSandboxTmpDir(nodeId);
-        sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox');
+        sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'); // fallback
       }
 
       // 先清空旧的 sandbox 目录，避免残留已删除的文件
@@ -1448,7 +1476,7 @@ function bindFileIPC() {
       if (!savePath) {
         // 默认使用数据目录中的 quicknotes 路径
         const quicknotesDir = dataSettings.getQuicknotesDir();
-        savePath = quicknotesDir || path.join(app.getPath('userData'), 'quicknotes');
+        savePath = quicknotesDir || path.join(app.getPath('userData'), 'quicknotes'); // fallback
       }
       fs.mkdirSync(savePath, { recursive: true });
 
@@ -1515,7 +1543,7 @@ function bindFileIPC() {
       if (!savePath) {
         // 默认使用数据目录中的 quicknotes 路径
         const quicknotesDir = dataSettings.getQuicknotesDir();
-        savePath = quicknotesDir || path.join(app.getPath('userData'), 'quicknotes');
+        savePath = quicknotesDir || path.join(app.getPath('userData'), 'quicknotes'); // fallback
       }
 
       const manifestPath = path.join(savePath, 'quicknotes.json');
@@ -1581,10 +1609,10 @@ app.on('gpu-process-crashed', (event, killed) => {
 
 // ── 启动 ──
 app.whenReady().then(() => {
-  // ── 初始化数据目录配置（但不立即创建目录，等待用户确认）──
-  const appRoot = __dirname;
-  dataSettings.init(appRoot);
-  // 注意：目录将在用户确认后由 setDataRoot() 创建
+  // appRoot 和 dataSettings.init() 已在文件顶部执行（需要在 whenReady 之前设置 userData 路径）
+  console.log('[main] appRoot:', appRoot);
+  console.log('[main] dataRoot:', dataSettings.getDataRoot());
+  console.log('[main] systemDir:', dataSettings.getSystemDir());
 
   // 注册 astroknot-local:// 协议，用于渲染进程访问本地音视频文件
   // 避免将大文件转成 data URI（Chromium 对此支持不好）
@@ -1606,9 +1634,9 @@ app.whenReady().then(() => {
     // 检查数据目录是否已完成首次设置
     if (dataSettings.isInitialized()) return false;
     
-    // 兼容旧版本：检查 userData 目录的标记文件
-    const userDataPath = app.getPath('userData');
-    const flagFile = path.join(userDataPath, '.astroknot_installed');
+    // 兼容旧版本：检查 C 盘 userData 目录的标记文件
+    const legacyUserDataPath = path.join(process.env.APPDATA || '', 'astroknot');
+    const flagFile = path.join(legacyUserDataPath, '.astroknot_installed');
     if (fs.existsSync(flagFile)) {
       // 旧版本用户，自动迁移设置
       console.log('[首次检测] 发现旧版本标记，自动迁移设置');
@@ -1626,8 +1654,17 @@ app.whenReady().then(() => {
   // ── IPC：数据目录配置 ──
   ipcMain.handle('get-data-settings', () => dataSettings.getSettings());
   ipcMain.handle('set-data-root', (event, dataRoot) => {
-    const result = dataSettings.setDataRoot(dataRoot);
-    return { success: result };
+    try {
+      const result = dataSettings.setDataRoot(dataRoot);
+      if (result) {
+        return { success: true };
+      } else {
+        return { success: false, error: '无法创建数据目录，请检查权限或选择其他位置' };
+      }
+    } catch (e) {
+      console.error('[set-data-root] 错误:', e);
+      return { success: false, error: e.message || '未知错误' };
+    }
   });
   ipcMain.handle('get-default-data-root', () => path.join(appRoot, dataSettings.DEFAULT_DATA_DIR_NAME));
   ipcMain.handle('select-data-folder', async () => {

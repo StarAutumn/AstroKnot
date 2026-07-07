@@ -10,7 +10,7 @@
     "build:mac": "electron-builder --mac --x64",
     "build:linux": "electron-builder --linux --x64",
     "rebuild": "electron-rebuild -f -w node-pty",
-    "postinstall": "node scripts/copy-xterm.js",
+    "postinstall": "node scripts/copy-xterm.js && electron-builder install-app-deps",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -43,7 +43,8 @@
     "appId": "com.astroknot.app",
     "productName": "AstroKnot",
     "icon": "assets/icon.png",
-    "buildDependencyFromSource": false,
+    "buildDependenciesFromSource": false,
+    "npmRebuild": false,
     "asarUnpack": [
       "node_modules/node-pty/**"
     ],
@@ -65,6 +66,7 @@
       "!web_version/**/*",
       "!official_website/**/*",
       "!scripts/**/*",
+      "!build-with-mirror.ps1",
       "!dist-web/**/*",
       "!dist/**/*",
       "!startAstroKnot-*.sh",
