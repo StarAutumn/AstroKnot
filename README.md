@@ -93,6 +93,20 @@ npm run build
 
 打包产物在 `dist/` 目录下。
 
+### 国内镜像打包
+
+如果 `npm run build` 因网络问题失败（Electron 下载慢、node-pty 编译缺 Python），使用镜像脚本：
+
+```powershell
+# PowerShell 中运行（自动配置国内镜像 + 使用预编译 node-pty）
+.\build-with-mirror.ps1
+```
+
+该脚本会：
+1. 设置 npmmirror 镜像源（Electron、electron-builder-binaries）
+2. 清理并重新安装 node-pty 预编译版本（无需 Python）
+3. 执行 `npm run build:win`
+
 ## 自定义图标
 
 将你的 PNG 图标放到 `assets/icon.png`。应用会自动在以下位置使用：
@@ -121,6 +135,7 @@ AstroKnot/
 ├── README.md             # 项目文档
 ├── .gitignore            # Git 忽略规则
 ├── .npmrc                # npm 配置（镜像源等）
+├── build-with-mirror.ps1 # 国内镜像打包脚本（解决网络/Python 问题）
 ├── AstroKnot-Windows.lnk # Windows 快捷方式
 ├── AstroKnot-Linux.desktop # Linux 桌面入口文件
 ├── AstroKnot-macOS.command # macOS 桌面入口
