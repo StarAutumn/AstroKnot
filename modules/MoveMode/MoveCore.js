@@ -94,6 +94,7 @@ function resolveOverlapAfterMove(movedRootId) {
 // ========== 移动模式 ==========
 
 function enterMoveMode(nodeId) {
+  if (appState.arrangeAnimActive) return;  // 排列动画中禁止拖拽
   if (!appState.nodeMap.has(nodeId)) return;
   hideContextMenu();
   setMoveTargetId(nodeId);

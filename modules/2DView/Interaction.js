@@ -8,6 +8,7 @@ import { openRichEditor } from '../richEditor/index.js';
 import { showContextMenu, hideContextMenu, showBlankContextMenu, hideBlankContextMenu, completeConvertChildMode, cancelConvertChildMode } from '../module8_ContextMenu.js';
 import { updateLinesVis } from '../VisualComponents/index.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { startArrangeAnimation2D, skipArrangeAnimation2D } from '../UI/ArrangeAnimation.js';
 import { showToast } from '../module5_SelectAndEdit.js';
 import { copySelectedNodes, pasteNodes, createNodeInProject, getNextChildName } from '../MoveMode/MoveCore.js';
 import {
@@ -368,6 +369,8 @@ function onMouseDown(e) {
   }
 
   if (pendingMultiMove) {
+    // 排列动画中禁止拖拽
+    if (appState.arrangeAnim2DActive) return;
     e.preventDefault();
     setPendingMultiMove(false);
     setDragging(false);
@@ -436,6 +439,8 @@ function onMouseDown(e) {
     worldPos.y >= area.y && worldPos.y <= area.y + area.height
   );
   if (hit?.id) {
+    // 排列动画中禁止拖拽
+    if (appState.arrangeAnim2DActive) return;
     e.preventDefault();
     setSelectedGroupRectId(null);
     setDragging(false);
@@ -1235,15 +1240,32 @@ function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
 //  自动布局
 // ============================================================
 function autoArrangeTreeLayout() {
-  const rootNode = appState.methodsTree;
-  if (!rootNode || !rootNode.id) return;
+  // 动画中再点击 → 跳过当前动画后重新排列
+  if (appState.arrangeAnim2DActive) {
+    skipArrangeAnimation2D();
+    // 继续执行下面的计算+启动
+  }
 
-  // 虚拟根节点位置保持不变
+  const targetPositions = computeAutoArrangeTargets();
+  if (targetPositions.size === 0) return;
+  startArrangeAnimation2D(targetPositions);
+}
+
+// ============================================================
+//  计算 2D 自动排列目标位置（不修改 positions2D，不调用 draw）
+// ============================================================
+function computeAutoArrangeTargets() {
+  const rootNode = appState.methodsTree;
+  if (!rootNode || !rootNode.id) return new Map();
+
+  // 虚拟根节点位置
   if (!appState.positions2D.has(rootNode.id)) {
     appState.positions2D.set(rootNode.id, { x: -500, y: -200 });
   }
 
-  // 以每个真实根节点作为独立子树的根进行排布，完全脱离虚拟根影响
+  const targetPositions = new Map();
+
+  // 以每个真实根节点作为独立子树的根进行排布
   for (const realRoot of (rootNode.children || [])) {
     if (!realRoot || !realRoot.id) continue;
 
@@ -1251,46 +1273,40 @@ function autoArrangeTreeLayout() {
     const subLayout = layoutTree(realRoot);
     assignCoordinates(subLayout, 0, 0);
 
-    // 真实根节点作为锚点：3D 新建的节点没有 2D 坐标，用布局位置填充
+    // 真实根节点作为锚点
     let anchorPos = appState.positions2D.get(realRoot.id);
     if (!anchorPos) {
       anchorPos = { x: subLayout.x, y: subLayout.y };
       appState.positions2D.set(realRoot.id, { x: anchorPos.x, y: anchorPos.y });
     }
 
-    // 真实根在局部坐标系中的位置
     const anchorLocalX = subLayout.x;
     const anchorLocalY = subLayout.y;
-
-    // 偏移量：将局部坐标映射到真实根节点的实际屏幕位置
     const offsetX = anchorPos.x - anchorLocalX;
     const offsetY = anchorPos.y - anchorLocalY;
 
-    // 只收集真实根的子孙节点（跳过真实根本身）
+    // 收集真实根的子孙节点
     const positions = new Map();
     for (const child of subLayout.children) {
       collectLayoutPositions(child, false, positions);
     }
 
-    // 应用偏移，更新子孙节点位置
+    // 应用偏移，写入 targetPositions
     for (const [id, pos] of positions) {
       pos.x += offsetX;
       pos.y += offsetY;
-      appState.positions2D.set(id, pos);
+      targetPositions.set(id, { x: pos.x, y: pos.y });
     }
 
-    // 确保真实根节点位置不变
-    appState.positions2D.set(realRoot.id, { x: anchorPos.x, y: anchorPos.y });
+    // 真实根节点位置不变
+    targetPositions.set(realRoot.id, { x: anchorPos.x, y: anchorPos.y });
   }
 
-  mark2DDirty();
-  draw();
-  saveCurrentProjectData();
-  // 自动排列后把结果保存到当前时间点（不新建时间点）
-  // 动态 import 避免循环依赖；scheduleAmend 用 microtask 去重，安全重复调用
-  import('../versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
-    if (typeof scheduleAmend === 'function') scheduleAmend();
-  }).catch(() => {});
+  // 虚拟根节点位置也包含
+  const rootPos = appState.positions2D.get(rootNode.id);
+  if (rootPos) targetPositions.set(rootNode.id, { x: rootPos.x, y: rootPos.y });
+
+  return targetPositions;
 }
 
 function collectLayoutPositions(layout, skipSteps, positionMap) {
@@ -1390,4 +1406,4 @@ appState.set2DKey = set2DKey;
 // ============================================================
 //  导出供外部使用
 // ============================================================
-export { groupNodes, autoArrangeTreeLayout, zoom2D, reset2DView, process2DPanning, get2DKeys, set2DKey };
+export { groupNodes, autoArrangeTreeLayout, computeAutoArrangeTargets, zoom2D, reset2DView, process2DPanning, get2DKeys, set2DKey };

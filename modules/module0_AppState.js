@@ -112,6 +112,30 @@ class AppState {
     this.cameraAnimStartPos = new THREE.Vector3();
     this.cameraAnimStartTarget = new THREE.Vector3();
 
+    // ---------- 3D 排列动画 ----------
+    this.arrangeAnimActive = false;
+    this.arrangeAnimPhase = 'idle';        // 'idle' | 'fadeOut' | 'move' | 'fadeIn'
+    this.arrangeAnimProgress = 0;
+    this.arrangeAnimFadeOutDuration = 0.4;
+    this.arrangeAnimMoveDuration = 0.6;
+    this.arrangeAnimFadeInDuration = 0.4;
+    this._arrangeStartPositions = null;     // Map<id, Vector3>
+    this._arrangeTargetPositions = null;    // Map<id, Vector3>
+    this._arrangeDeferredEffects = null;    // 延迟添加的视觉效果（图层高亮矩形等）
+    this._arrangeAnimLineControl = false;   // true 时渲染循环跳过连线 opacity 赋值
+
+    // ---------- 2D 排列动画 ----------
+    this.arrangeAnim2DActive = false;
+    this.arrangeAnim2DPhase = 'idle';       // 'idle' | 'fadeOut' | 'move' | 'fadeIn'
+    this.arrangeAnim2DProgress = 0;
+    this.arrangeAnim2DFadeOutDuration = 0.3;
+    this.arrangeAnim2DMoveDuration = 0.5;
+    this.arrangeAnim2DFadeInDuration = 0.3;
+    this._arrange2DStartPositions = null;    // Map<id, {x, y}>
+    this._arrange2DTargetPositions = null;   // Map<id, {x, y}>
+    this._arrange2DLineAlpha = 1;            // 连线全局 alpha（动画帧计算）
+    this._arrange2DEased = 0;                // move 阶段 eased progress（动画帧计算，draw 复用）
+
     // ---------- 2D 视图（全屏） ----------
     this.positions2D = new Map();
     this.collapsed2D = new Set();

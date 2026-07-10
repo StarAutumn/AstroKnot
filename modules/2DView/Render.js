@@ -470,7 +470,7 @@ function drawTreeRecursive(layout, positionMap, parentCollapsedProgress = null, 
   const isSelected = nodeId ? (appState.selectedNodeIds.has(nodeId) || boxSelectNodeIds.has(nodeId)) : false;
   const isConnected = nodeId && appState.connectedNodeIds && appState.connectedNodeIds.has(nodeId);
   const isConnectedStep = nodeId && appState.connectedStepNodeIds && appState.connectedStepNodeIds.has(nodeId);
-  const pos = positionMap.get(nodeId);
+  const pos = _getAnim2DPos(nodeId, positionMap.get(nodeId));
 
   if (pos && !isRoot) {
     const nodeInLayer = isNodeInCurrentLayer(nodeId);
@@ -506,7 +506,7 @@ function drawTreeRecursive(layout, positionMap, parentCollapsedProgress = null, 
   if (isCurrentlyCollapsed && !animState) return;
 
   for (const child of layout.children) {
-    const childPos = positionMap.get(child.node.id);
+    const childPos = _getAnim2DPos(child.node.id, positionMap.get(child.node.id));
     if (!childPos) continue;
 
     const isStepNode = isNextStepNode(child.node);
@@ -549,7 +549,7 @@ function drawTreeRecursive(layout, positionMap, parentCollapsedProgress = null, 
       childInputY = childPos.y + child.height / 2;
     }
 
-    const childAlpha = effectiveProgress !== null ? effectiveProgress : 1;
+    const childAlpha = (effectiveProgress !== null ? effectiveProgress : 1) * _getAnim2DLineAlpha();
     const childInLayer = isNodeInCurrentLayer(child.node.id);
     const edgeData = { edgeType: 'tree', startId: nodeId, endId: child.node.id, label: '', labelHidden: true, customColor: customColorHex };
     const dashPattern = isStepNode ? [8, 3, 2, 3] : [];
@@ -657,10 +657,10 @@ function drawCrossEdges(positionMap) {
     if (!sourceInLayer || !targetInLayer) continue;
     const sourceAlpha = getNodeVisibilityAlpha(edge.source);
     const targetAlpha = getNodeVisibilityAlpha(edge.target);
-    const edgeAlpha = Math.min(sourceAlpha, targetAlpha);
+    const edgeAlpha = Math.min(sourceAlpha, targetAlpha) * _getAnim2DLineAlpha();
     if (edgeAlpha <= 0) continue;
-    const sourcePos = positionMap.get(edge.source);
-    const targetPos = positionMap.get(edge.target);
+    const sourcePos = _getAnim2DPos(edge.source, positionMap.get(edge.source));
+    const targetPos = _getAnim2DPos(edge.target, positionMap.get(edge.target));
     if (!sourcePos || !targetPos) continue;
     const sourceScale = appState.nodeMap.get(edge.source)?.sizeScale || 1;
     const targetScale = appState.nodeMap.get(edge.target)?.sizeScale || 1;
@@ -779,6 +779,32 @@ function drawBoxSelection() {
   ctx.fill();
   ctx.stroke();
   ctx.restore();
+}
+
+// ============================================================
+//  2D 排列动画 — 获取节点当前位置（考虑动画插值）
+// ============================================================
+function _getAnim2DPos(nodeId, pos) {
+  if (!appState.arrangeAnim2DActive || !pos) return pos;
+  // fadeOut/fadeIn 阶段：节点位置不变化
+  if (appState.arrangeAnim2DPhase !== 'move') return pos;
+  // move 阶段：用插值位置
+  const startPos = appState._arrange2DStartPositions?.get(nodeId);
+  const targetPos = appState._arrange2DTargetPositions?.get(nodeId);
+  if (!startPos || !targetPos) return pos;
+  const eased = appState._arrange2DEased;
+  return {
+    x: startPos.x + (targetPos.x - startPos.x) * eased,
+    y: startPos.y + (targetPos.y - startPos.y) * eased
+  };
+}
+
+// ============================================================
+//  2D 排列动画 — 获取连线 alpha 乘数
+// ============================================================
+function _getAnim2DLineAlpha() {
+  if (!appState.arrangeAnim2DActive) return 1;
+  return appState._arrange2DLineAlpha;
 }
 
 // ============================================================
@@ -918,8 +944,8 @@ export function draw() {
   drawBoxSelection();
   ctx.restore();
 
-  // 仅在有动画/自由绘制/折叠变化/悬停时自刷新；常规帧由 3D 动画循环驱动 refresh2DView
-  if (visible && (animations.length > 0 || isFreeDrawing || hoveredNodeId)) {
+  // 仅在有动画/自由绘制/折叠变化/悬停/排列动画时自刷新；常规帧由 3D 动画循环驱动 refresh2DView
+  if (visible && (animations.length > 0 || isFreeDrawing || hoveredNodeId || appState.arrangeAnim2DActive)) {
     requestAnimationFrame(() => draw());
   }
 }

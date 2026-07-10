@@ -18,7 +18,7 @@ export { draw } from './Render.js';
 
 export {
   focusOnNode2D, startMultiNodeMove,
-  groupNodes, autoArrangeTreeLayout,
+  groupNodes, autoArrangeTreeLayout, computeAutoArrangeTargets,
   zoom2D, reset2DView,
   process2DPanning, get2DKeys, set2DKey
 } from './Interaction.js';

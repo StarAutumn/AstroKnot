@@ -8,6 +8,8 @@ import { layoutTree, assignCoordinates, extractNodePositions } from '../2DView/i
 import { rebuildAllLines, generateRandomPosition } from '../VisualComponents/index.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
 import { groupRects } from '../2DView/shared.js';
+import { startArrangeAnimation, skipArrangeAnimation, startArrangeAnimation2D, skipArrangeAnimation2D } from './ArrangeAnimation.js';
+import { computeAutoArrangeTargets } from '../2DView/index.js';
 
 export function bindResize() {
   window.addEventListener('resize', () => {
@@ -23,9 +25,15 @@ export function bindResize() {
   });
 
   // ============================================================
-//  所有图层自动排列（2D 模式下遍历所有图层逐一重排）
+//  所有图层自动排列（2D 模式下遍历所有图层逐一重排，带动画）
 // ============================================================
 function arrangeAllLayers() {
+  // 动画中再点击 → 跳过当前动画后重新排列
+  if (appState.arrangeAnim2DActive) {
+    skipArrangeAnimation2D();
+    // 继续执行下面的计算+启动
+  }
+
   const sortedLayers = [...appState.layers].sort((a, b) => a.order - b.order);
   const rootNode = appState.methodsTree;
   if (!rootNode || !rootNode.id) return;
@@ -42,16 +50,16 @@ function arrangeAllLayers() {
   if (firstLayer) {
     appState.currentLayerId = firstLayer.id;
     appState.positions2D = firstLayer.positions2D || new Map();
-    if (appState.autoArrangeTreeLayout) {
-      appState.autoArrangeTreeLayout();
-    }
-    // 保存第一个图层的排列结果作为基准
-    referencePositions = new Map(appState.positions2D);
-    firstLayer.positions2D = new Map(appState.positions2D);
+
+    // 计算目标位置（不修改 positions2D，不调用 draw）
+    const targets = computeAutoArrangeTargets();
+    // 将目标位置作为参考基准
+    referencePositions = new Map(targets);
+    // 同时保存到图层（后续恢复后使用）
+    firstLayer.positions2D = new Map(targets);
   }
 
-  // 2. 其余图层：用第一个图层的标准位置覆盖，并偏移对齐到第一个图层的根节点位置
-  // 先找到第一个图层的 primary node（第一个可见节点）作为锚点
+  // 2. 其余图层：用第一个图层的标准位置覆盖，并偏移对齐
   let anchorPos = null;
   if (firstLayer) {
     for (const [id, pos] of (referencePositions || [])) {
@@ -67,19 +75,19 @@ function arrangeAllLayers() {
     appState.currentLayerId = layer.id;
     appState.positions2D = layer.positions2D || new Map();
 
-    // 用第一个图层的标准位置覆盖当前图层的所有节点位置
     if (referencePositions) {
+      // 用第一个图层的标准位置覆盖当前图层
       for (const [nodeId, pos] of referencePositions) {
         appState.positions2D.set(nodeId, { x: pos.x, y: pos.y });
       }
-      // 以当前图层的根节点位置为基准重新运行布局，确保树结构一致
-      appState.autoArrangeTreeLayout();
 
-      // 应用偏移对齐：使该图层的 primary node 与第一个图层的 primary node 在同一位置
-      // 根节点位置不参与对齐偏移（只移动后代节点）
+      // 计算当前图层的目标位置
+      const layerTargets = computeAutoArrangeTargets();
+
+      // 应用偏移对齐
       if (anchorPos && layer.nodeIds) {
         let layerPrimaryPos = null;
-        for (const [id, pos] of appState.positions2D) {
+        for (const [id, pos] of layerTargets) {
           if (id !== rootNode.id && layer.nodeIds.has(id)) {
             layerPrimaryPos = { x: pos.x, y: pos.y };
             break;
@@ -89,21 +97,20 @@ function arrangeAllLayers() {
           const offsetX = anchorPos.x - layerPrimaryPos.x;
           const offsetY = anchorPos.y - layerPrimaryPos.y;
           if (offsetX !== 0 || offsetY !== 0) {
-            const newPositions = new Map();
-            for (const [id, pos] of appState.positions2D) {
-              if (id === rootNode.id) {
-                // 根节点位置保持不变
-                newPositions.set(id, { x: pos.x, y: pos.y });
-              } else {
-                newPositions.set(id, { x: pos.x + offsetX, y: pos.y + offsetY });
+            for (const [id, pos] of layerTargets) {
+              if (id !== rootNode.id) {
+                pos.x += offsetX;
+                pos.y += offsetY;
               }
             }
-            appState.positions2D = newPositions;
           }
         }
       }
+
+      layer.positions2D = new Map(layerTargets);
+    } else {
+      layer.positions2D = new Map(appState.positions2D);
     }
-    layer.positions2D = new Map(appState.positions2D);
   }
 
   // 恢复当前图层
@@ -112,68 +119,81 @@ function arrangeAllLayers() {
     appState.positions2D = curLayer.positions2D || new Map();
   }
 
-  // 刷新 2D 视图
-  if (appState.refresh2DView) appState.refresh2DView();
-  if (appState.refreshTreePanel) appState.refreshTreePanel();
-  // 自动排列后把结果保存到当前时间点（不新建时间点）
-  // 动态 import 避免循环依赖；scheduleAmend 用 microtask 去重
-  import('../versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
-    if (typeof scheduleAmend === 'function') scheduleAmend();
-  }).catch(() => {});
+  // 合并所有图层的目标位置为统一的 targetPositions Map
+  const targetPositions = new Map();
+  for (const layer of sortedLayers) {
+    if (layer.positions2D) {
+      for (const [id, pos] of layer.positions2D) {
+        // 后面的图层会覆盖前面图层的同 id 位置（正常情况下不会冲突）
+        targetPositions.set(id, { x: pos.x, y: pos.y });
+      }
+    }
+  }
+
+  // 启动 2D 排列动画
+  if (targetPositions.size > 0) {
+    startArrangeAnimation2D(targetPositions);
+  }
 }
 
 // ============================================================
-//  3D 默认散布排列
+//  清除图层高亮矩形和3D组群矩形
 // ============================================================
-function arrange3DDefault() {
-  appState.layer3DLayout = false;
-  // 隐藏图层按钮
-  const layerBtn = document.getElementById('layerIconBtn');
-  if (layerBtn) layerBtn.style.display = 'none';
-  // 清除图层高亮矩形
+function _clearLayerVisuals() {
   if (appState.layerHighlights) {
     appState.layerHighlights.forEach(h => appState.scene.remove(h));
     appState.layerHighlights = [];
   }
-  // 清除3D组群矩形
   if (appState.groupRectMeshes) {
     appState.groupRectMeshes.forEach(m => appState.scene.remove(m));
     appState.groupRectMeshes = [];
   }
+}
 
+// ============================================================
+//  3D 默认散布排列 — 计算目标位置（不应用）
+// ============================================================
+function compute3DDefaultTargets() {
+  appState.layer3DLayout = false;
+
+  const targetPositions = new Map();
   const existing = [];
   const base = new THREE.Vector3(0, 0, 0);
   const nodeIds = Array.from(appState.positions.keys()).filter(id => id !== appState.VIRTUAL_ROOT_ID);
   for (const id of nodeIds) {
     const pos = generateRandomPosition(existing, base);
-    appState.positions.set(id, pos);
+    targetPositions.set(id, pos);
     existing.push(pos);
-    const obj = appState.nodeMeshes.get(id);
-    if (obj) {
-      obj.mesh.position.copy(pos);
-      if (obj.label) {
-        obj.label.position.set(pos.x, pos.y + appState.NODE_RADIUS + 0.28, pos.z);
-      }
-    }
   }
-  rebuildAllLines();
-  saveCurrentProjectData();
-  // 自动排列后把结果保存到当前时间点（不新建时间点）
-  import('../versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
-    if (typeof scheduleAmend === 'function') scheduleAmend();
-  }).catch(() => {});
+
+  const deferredEffects = { type: 'default', layerBtnHidden: true };
+  return { targetPositions, deferredEffects };
 }
 
 // ============================================================
-//  3D 按 2D 布局排列（不同图层按层序向上堆叠）
+//  3D 默认散布排列（带动画）
 // ============================================================
-function arrange3DWith2DLayout() {
-  const rootNode = appState.methodsTree;
-  if (!rootNode || !rootNode.id) return;
+function arrange3DDefault() {
+  // 动画中再点击 → 跳过当前动画后重新排列
+  if (appState.arrangeAnimActive) {
+    skipArrangeAnimation();
+    // 重新计算并启动
+  }
 
-  appState.layer3DLayout = true;
-  const LAYER_SPACING = 4; // 每层之间的 Y 轴间距
-  appState.layer3DSpacing = LAYER_SPACING;
+  _clearLayerVisuals();
+  const { targetPositions, deferredEffects } = compute3DDefaultTargets();
+  startArrangeAnimation(targetPositions, deferredEffects);
+}
+
+// ============================================================
+//  3D 按 2D 布局排列 — 计算目标位置（不应用）
+//  返回 { targetPositions: Map<id, Vector3>, deferredEffects }
+// ============================================================
+function compute3DWith2DLayoutTargets() {
+  const rootNode = appState.methodsTree;
+  if (!rootNode || !rootNode.id) return { targetPositions: new Map(), deferredEffects: { type: '2DLayout' } };
+
+  const LAYER_SPACING = 4;
   const sortedLayers = [...appState.layers].sort((a, b) => a.order - b.order);
 
   // 保存当前图层的 2D 位置
@@ -222,7 +242,8 @@ function arrange3DWith2DLayout() {
     referencePositions = new Map(positions);
   }
 
-  // 2. 用统一的标准位置映射到各图层的 3D 坐标
+  // 2. 用统一的标准位置映射到各图层的 3D 坐标（写入 targetPositions，不修改 appState.positions/mesh）
+  const targetPositions = new Map();
   if (referencePositions) {
     // 找到第一个图层的 primary node（第一个非虚拟根且在图层中的节点）作为锚点
     let anchorPos = null;
@@ -260,24 +281,16 @@ function arrange3DWith2DLayout() {
           yBase,
           adjustedY * 0.015
         );
-        appState.positions.set(id, worldPos);
-        const obj = appState.nodeMeshes.get(id);
-        if (obj) {
-          obj.mesh.position.copy(worldPos);
-          if (obj.label) {
-            obj.label.position.set(worldPos.x, worldPos.y + appState.NODE_RADIUS + 0.28, worldPos.z);
-          }
-        }
+        targetPositions.set(id, worldPos);
       }
     });
   }
 
-  // 3. 树遍历修正 X 坐标：逐层还原 2D 边缘到边缘连线夹角
-  // child_3D_X = parent_adjusted_X + (child_base_X - parent_base_X) - parent_width * SCALE
+  // 3. 树遍历修正 X 坐标（操作 targetPositions 而非 appState.positions）
   {
     const SCALE = 0.015, BASE_W = 120;
     function applyEdgeOffset(node, parentId, parentBaseX, parentAdjustedX) {
-      const pos = appState.positions.get(node.id);
+      const pos = targetPositions.get(node.id);
       if (!pos) return;
       const baseX = pos.x;
       let adjustedX;
@@ -290,31 +303,21 @@ function arrange3DWith2DLayout() {
         adjustedX = baseX;
       }
       pos.x = adjustedX;
-      const obj = appState.nodeMeshes.get(node.id);
-      if (obj) {
-        obj.mesh.position.x = adjustedX;
-        if (obj.label) obj.label.position.x = adjustedX;
-      }
       (node.children || []).forEach(c => applyEdgeOffset(c, node.id, baseX, adjustedX));
     }
     applyEdgeOffset(appState.methodsTree, null, 0, 0);
   }
 
-  // 4. 为每层节点绘制半透明高亮矩形
+  // 4. 为每层节点创建半透明高亮矩形（不添加到 scene，存入 deferredEffects）
+  const layerHighlights = [];
   {
-    // 清除旧的高亮矩形
-    if (appState.layerHighlights) {
-      appState.layerHighlights.forEach(h => appState.scene.remove(h));
-    }
-    appState.layerHighlights = [];
-
     sortedLayers.forEach((layer, layerIdx) => {
       const yBase = layerIdx * LAYER_SPACING;
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
       let hasNode = false;
 
       for (const id of (layer.nodeIds || [])) {
-        const pos = appState.positions.get(id);
+        const pos = targetPositions.get(id);
         if (!pos) continue;
         hasNode = true;
         if (pos.x < minX) minX = pos.x;
@@ -396,18 +399,14 @@ function arrange3DWith2DLayout() {
       plane.rotation.x = -Math.PI / 2; // 平放在 XZ 平面
       plane.position.set((minX + maxX) / 2, yBase, (minZ + maxZ) / 2);
       plane.renderOrder = 999;
-      appState.scene.add(plane);
-      appState.layerHighlights.push(plane);
+      // 不添加到 scene，存入数组延迟添加
+      layerHighlights.push(plane);
     });
   }
 
-  // 5. 绘制3D组群矩形
+  // 5. 绘制3D组群矩形（不添加到 scene，存入 deferredEffects）
+  const groupRectMeshes = [];
   {
-    if (appState.groupRectMeshes) {
-      appState.groupRectMeshes.forEach(m => appState.scene.remove(m));
-    }
-    appState.groupRectMeshes = [];
-
     const X_SCALE = 0.005, Z_SCALE = 0.015;
     for (const gr of groupRects) {
       // 找到组群所属图层
@@ -447,8 +446,8 @@ function arrange3DWith2DLayout() {
       plane.rotation.x = -Math.PI / 2;
       plane.position.set(cx, yBase + 0.01, cz);
       plane.renderOrder = 998;
-      appState.scene.add(plane);
-      appState.groupRectMeshes.push(plane);
+      // 不添加到 scene
+      groupRectMeshes.push(plane);
 
       // 边框线
       const edgeGeom = new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, h));
@@ -461,14 +460,10 @@ function arrange3DWith2DLayout() {
       edgeLine.rotation.x = -Math.PI / 2;
       edgeLine.position.set(cx, yBase + 0.02, cz);
       edgeLine.renderOrder = 999;
-      appState.scene.add(edgeLine);
-      appState.groupRectMeshes.push(edgeLine);
+      // 不添加到 scene
+      groupRectMeshes.push(edgeLine);
     }
   }
-
-  // 显示图层按钮
-  const layerBtn = document.getElementById('layerIconBtn');
-  if (layerBtn) layerBtn.style.display = '';
 
   // 恢复当前图层
   if (curLayer) {
@@ -476,13 +471,34 @@ function arrange3DWith2DLayout() {
     appState.positions2D = curLayer.positions2D || new Map();
   }
 
-  // 重建连线
-  rebuildAllLines();
-  saveCurrentProjectData();
-  // 自动排列后把结果保存到当前时间点（不新建时间点）
-  import('../versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
-    if (typeof scheduleAmend === 'function') scheduleAmend();
-  }).catch(() => {});
+  const deferredEffects = {
+    type: '2DLayout',
+    layer3DLayout: true,
+    layer3DSpacing: LAYER_SPACING,
+    layerHighlights,
+    groupRectMeshes,
+    layerBtnVisible: true
+  };
+
+  return { targetPositions, deferredEffects };
+}
+
+// ============================================================
+//  3D 按 2D 布局排列（带动画）
+// ============================================================
+function arrange3DWith2DLayout() {
+  // 动画中再点击 → 跳过当前动画后重新排列
+  if (appState.arrangeAnimActive) {
+    skipArrangeAnimation();
+    // 重新计算并启动
+  }
+
+  const rootNode = appState.methodsTree;
+  if (!rootNode || !rootNode.id) return;
+
+  _clearLayerVisuals();
+  const { targetPositions, deferredEffects } = compute3DWith2DLayoutTargets();
+  startArrangeAnimation(targetPositions, deferredEffects);
 }
 
   // ---------- 自动排列按钮（任务栏） ----------

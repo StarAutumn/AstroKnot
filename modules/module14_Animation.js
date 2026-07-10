@@ -5,8 +5,10 @@
 import * as THREE from 'three';
 import { appState } from './module0_AppState.js';
 import { processMovement } from './UI/Keyboard.js';
-import { _bumpRenderFrame } from './VisualComponents/index.js';
+import { _bumpRenderFrame, rebuildAllLines } from './VisualComponents/index.js';
 import { getVersionDecay } from './versionGraph/versionAtmosphere.js';
+import { saveCurrentProjectData } from './module2_TreeData.js';
+import { redraw2DView, mark2DDirty } from './2DView/Core.js';
 
 let tm = 0;
 let _frameSkipCounter = 0;  // HSL 节流用：每 2 帧更新一次非选中节点 HSL 颜色
@@ -280,7 +282,7 @@ export function animate() {
       const lineEased = raw > 0.35 ? ((raw - 0.35) / 0.65) : 0;  // 与天空球同步（延迟35%后开始）
       const lineSmooth = 1 - Math.pow(1 - lineEased, 2.5);      // 平滑缓出
       if (it.line.glowTube) {
-        if (!appState._lineToggleAnimActive) it.line.glowTube.material.opacity = lineSmooth * 1.0 * (appState.lineGlowOpacity ?? 1);
+        if (!appState._lineToggleAnimActive && !appState._arrangeAnimLineControl) it.line.glowTube.material.opacity = lineSmooth * 1.0 * (appState.lineGlowOpacity ?? 1);
       }
       
       // 在延迟结束后启动流光动画
@@ -290,9 +292,9 @@ export function animate() {
       
       const pVis = appState._particleAnimOpacity ?? 1;
       if (it.line.particlePoints) {
-        if (!appState._lineToggleAnimActive) it.line.particlePoints.material.opacity = lineSmooth * pVis;
+        if (!appState._lineToggleAnimActive && !appState._arrangeAnimLineControl) it.line.particlePoints.material.opacity = lineSmooth * pVis;
       }
-      if (it.line.trailPointsMerged?.material?.uniforms) it.line.trailPointsMerged.material.uniforms.uOpacity.value = lineSmooth * 0.6 * pVis;
+      if (it.line.trailPointsMerged?.material?.uniforms && !appState._arrangeAnimLineControl) it.line.trailPointsMerged.material.uniforms.uOpacity.value = lineSmooth * 0.6 * pVis;
     }
 
     if (appState.backGlow) appState.backGlow.intensity = eased * 0.7;
@@ -409,7 +411,7 @@ export function animate() {
           it.line.glowTube.material.color.setHex(0xffffff);
         }
       }
-      if (!appState._lineToggleAnimActive && !appState.transitionActive) {
+      if (!appState._lineToggleAnimActive && !appState.transitionActive && !appState._arrangeAnimLineControl) {
         it.line.glowTube.material.opacity = (isConnectedStepLine || isConnectedLine)
           ? Math.max(appState.lineGlowOpacity ?? 1, 0.4)
           : (appState.lineGlowOpacity ?? 1);
@@ -418,7 +420,7 @@ export function animate() {
     if (it.line.particlePoints) {
       const ppMat = it.line.particlePoints.material;
       const tpMat = it.line.trailPointsMerged?.material;
-      if (!appState._lineToggleAnimActive && !appState.transitionActive) ppMat.opacity = 1.0;
+      if (!appState._lineToggleAnimActive && !appState.transitionActive && !appState._arrangeAnimLineControl) ppMat.opacity = 1.0;
       if (it.line._lastParticleState !== newState) {
         it.line._lastParticleState = newState;
         if (isConnectedStepLine) {
@@ -717,6 +719,250 @@ if (!appState.simple3D) {
     }
   }
 
+  // ========== 3D 排列动画 ==========
+  if (appState.arrangeAnimActive) {
+    const dt = 0.016;
+
+    if (appState.arrangeAnimPhase === 'fadeOut') {
+      const speed = dt / appState.arrangeAnimFadeOutDuration;
+      appState.arrangeAnimProgress = Math.min(1, appState.arrangeAnimProgress + speed);
+      const raw = appState.arrangeAnimProgress;
+      const eased = 1 - Math.pow(1 - raw, 3);  // cubic ease-out
+
+      // 所有连线组件渐隐
+      const lineOp = 1 - eased;
+      for (let it of appState.lineItems) {
+        it.line.setOpacity(lineOp);
+        if (it.line.glowTube) it.line.glowTube.material.opacity = lineOp * (appState.lineGlowOpacity ?? 1);
+        if (it.line.particlePoints) it.line.particlePoints.material.opacity = lineOp;
+        if (it.line.trailPointsMerged?.material?.uniforms) {
+          it.line.trailPointsMerged.material.uniforms.uOpacity.value = lineOp * 0.6;
+        }
+      }
+
+      if (raw >= 1) {
+        // 确保连线完全不可见
+        for (let it of appState.lineItems) {
+          it.line.setOpacity(0);
+          if (it.line.glowTube) it.line.glowTube.material.opacity = 0;
+          if (it.line.particlePoints) it.line.particlePoints.material.opacity = 0;
+          if (it.line.trailPointsMerged?.material?.uniforms) {
+            it.line.trailPointsMerged.material.uniforms.uOpacity.value = 0;
+          }
+        }
+        // 切换到移动阶段
+        appState.arrangeAnimPhase = 'move';
+        appState.arrangeAnimProgress = 0;
+      }
+    }
+
+    else if (appState.arrangeAnimPhase === 'move') {
+      const speed = dt / appState.arrangeAnimMoveDuration;
+      appState.arrangeAnimProgress = Math.min(1, appState.arrangeAnimProgress + speed);
+      const t = appState.arrangeAnimProgress;
+      // cubic ease-in-out
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+      // 节点位置插值
+      const startPositions = appState._arrangeStartPositions;
+      const targetPositions = appState._arrangeTargetPositions;
+      if (startPositions && targetPositions) {
+        for (const [id, startPos] of startPositions) {
+          const targetPos = targetPositions.get(id);
+          if (!targetPos) continue;
+
+          const cx = startPos.x + (targetPos.x - startPos.x) * eased;
+          const cy = startPos.y + (targetPos.y - startPos.y) * eased;
+          const cz = startPos.z + (targetPos.z - startPos.z) * eased;
+
+          const pos = appState.positions.get(id);
+          if (pos) pos.set(cx, cy, cz);
+
+          const obj = appState.nodeMeshes.get(id);
+          if (obj) {
+            obj.mesh.position.set(cx, cy, cz);
+            if (obj.label) {
+              obj.label.position.set(cx, cy + appState.NODE_RADIUS + 0.28, cz);
+            }
+          }
+        }
+      }
+
+      // 连线保持透明
+      for (let it of appState.lineItems) {
+        it.line.setOpacity(0);
+        if (it.line.glowTube) it.line.glowTube.material.opacity = 0;
+        if (it.line.particlePoints) it.line.particlePoints.material.opacity = 0;
+        if (it.line.trailPointsMerged?.material?.uniforms) {
+          it.line.trailPointsMerged.material.uniforms.uOpacity.value = 0;
+        }
+      }
+
+      if (t >= 1) {
+        // Snap 到最终位置
+        if (targetPositions) {
+          for (const [id, targetPos] of targetPositions) {
+            appState.positions.set(id, targetPos.clone());
+            const obj = appState.nodeMeshes.get(id);
+            if (obj) {
+              obj.mesh.position.copy(targetPos);
+              if (obj.label) {
+                obj.label.position.set(targetPos.x, targetPos.y + appState.NODE_RADIUS + 0.28, targetPos.z);
+              }
+            }
+          }
+        }
+
+        // 应用延迟视觉效果（图层高亮矩形、组群矩形）
+        const fx = appState._arrangeDeferredEffects;
+        if (fx) {
+          if (fx.layerHighlights && fx.layerHighlights.length > 0) {
+            appState.layerHighlights = fx.layerHighlights;
+            for (const hl of fx.layerHighlights) appState.scene.add(hl);
+          }
+          if (fx.groupRectMeshes && fx.groupRectMeshes.length > 0) {
+            appState.groupRectMeshes = fx.groupRectMeshes;
+            for (const m of fx.groupRectMeshes) appState.scene.add(m);
+          }
+          if (fx.layerBtnVisible) {
+            const btn = document.getElementById('layerIconBtn');
+            if (btn) btn.style.display = '';
+          }
+          if (fx.layerBtnHidden) {
+            const btn = document.getElementById('layerIconBtn');
+            if (btn) btn.style.display = 'none';
+          }
+          if (fx.type === '2DLayout') {
+            appState.layer3DLayout = fx.layer3DLayout;
+            appState.layer3DSpacing = fx.layer3DSpacing;
+          }
+        }
+
+        // 在最终位置重建连线
+        rebuildAllLines();
+
+        // 切换到渐显阶段
+        appState.arrangeAnimPhase = 'fadeIn';
+        appState.arrangeAnimProgress = 0;
+      }
+    }
+
+    else if (appState.arrangeAnimPhase === 'fadeIn') {
+      const speed = dt / appState.arrangeAnimFadeInDuration;
+      appState.arrangeAnimProgress = Math.min(1, appState.arrangeAnimProgress + speed);
+      const raw = appState.arrangeAnimProgress;
+      const eased = 1 - Math.pow(1 - raw, 3);  // cubic ease-out
+
+      // 所有连线组件渐显
+      for (let it of appState.lineItems) {
+        it.line.setOpacity(eased);
+        if (it.line.glowTube) it.line.glowTube.material.opacity = eased * (appState.lineGlowOpacity ?? 1);
+        if (it.line.particlePoints) it.line.particlePoints.material.opacity = eased;
+        if (it.line.trailPointsMerged?.material?.uniforms) {
+          it.line.trailPointsMerged.material.uniforms.uOpacity.value = eased * 0.6;
+        }
+      }
+
+      if (raw >= 1) {
+        // 动画完成，重置状态
+        appState.arrangeAnimActive = false;
+        appState.arrangeAnimPhase = 'idle';
+        appState.arrangeAnimProgress = 0;
+        appState._arrangeAnimLineControl = false;
+        appState._arrangeStartPositions = null;
+        appState._arrangeTargetPositions = null;
+        appState._arrangeDeferredEffects = null;
+
+        // 重启流光动画
+        for (let it of appState.lineItems) {
+          if (it.line.startFlowAnimation) it.line.startFlowAnimation(tm);
+        }
+
+        // 保存项目数据
+        saveCurrentProjectData();
+        import('./versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
+          if (typeof scheduleAmend === 'function') scheduleAmend();
+        }).catch(() => {});
+      }
+    }
+  }
+
+  // ========== 2D 排列动画 ==========
+  if (appState.arrangeAnim2DActive) {
+    const dt2D = 0.016;
+
+    if (appState.arrangeAnim2DPhase === 'fadeOut') {
+      const speed = dt2D / appState.arrangeAnim2DFadeOutDuration;
+      appState.arrangeAnim2DProgress = Math.min(1, appState.arrangeAnim2DProgress + speed);
+      const raw = appState.arrangeAnim2DProgress;
+      const eased = 1 - Math.pow(1 - raw, 3);  // cubic ease-out
+      appState._arrange2DLineAlpha = 1 - eased;
+      appState._arrange2DEased = 0;
+
+      if (raw >= 1) {
+        appState._arrange2DLineAlpha = 0;
+        appState.arrangeAnim2DPhase = 'move';
+        appState.arrangeAnim2DProgress = 0;
+      }
+    }
+
+    else if (appState.arrangeAnim2DPhase === 'move') {
+      const speed = dt2D / appState.arrangeAnim2DMoveDuration;
+      appState.arrangeAnim2DProgress = Math.min(1, appState.arrangeAnim2DProgress + speed);
+      const t = appState.arrangeAnim2DProgress;
+      // cubic ease-in-out
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      appState._arrange2DEased = eased;
+      appState._arrange2DLineAlpha = 0;
+
+      if (t >= 1) {
+        // Snap 到最终位置
+        const targetPositions = appState._arrange2DTargetPositions;
+        if (targetPositions) {
+          for (const [id, targetPos] of targetPositions) {
+            appState.positions2D.set(id, { x: targetPos.x, y: targetPos.y });
+          }
+        }
+
+        // 标记布局脏 + 重绘
+        mark2DDirty();
+
+        appState.arrangeAnim2DPhase = 'fadeIn';
+        appState.arrangeAnim2DProgress = 0;
+        appState._arrange2DEased = 1;
+      }
+    }
+
+    else if (appState.arrangeAnim2DPhase === 'fadeIn') {
+      const speed = dt2D / appState.arrangeAnim2DFadeInDuration;
+      appState.arrangeAnim2DProgress = Math.min(1, appState.arrangeAnim2DProgress + speed);
+      const raw = appState.arrangeAnim2DProgress;
+      const eased = 1 - Math.pow(1 - raw, 3);  // cubic ease-out
+      appState._arrange2DLineAlpha = eased;
+      appState._arrange2DEased = 1;
+
+      if (raw >= 1) {
+        // 动画完成
+        appState.arrangeAnim2DActive = false;
+        appState.arrangeAnim2DPhase = 'idle';
+        appState.arrangeAnim2DProgress = 0;
+        appState._arrange2DStartPositions = null;
+        appState._arrange2DTargetPositions = null;
+        appState._arrange2DLineAlpha = 1;
+        appState._arrange2DEased = 0;
+
+        // 保存
+        saveCurrentProjectData();
+        import('./versionGraph/versionAutoSave.js').then(({ scheduleAmend }) => {
+          if (typeof scheduleAmend === 'function') scheduleAmend();
+        }).catch(() => {});
+      }
+    }
+
+    // 每帧触发 2D 重绘
+    redraw2DView();
+  }
+
   // ========== 流星更新 ==========
   if (!appState.simple3D && !appState.editorOpen && !appState.transitionActive && appState.meteorVisible !== false && appState.meteors) {
     const spawnChance = 0.02;
@@ -807,7 +1053,7 @@ if (!appState.simple3D) {
 
   // 应用到连线粒子（Points 对象）
   for (let it of appState.lineItems) {
-    if (it.line.particlePoints && !appState._lineToggleAnimActive && !appState.transitionActive) {
+    if (it.line.particlePoints && !appState._lineToggleAnimActive && !appState.transitionActive && !appState._arrangeAnimLineControl) {
       it.line.particlePoints.material.opacity *= pOpacity;
       if (it.line.trailPointsMerged?.material?.uniforms) {
         const cur = it.line.trailPointsMerged.material.uniforms.uOpacity.value;

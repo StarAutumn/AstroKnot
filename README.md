@@ -228,17 +228,27 @@ AstroKnot/
     │   └── AppRunner.js            #   应用运行器（独立窗口、iframe 预览）
     ├── UI/                         # UI 组件
     │   ├── index.js                #   入口 & 绑定汇总
+    │   ├── ArrangeAnimation.js     #   布局动画
+    │   ├── AiDialog.js             #   AI 对话框 UI
+    │   ├── AiDialog.css            #   AI 对话框样式
     │   ├── shared.js               #   共享工具函数
+    │   ├── shared.css              #   共享样式
     │   ├── style.css               #   全局 UI 样式
     │   ├── Window.js               #   窗口管理 & AstroKnot 菜单
+    │   ├── Window.css              #   窗口管理样式
     │   ├── Toolbar.js              #   工具栏按钮
+    │   ├── Toolbar.css             #   工具栏样式
     │   ├── Search.js               #   搜索（节点/项目）
+    │   ├── Search.css              #   搜索样式
     │   ├── Keyboard.js             #   键盘快捷键 & 输入框防冲突
     │   ├── Resize.js               #   面板缩放
     │   ├── Theme.js                #   主题切换
+    │   ├── Theme.css               #   主题切换样式
     │   ├── Dock.js                 #   快捷启动 Dock
+    │   ├── Dock.css                #   快捷启动 Dock 样式
     │   ├── AiDialog.js             #   AI 对话框 UI
     │   └── window-manager.js       #   窗口管理器（模态窗口、应用窗口）
+    │
     ├── calendar/                   # 日历子系统（时钟/天气/农历/节气/排班）
     │   ├── index.js                #   模块入口（initTaskbarClock）
     │   ├── shared-state.js         #   跨模块共享状态

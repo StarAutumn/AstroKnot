@@ -15,6 +15,7 @@ import {
   setAnimations, sync2DSettings
 } from './shared.js';
 import { draw, mark2DDirty } from './Render.js';
+export { mark2DDirty };
 import { initInteractionEvents } from './Interaction.js';
 
 // -------- 初始化 2D 视图 --------
