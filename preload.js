@@ -51,28 +51,44 @@ contextBridge.exposeInMainWorld('api', {
   // 在文件管理器中显示文件所在目录
   showFileInFolder: (filePath) => ipcRenderer.invoke('show-file-in-folder', filePath),
 
-  // 在文件管理器中显示沙盒文件所在目录
-  showSandboxFileInFolder: (projectFolderPath, nodeId, vfsPath) => ipcRenderer.invoke('show-sandbox-file-in-folder', projectFolderPath, nodeId, vfsPath),
+  // 在资源管理器中显示 sandbox 文件
+  showSandboxFileInFolder: (projectFolderPath, node, vfsPath) => ipcRenderer.invoke('show-sandbox-file-in-folder', projectFolderPath, node, vfsPath),
 
   // ── Sandbox 文件实时同步（增量写入磁盘）──
-  // 写入单个 sandbox 文件（projectFolderPath 为 null 时写入临时目录）
-  writeSandboxFile: (projectFolderPath, nodeId, vfsPath, content) => ipcRenderer.invoke('write-sandbox-file', projectFolderPath, nodeId, vfsPath, content),
+  // 写入单个 sandbox 文件
+  writeSandboxFile: (projectFolderPath, node, vfsPath, content, isBinary) => ipcRenderer.invoke('write-sandbox-file', projectFolderPath, node, vfsPath, content, isBinary),
   // 删除单个 sandbox 文件
-  deleteSandboxFile: (projectFolderPath, nodeId, vfsPath) => ipcRenderer.invoke('delete-sandbox-file', projectFolderPath, nodeId, vfsPath),
+  deleteSandboxFile: (projectFolderPath, node, vfsPath) => ipcRenderer.invoke('delete-sandbox-file', projectFolderPath, node, vfsPath),
   // 重命名 sandbox 文件/目录
-  renameSandboxFile: (projectFolderPath, nodeId, oldPath, newPath) => ipcRenderer.invoke('rename-sandbox-file', projectFolderPath, nodeId, oldPath, newPath),
+  renameSandboxFile: (projectFolderPath, node, oldPath, newPath) => ipcRenderer.invoke('rename-sandbox-file', projectFolderPath, node, oldPath, newPath),
   // 同步整个 sandbox 目录（用于项目保存或全量同步）
-  syncSandboxDirectory: (projectFolderPath, nodeId, fileSystem) => ipcRenderer.invoke('sync-sandbox-directory', projectFolderPath, nodeId, fileSystem),
+  syncSandboxDirectory: (projectFolderPath, node, fileSystem) => ipcRenderer.invoke('sync-sandbox-directory', projectFolderPath, node, fileSystem),
+
+  // ── 全局应用库（GitHub 克隆应用）──
+  // 读取应用清单 index.json
+  readAppList: () => ipcRenderer.invoke('read-app-list'),
+  // 写入应用清单 index.json
+  writeAppList: (appList) => ipcRenderer.invoke('write-app-list', appList),
+  // 读取应用 sandbox 文件树（支持二进制）
+  readAppSandbox: (appId) => ipcRenderer.invoke('read-app-sandbox', appId),
+  // 写入应用 sandbox 到磁盘
+  syncAppDirectory: (appId, fileSystem) => ipcRenderer.invoke('sync-app-directory', appId, fileSystem),
+  // 删除应用目录
+  deleteApp: (appId) => ipcRenderer.invoke('delete-app', appId),
+  // 在资源管理器中打开应用所在文件夹
+  openAppInExplorer: (appId) => ipcRenderer.invoke('open-app-in-explorer', appId),
+  // 克隆应用 sandbox 目录
+  cloneApp: (srcAppId, destAppId) => ipcRenderer.invoke('clone-app', srcAppId, destAppId),
 
   // ── 节点级实时磁盘同步（阶段1：仅已保存项目）──
   // 创建项目文件夹（新建项目时立即调用，确保后续实时同步可用）
   createProjectFolder: (savePath, projectName, allowDialog) => ipcRenderer.invoke('create-project-folder', savePath, projectName, allowDialog),
-  // 创建节点文件夹（nodes/{nodeId}）
-  createNodeFolder: (projectFolderPath, nodeId) => ipcRenderer.invoke('create-node-folder', projectFolderPath, nodeId),
+  // 创建节点文件夹（nodes/{节点名称_[nodeId前8位]})
+  createNodeFolder: (projectFolderPath, node) => ipcRenderer.invoke('create-node-folder', projectFolderPath, node),
   // 删除节点文件夹（递归）
-  deleteNodeFolder: (projectFolderPath, nodeId) => ipcRenderer.invoke('delete-node-folder', projectFolderPath, nodeId),
+  deleteNodeFolder: (projectFolderPath, node) => ipcRenderer.invoke('delete-node-folder', projectFolderPath, node),
   // 写入节点 content.html（自动创建文件夹）
-  writeNodeContent: (projectFolderPath, nodeId, content) => ipcRenderer.invoke('write-node-content', projectFolderPath, nodeId, content),
+  writeNodeContent: (projectFolderPath, node, content) => ipcRenderer.invoke('write-node-content', projectFolderPath, node, content),
   // 删除项目文件夹（递归删除整个项目目录）
   deleteProjectFolder: (projectFolderPath) => ipcRenderer.invoke('delete-project-folder', projectFolderPath),
   // 删除未保存项目的临时文件夹（sandbox-tmp/{projectId}）

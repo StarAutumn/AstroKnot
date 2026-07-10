@@ -146,21 +146,60 @@ body.light-mode .mce-content-body video {
     filter: invert(1) hue-rotate(180deg);
 }
 
-/* ═══ 浅色模式：标题栏二次反转 + 浅蓝色背景 ═══ */
+/* 3D 场景画布：浅色模式下保持原色（二次反转抵消 body 的反色滤镜） */
+body.light-mode .three-scene-canvas {
+    filter: invert(1) hue-rotate(180deg) !important;
+}
+
+/* ═══ 浅色模式：标题栏/任务栏/面包屑二次反转 + 浅蓝色背景 ═══ */
 body.light-mode .rich-modal-header,
 body.light-mode #settingsPopup .settings-header,
 body.light-mode #aiFloatingDialog .ai-drag-header,
-body.light-mode #astroKnotMenu {
+body.light-mode #astroKnotMenu,
+body.light-mode #taskbar,
+body.light-mode #appTitleBar,
+body.light-mode #editorBreadcrumb {
     filter: invert(1) hue-rotate(180deg) !important;
     background: #c8deec !important;
     border-bottom-color: rgba(0, 100, 160, 0.25) !important;
 }
-/* 标题栏文字也需要二次反转后设深色 */
+/* 标题栏/任务栏文字也需要二次反转后设深色 */
 body.light-mode .rich-modal-header *,
 body.light-mode #settingsPopup .settings-header *,
 body.light-mode #aiFloatingDialog .ai-drag-header *,
-body.light-mode #astroKnotMenu * {
+body.light-mode #astroKnotMenu *,
+body.light-mode #taskbar *,
+body.light-mode #appTitleBar *,
+body.light-mode #editorBreadcrumb * {
     color: #1a3a52 !important;
+}
+/* 二次反转容器内的图片/图标取消全局二次反转，避免三次反转导致反色 */
+body.light-mode #taskbar img,
+body.light-mode #taskbar svg,
+body.light-mode #appTitleBar img,
+body.light-mode #appTitleBar svg,
+body.light-mode #astroKnotMenu img,
+body.light-mode #astroKnotMenu svg,
+body.light-mode .rich-modal-header img,
+body.light-mode .rich-modal-header svg,
+body.light-mode #editorBreadcrumb img,
+body.light-mode #editorBreadcrumb svg {
+    filter: none !important;
+}
+/* 浅色模式：二次反转容器内的搜索栏 input 浅色背景 + 深色文字 */
+body.light-mode #taskbar .taskbar-search-container input,
+body.light-mode #astroKnotMenu .project-search input,
+body.light-mode #astroKnotMenu .quick-search input,
+body.light-mode .rich-modal-header input {
+    background: #e8f0f8 !important;
+    border-color: rgba(0, 100, 160, 0.3) !important;
+    color: #1a3a52 !important;
+}
+body.light-mode #taskbar .taskbar-search-container input::placeholder,
+body.light-mode #astroKnotMenu .project-search input::placeholder,
+body.light-mode #astroKnotMenu .quick-search input::placeholder,
+body.light-mode .rich-modal-header input::placeholder {
+    color: #6a8a9a !important;
 }
 
 /* 浅色模式：关闭装饰效果 */
@@ -169,6 +208,9 @@ body.light-mode.no-header-circuit-anim::before {
     display: none !important;
 }
 body.light-mode #taskbar.no-rainbow::before {
+    display: none !important;
+}
+body.light-mode #appTitleBar.no-rainbow::before {
     display: none !important;
 }
 
@@ -198,6 +240,42 @@ body.light-mode #taskbar.no-rainbow::before {
     -webkit-app-region: drag;
     user-select: none;
     border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+}
+/* 标题栏七彩流光动画（与任务栏同步） */
+#appTitleBar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(90deg,
+        rgba(255, 0, 128, 0.12) 0%,
+        rgba(255, 165, 0, 0.12) 14.28%,
+        rgba(255, 255, 0, 0.08) 28.57%,
+        rgba(0, 255, 128, 0.12) 42.85%,
+        rgba(0, 200, 255, 0.12) 57.14%,
+        rgba(100, 100, 255, 0.12) 71.42%,
+        rgba(200, 0, 255, 0.12) 85.71%,
+        rgba(255, 0, 128, 0.12) 100%
+    );
+    background-size: 200% 100%;
+    animation: titlebarRainbowFlow 8s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+@keyframes titlebarRainbowFlow {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+}
+/* 确保标题栏内容在流光底纹之上 */
+#appTitleBar > * {
+    position: relative;
+    z-index: 1;
+}
+/* 关闭流光时隐藏标题栏伪元素 */
+#appTitleBar.no-rainbow::before {
+    display: none;
 }
 /* 全屏时隐藏自定义标题栏 */
 #appTitleBar.fullscreen-hidden {

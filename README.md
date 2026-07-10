@@ -66,13 +66,15 @@
 - **字数统计** — 中英文混合字数统计，实时显示
 - **历史记录** — 完整的撤销/重做，操作原子化
 - **快速笔记** — 独立的富文本笔记列表
-- **项目持久化** — Markdown + JSON 混合格式存储，支持多项目
+- **项目持久化** — Markdown + JSON 混合格式存储，支持多项目，节点文件夹使用节点名称命名（格式：节点名称_[nodeId前8位]）
 - **节点级磁盘同步** — 节点创建/删除实时同步到磁盘，内容自动保存（3s debounce），沙盒文件增量同步
 - **版本控制** — 版本图系统，支持提交、分支、diff、回滚，类似 Git 的版本管理（已保存项目存储在 `.versiongraph/`，未保存项目临时存储在 `userData/version-graphs-tmp/`）
 - **代码沙盒 IDE** — VSCode 风格迷你 IDE，Monaco Editor + 文件树 + 标签页 + esbuild-wasm 打包，支持 HTML/CSS/JS 实时预览、分屏编辑、面包屑导航、Markdown 预览、Minimap、控制台、终端、全局搜索、本地历史、Emmet 缩写、代码片段模板
+- **GitHub 项目导入** — 从 GitHub 仓库导入前端项目到沙盒 IDE，自动解析文件结构
+- **全局应用库** — 从 GitHub 克隆应用到本地库，支持拖拽插入为节点、独立预览窗口、一键更新
 - **启动闪屏** — 应用图标 + 渐变文字 + 地面反光效果
 - **天气时钟** — 任务栏显示实时时钟、农历、节气、天气
-- **日历排班** — 月/周/日三视图，日程管理，四象限事项，排班（上班规律/手动倒班/规律倒班），法定节假日自动识别
+- **日历排班** — 月/周/日三视图，日程管理，四象限事项，排班（上班规律/手动倒班/规律倒班），法定节假日自动识别，纪念日管理，通知提醒
 - **内置终端** — node-pty + xterm.js，多标签页，支持 PowerShell/Zsh，沙盒目录自动作为工作目录
 - **双版本部署** — Electron 桌面版（完整功能）+ Web 版（浏览器访问，部分功能受限）
 
@@ -220,6 +222,10 @@ AstroKnot/
     │   ├── MoveCore.js             #   核心逻辑
     │   ├── LineTooltip.js          #   连线提示
     │   └── shared.js               #   共享状态
+    ├── AppLibrary/                 # 全局应用库（GitHub 克隆、应用管理）
+    │   ├── AppManager.js           #   应用管理器（增删改查、插入节点）
+    │   ├── AppPanel.js             #   应用列表面板（右键菜单、拖拽）
+    │   └── AppRunner.js            #   应用运行器（独立窗口、iframe 预览）
     ├── UI/                         # UI 组件
     │   ├── index.js                #   入口 & 绑定汇总
     │   ├── shared.js               #   共享工具函数
@@ -232,23 +238,27 @@ AstroKnot/
     │   ├── Theme.js                #   主题切换
     │   ├── Dock.js                 #   快捷启动 Dock
     │   ├── AiDialog.js             #   AI 对话框 UI
-    │   ├── calendar/                 # 日历子系统（时钟/天气/农历/节气/排班）
-	    │       ├── index.js                #   模块入口（initTaskbarClock）
-	    │       ├── shared-state.js         #   跨模块共享状态
-	    │       ├── lunar-utils.js          #   农历/节气/节日/时辰
-	    │       ├── schedule-store.js       #   日程数据层 + 冲突检测
-	    │       ├── schedule-forms.js       #   表单/右键菜单/对话框
-	    │       ├── calendar-popup.js       #   三视图渲染 + 弹窗交互
-	    │       ├── weather.js              #   天气组件
-	    │       ├── shift-store.js          #   排班数据层（班表/班次类型/节假日）
-	    │       ├── shift-form.js           #   排班编辑表单（规律/手动/倒班）
-	    │       ├── shift-types-store.js    #   班次类型管理（白班/夜班/休息/自定义）
-	    │       ├── holidays-store.js       #   法定节假日 & 调休数据（2024-2026）
-	    │       ├── item-form.js            #   事项编辑表单（四象限分类）
-	    │       ├── items-tabs-store.js     #   事项标签页管理
-	    │       ├── add-tab-form.js         #   新增标签页表单
-	    │       ├── anniversary-view.js     #   纪念日视图
-	    │       └── anniversary-form.js     #   纪念日编辑表单
+    │   └── window-manager.js       #   窗口管理器（模态窗口、应用窗口）
+    ├── calendar/                   # 日历子系统（时钟/天气/农历/节气/排班）
+    │   ├── index.js                #   模块入口（initTaskbarClock）
+    │   ├── shared-state.js         #   跨模块共享状态
+    │   ├── lunar-utils.js          #   农历/节气/节日/时辰
+    │   ├── schedule-store.js       #   日程数据层 + 冲突检测
+    │   ├── schedule-forms.js       #   表单/右键菜单/对话框
+    │   ├── calendar-popup.js       #   三视图渲染 + 弹窗交互
+    │   ├── weather.js              #   天气组件
+    │   ├── shift-store.js          #   排班数据层（班表/班次类型/节假日）
+    │   ├── shift-form.js           #   排班编辑表单（规律/手动/倒班）
+    │   ├── shift-types-store.js    #   班次类型管理（白班/夜班/休息/自定义）
+    │   ├── holidays-store.js       #   法定节假日 & 调休数据（2024-2026）
+    │   ├── item-form.js            #   事项编辑表单（四象限分类）
+    │   ├── items-tabs-store.js     #   事项标签页管理
+    │   ├── add-tab-form.js         #   新增标签页表单
+    │   ├── anniversary-store.js    #   纪念日数据层
+    │   ├── anniversary-view.js     #   纪念日视图
+    │   ├── anniversary-form.js     #   纪念日编辑表单
+    │   ├── notification-store.js   #   通知提醒数据层
+    │   └── calendar.css            #   日历样式
     └── richEditor/                 # 富文本编辑器
         ├── index.js                #   模块入口
         ├── shared-state.js         #   编辑器内部状态
@@ -276,7 +286,8 @@ AstroKnot/
         │   ├── core/               #     核心模块
         │   │   ├── virtual-fs.js   #       虚拟文件系统（多文件管理、HTML 迁移、磁盘同步）
         │   │   ├── context.js      #       共享上下文（DOM 引用、事件总线、动作注册、模块注册）
-        │   │   └── bundler.js      #       esbuild-wasm 打包器（模块打包、CSS/JS 热注入）
+        │   │   ├── bundler.js      #       esbuild-wasm 打包器（模块打包、CSS/JS 热注入）
+        │   │   └── github-api.js   #       GitHub API（仓库克隆、文件树解析）
         │   ├── editors/            #     编辑器组件
         │   │   ├── file-tree.js    #       文件树（右键菜单、新建/删除/重命名、拖拽）
         │   │   ├── tabs.js         #       文件标签页（拖拽排序、关闭、预览标签保留）
@@ -294,7 +305,8 @@ AstroKnot/
         │   │   ├── preview.js      #       预览区域（iframe 运行、热注入、GPU 资源清理）
         │   │   ├── markdown-preview.js #   Markdown 预览面板
         │   │   ├── image-preview.js #      图片预览面板
-        │   │   └── split-editor.js #       分屏编辑器（第二 Monaco 实例）
+        │   │   ├── split-editor.js #       分屏编辑器（第二 Monaco 实例）
+        │   │   └── github-import.js #      GitHub 导入面板（仓库 URL 输入、进度显示）
         │   └── features/           #     功能模块
         │   │   ├── settings.js     #       设置面板（编辑器配置、主题）
         │   │   ├── commands.js     #       命令面板（Ctrl+Shift+P、快捷键注册）
@@ -356,10 +368,10 @@ AstroKnot/
 | 版本控制层 | `versionGraph/` | 版本图系统（提交、分支、diff、回滚、自动保存） |
 | 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件、场景初始化、动画 |
 | 交互控制层 | `module5`, `MoveMode/` | 节点选中/编辑、拖拽移动 |
-| UI 层 | `module4`, `module8`, `module11`, `AIChat/`, `UI/`, `richEditor/`, `taskbar.js`, `StartPage/` | 弹窗、菜单、AI 对话、编辑器、窗口管理、开始首页 |
+| UI 层 | `module4`, `module8`, `module11`, `AIChat/`, `UI/`, `richEditor/`, `taskbar.js`, `StartPage/`, `AppLibrary/` | 弹窗、菜单、AI 对话、编辑器、窗口管理、开始首页、全局应用库 |
 | 引导层 | `Guide/` | 新手引导、教程项目 |
 | 视图切换 | `2DView/`, `LayerManager/` | 2D 思维导图、图层管理 |
-| 基础设施 | `hot-update.js`, `StressTest.js` | 开发热更新、性能测试 |
+| 基础设施 | `hot-update.js`, `StressTest.js`, `DataSetup/` | 开发热更新、性能测试、数据目录设置 |
 
 ## 模块依赖关系
 
@@ -447,15 +459,19 @@ AstroKnot/
 
 ### 其他
 
-- **AstroKnot 菜单**：底部任务栏左侧按钮，打开项目面板 & 快速笔记
+- **AstroKnot 菜单**：底部任务栏左侧按钮，打开项目面板 & 快速笔记 & 全局应用库
 - **快速笔记**：独立的富文本笔记，支持标签页
 - **2D 思维导图**：工具栏切换 2D 视图
 - **Dock 快捷启动**：底部 Dock 栏，支持拖放文件/文件夹
 - **天气 & 农历**：任务栏右侧时钟，右键可设置城市
-- **日历排班**：月/周/日三视图，支持排班（上班规律自动识别法定节假日和调休、手动倒班、规律倒班循环），四象限事项管理，纪念日
+- **日历排班**：月/周/日三视图，支持排班（上班规律自动识别法定节假日和调休、手动倒班、规律倒班循环），四象限事项管理，纪念日管理，通知提醒
 - **AI 对话**：支持 Chat 模式和 Agent 模式，Agent 模式可调用工具（读取项目上下文、导入 Markdown 等）
 - **版本控制**：工具栏版本图按钮，查看提交历史、创建分支、回滚到历史版本、查看 diff
 - **代码沙盒 IDE**：右键节点 → "💻 以 HTML 方式打开"，进入 VSCode 风格 IDE，支持实时预览、控制台、全局搜索
+- **GitHub 项目导入**：IDE 菜单栏 → 文件 → 从 GitHub 导入，输入仓库 URL 自动克隆到沙盒
+- **全局应用库**：AstroKnot 菜单 → 应用栏，从 GitHub 克隆应用，拖拽插入为节点或独立预览
+- **节点命名规范**：新建根节点自动命名为"根节点1、根节点2..."，新建子节点自动命名为"子节点1、子节点2..."（全局序号）
+- **节点文件夹命名**：保存项目时节点文件夹以"节点名称_[nodeId前8位]"格式命名，直观易读
 - **新手引导**：首次打开空项目时自动启动，交互式引导完成基本操作
 
 ## 技术栈

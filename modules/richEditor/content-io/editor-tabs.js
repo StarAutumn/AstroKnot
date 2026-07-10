@@ -37,6 +37,105 @@ export function _getTabName(type, id) {
   }
 }
 
+// ── 面包屑导航：构建从根节点到指定节点的路径 ──
+
+function _buildNodePath(nodeId) {
+  if (!nodeId) return [];
+  // 从 methodsTree 出发，DFS 找到目标节点的路径
+  var path = [];
+  var found = false;
+
+  function dfs(node, trail) {
+    if (found) return;
+    // 跳过虚拟根节点
+    if (node.id !== appState.VIRTUAL_ROOT_ID) {
+      trail.push({ id: node.id, name: node.name || '未命名' });
+    }
+    if (node.id === nodeId) {
+      found = true;
+      path = trail.slice();
+      return;
+    }
+    if (node.children) {
+      for (var i = 0; i < node.children.length; i++) {
+        dfs(node.children[i], trail);
+        if (found) return;
+      }
+    }
+    // 回溯：移除当前节点（如果不是目标）
+    if (node.id !== appState.VIRTUAL_ROOT_ID) {
+      trail.pop();
+    }
+  }
+
+  if (appState.methodsTree) {
+    dfs(appState.methodsTree, []);
+  }
+  return path;
+}
+
+export function _renderBreadcrumb() {
+  var container = document.getElementById('editorBreadcrumb');
+  if (!container) return;
+
+  // 快速笔记不显示面包屑
+  if (appState.currentQuickNoteId) {
+    container.style.display = 'none';
+    return;
+  }
+
+  var nodeId = appState.currentEditNodeId;
+  if (!nodeId) {
+    container.style.display = 'none';
+    return;
+  }
+
+  var path = _buildNodePath(nodeId);
+  if (path.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'flex';
+  container.innerHTML = '';
+
+  for (var i = 0; i < path.length; i++) {
+    var item = path[i];
+    var isLast = (i === path.length - 1);
+
+    // 分隔符（非第一个项前加）
+    if (i > 0) {
+      var sep = document.createElement('span');
+      sep.className = 'breadcrumb-separator';
+      sep.textContent = '›';
+      container.appendChild(sep);
+    }
+
+    var el = document.createElement('span');
+    el.className = 'breadcrumb-item';
+    if (isLast) el.classList.add('active');
+    el.textContent = item.name;
+    el.title = item.name;
+    el.dataset.nodeId = item.id;
+
+    if (!isLast) {
+      (function (nid) {
+        el.addEventListener('click', function () {
+          // 通过 openRichEditorCK 打开该节点
+          if (window._taskbarOpenEditor) {
+            window._taskbarOpenEditor(nid);
+          }
+        });
+      })(item.id);
+    }
+
+    container.appendChild(el);
+  }
+
+  // 滚动到最右侧（显示当前节点）
+  container.scrollLeft = container.scrollWidth;
+}
+
 export function _updateModalTitle() {
   let titleEl = document.getElementById('modalNodeTitle');
   if (!titleEl) return;
@@ -56,6 +155,9 @@ export function _updateModalTitle() {
     titleEl.textContent = '';
     titleEl.appendChild(document.createTextNode('编辑笔记'));
   }
+
+  // 同步更新面包屑
+  _renderBreadcrumb();
 }
 
 export function _renderEditorTabs() {
@@ -347,6 +449,8 @@ export function initModalTitleRename() {
           _editorTabs[activeIdx].name = newName;
           _renderEditorTabs();
         }
+        // 节点名称变更后更新面包屑
+        _renderBreadcrumb();
       } else {
         titleEl.textContent = '';
         if (isQuickNote) {

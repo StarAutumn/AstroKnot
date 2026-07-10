@@ -10,7 +10,6 @@ import { initTOC } from '../toc.js';
 import { appState } from '../../module0_AppState.js';
 import { saveCurrentProjectData } from '../../module2_TreeData.js';
 import { showToast } from '../../module5_SelectAndEdit.js';
-import { showWindow, hideWindow } from '../../UI/Window.js';
 import { getOverlayImagesData, setOverlayImagesData, clearOverlayImages, renderAll } from '../core/overlay/index.js';
 import { stripOverlayBlocksFromHTML } from '../core/overlay/index.js';
 import { getDrawData, setDrawData, clearDrawData } from '../core/toolbar/toolbar-draw.js';
@@ -24,7 +23,7 @@ import {
 import {
   setModalState, initModalWindowControls,
   _pauseSandboxIframe, _resumeSandboxIframe,
-  getModalWindowState, setModalOpenTimestamp, setCloseModalCKFn
+  getModalWindowState, getPrevModalState, setModalOpenTimestamp, setCloseModalCKFn
 } from './modal-window.js';
 import { deactivateSplitScreen } from './split-screen.js';
 
@@ -170,6 +169,11 @@ function _switchToTab(tabKey) {
   _updateModalTitle();
   _renderEditorTabs();
 
+  // 切换标签页时聚焦到对应节点
+  if (tab.type === 'node' && tab.id) {
+    if (typeof window.centerOnNode === 'function') window.centerOnNode(tab.id);
+  }
+
   if (tab.type === 'quicknote') {
     let note = appState.quickNotes.find(function (n) { return n.id === tab.id; });
     _applyNormalUI(null);
@@ -216,9 +220,38 @@ function _closeTab(tabKey) {
     clearDrawData();
     deactivateSplitScreen();
     window._pause3DAnimation = false;
-    modalRich.classList.remove('maximized', 'windowed', 'minimized');
-    window._modalWindowState = 'maximized';
-    hideWindow(modalRich);
+    
+    // 播放"由大变小"的关闭动画
+    const content = modalRich.querySelector('.rich-modal-content');
+    if (content) {
+      const targetRect = content.getBoundingClientRect();
+      const targetW = targetRect.width;
+      const targetH = targetRect.height;
+      const targetL = targetRect.left;
+      const targetT = targetRect.top;
+      const endW = Math.max(targetW * 0.5, 200);
+      const endH = Math.max(targetH * 0.5, 150);
+      const endL = targetL + (targetW - endW) / 2;
+      const endT = targetT + (targetH - endH) / 2;
+      
+      content.style.transition = 'none';
+      const anim = content.animate([
+        { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 },
+        { left: endL + 'px', top: endT + 'px', width: endW + 'px', height: endH + 'px', opacity: 0 }
+      ], { duration: 180, easing: 'cubic-bezier(0.4, 0, 0.6, 1)' });
+      anim.onfinish = _finishCloseTab;
+      setTimeout(_finishCloseTab, 250);
+    } else {
+      _finishCloseTab();
+    }
+    
+    function _finishCloseTab() {
+      modalRich.style.display = 'none';
+      modalRich.classList.remove('maximized', 'windowed', 'minimized');
+      window._modalWindowState = 'maximized';
+      if (content) content.style.transition = '';
+    }
+    
     appState.editorOpen = false;
     appState.currentEditNodeId = null;
     appState.currentQuickNoteId = null;
@@ -227,6 +260,8 @@ function _closeTab(tabKey) {
 
     let tabBar = document.getElementById('editorTabBar');
     if (tabBar) tabBar.style.display = 'none';
+    let breadcrumb = document.getElementById('editorBreadcrumb');
+    if (breadcrumb) breadcrumb.style.display = 'none';
     return;
   }
 
@@ -306,7 +341,9 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
       if (renameBtn) renameBtn.style.display = 'inline';
       showTinyUI();
       appState.editorOpen = true;
-      showWindow(modalRich);
+      // 直接显示容器，动画由 setModalState() 中的 animate() 实现（Windows 风格由小变大）
+      modalRich.classList.remove('window-open', 'window-close');
+      modalRich.style.display = 'flex';
       window._bringModalToFront(modalRich);
       setModalState('maximized');
       initModalWindowControls();
@@ -327,7 +364,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
           active: true,
           activate: function () {
             if (getModalWindowState() === 'minimized') {
-              setModalState('maximized');
+              setModalState(getPrevModalState() || 'maximized');
             } else {
               setModalState('minimized');
             }
@@ -354,7 +391,8 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
       if (_applySandboxUI(nodeId)) {
         showTinyUI();
         appState.editorOpen = true;
-        showWindow(modalRich);
+        modalRich.classList.remove('window-open', 'window-close');
+        modalRich.style.display = 'flex';
         window._bringModalToFront(modalRich);
         setModalState('maximized');
         initModalWindowControls();
@@ -370,7 +408,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
             active: true,
             activate: function () {
               if (getModalWindowState() === 'minimized') {
-                setModalState('maximized');
+                setModalState(getPrevModalState() || 'maximized');
               } else {
                 setModalState('minimized');
               }
@@ -381,6 +419,11 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
             minimize: function () { setModalState('minimized'); }
           });
         }
+        // 自动聚焦到当前编辑的节点
+        setTimeout(function () {
+          if (typeof window.refreshTreePanel === 'function') window.refreshTreePanel();
+          if (typeof window.centerOnNode === 'function') window.centerOnNode(nodeId);
+        }, 200);
         return;
       }
     }
@@ -390,12 +433,15 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
     setModalOpenTimestamp(Date.now());
     if (renameBtn) renameBtn.style.display = 'inline';
     showTinyUI();
-    showWindow(modalRich);
+    modalRich.classList.remove('window-open', 'window-close');
+    modalRich.style.display = 'flex';
     window._bringModalToFront(modalRich);
     setModalState('maximized');
     initModalWindowControls();
     setTimeout(function () {
       if (typeof window.refreshTreePanel === 'function') window.refreshTreePanel();
+      // 自动聚焦到当前编辑的节点
+      if (appState.currentEditNodeId && typeof window.centerOnNode === 'function') window.centerOnNode(appState.currentEditNodeId);
     }, 200);
 
     _applyNormalUI(node);
@@ -409,7 +455,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
         active: true,
         activate: function () {
           if (getModalWindowState() === 'minimized') {
-            setModalState('maximized');
+            setModalState(getPrevModalState() || 'maximized');
           } else {
             setModalState('minimized');
           }
@@ -458,14 +504,50 @@ export function closeModalCK() {
     window._pause3DAnimation = false;
     _pauseSandboxIframe();
 
-    hideWindow(modalRich, function () {
-      clearOverlayImages();
-      clearDrawData();
+    // 播放"由大变小"的关闭动画（Windows 风格）
+    const content = modalRich.querySelector('.rich-modal-content');
+    if (content) {
+      const targetRect = content.getBoundingClientRect();
+      const targetW = targetRect.width;
+      const targetH = targetRect.height;
+      const targetL = targetRect.left;
+      const targetT = targetRect.top;
+      
+      // 结束状态：缩小到中心的 50%
+      const endW = Math.max(targetW * 0.5, 200);
+      const endH = Math.max(targetH * 0.5, 150);
+      const endL = targetL + (targetW - endW) / 2;
+      const endT = targetT + (targetH - endH) / 2;
+      
+      content.style.transition = 'none';
+      
+      const anim = content.animate([
+        { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 },
+        { left: endL + 'px', top: endT + 'px', width: endW + 'px', height: endH + 'px', opacity: 0 }
+      ], {
+        duration: 180,
+        easing: 'cubic-bezier(0.4, 0, 0.6, 1)'
+      });
+      
+      const finishClose = () => {
+        content.style.transition = '';
+        _finishClose();
+      };
+      anim.onfinish = finishClose;
+      setTimeout(finishClose, 250);
+    } else {
+      _finishClose();
+    }
+    
+    function _finishClose() {
+      modalRich.style.display = 'none';
       modalRich.classList.remove('maximized', 'windowed', 'minimized');
       window._modalWindowState = 'maximized';
 
       let tabBar = document.getElementById('editorTabBar');
       if (tabBar) tabBar.style.display = 'none';
+      let breadcrumb = document.getElementById('editorBreadcrumb');
+      if (breadcrumb) breadcrumb.style.display = 'none';
 
       let tabs = getEditorTabs();
       tabs.length = 0;
@@ -474,7 +556,7 @@ export function closeModalCK() {
       appState.currentEditNodeId = null;
       appState.currentQuickNoteId = null;
       window._closeRichEditor = closeModalCK;
-    });
+    }
 
     appState.editorOpen = false;
   }
@@ -692,7 +774,7 @@ window._taskbarCloseEditor = closeModalCK;
 
 window.restoreModalFromTaskbar = function () {
   if (getModalWindowState() === 'minimized') {
-    setModalState('maximized');
+    setModalState(getPrevModalState() || 'maximized');
     modalRich.style.display = '';
   }
   window._bringModalToFront(modalRich);
@@ -701,7 +783,7 @@ window.restoreModalFromTaskbar = function () {
 window._taskbarActivateWindow = function () {
   if (!modalRich) return;
   if (getModalWindowState() === 'minimized') {
-    setModalState('maximized');
+    setModalState(getPrevModalState() || 'maximized');
     modalRich.style.display = '';
   }
   window._bringModalToFront(modalRich);

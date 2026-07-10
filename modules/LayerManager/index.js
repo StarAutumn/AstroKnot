@@ -12,6 +12,11 @@ import * as THREE from 'three';
 let dragSrcIndex = null;
 const CARD_HUES = [200, 170, 260, 140, 320, 80, 40, 290, 220, 180];
 
+// 慢双击重命名状态
+let _lastClickedLayerId = null;
+let _lastLayerClickTime = 0;
+let _layerRenameActive = false;
+
 export function initLayerManager() {
   const panel = document.getElementById('layerManagerModal');
   if (!panel) return;
@@ -352,10 +357,25 @@ export function renderLayerList() {
       <span class="layer-node-count">${layer.nodeIds ? layer.nodeIds.size : 0} 个节点</span>
     `;
 
-    // 点击切换图层
+    // 点击切换图层 + 慢双击重命名
     item.addEventListener('click', (e) => {
       if (e.target.closest('.layer-drag-handle')) return;
+      if (_layerRenameActive) return;
+
+      const now = Date.now();
+      // 慢双击检测：同一选中图层在 300-1500ms 内再次单击 → 进入重命名
+      if (appState.currentLayerId === layer.id && _lastClickedLayerId === layer.id
+          && now - _lastLayerClickTime > 300 && now - _lastLayerClickTime < 1500) {
+        startRenameLayer(layer);
+        _lastClickedLayerId = null;
+        _lastLayerClickTime = 0;
+        return;
+      }
+
+      // 普通单击 → 切换图层
       switchToLayer(layer.id);
+      _lastClickedLayerId = layer.id;
+      _lastLayerClickTime = now;
     });
 
     // 右键菜单
@@ -571,6 +591,7 @@ function startRenameLayer(layer) {
   const nameSpan = item.querySelector('.layer-name');
   if (!nameSpan) return;
 
+  _layerRenameActive = true;
   const oldName = layer.name;
   const input = document.createElement('input');
   input.type = 'text';
@@ -582,17 +603,20 @@ function startRenameLayer(layer) {
   input.focus();
   input.select();
 
-  const finish = () => {
-    const newName = input.value.trim() || oldName;
-    layer.name = newName;
+  const finish = (save) => {
+    _layerRenameActive = false;
+    const newName = save ? (input.value.trim() || oldName) : oldName;
+    if (newName !== oldName) {
+      layer.name = newName;
+      saveCurrentProjectData();
+    }
     renderLayerList();
-    saveCurrentProjectData();
   };
 
-  input.addEventListener('blur', finish);
+  input.addEventListener('blur', () => finish(true));
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') finish();
-    if (e.key === 'Escape') { input.value = oldName; finish(); }
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
   });
 }
 

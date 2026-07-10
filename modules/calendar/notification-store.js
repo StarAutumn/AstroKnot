@@ -15,7 +15,7 @@
 // 倒班班次需通过右键菜单设置上班时间后才会提醒。
 
 import { state } from './shared-state.js';
-import { appState } from '../../module0_AppState.js';
+import { appState } from '../module0_AppState.js';
 import { getDayShifts, getShiftSchedule } from './shift-store.js';
 import { getShiftTypeById } from './shift-types-store.js';
 import {

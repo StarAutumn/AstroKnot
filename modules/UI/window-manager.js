@@ -37,6 +37,12 @@ class WindowInstance {
 
     // 当前状态
     this._state = null;
+    // 最小化前的状态（用于 restore 时恢复到原来的最大化/窗口化）
+    this._stateBeforeMinimize = null;
+
+    // 动画引用（用于取消未完成的动画，防止 onfinish 竞态）
+    this._minimizeAnim = null;
+    this._restoreAnim = null;
 
     // 拖拽
     this._dragging = false;
@@ -107,13 +113,28 @@ class WindowInstance {
         return;
       }
 
+      // 首次打开（prevState === null）→ 直接应用目标布局，无需 snapshot
+      if (prevState === null) {
+        this.container.classList.remove(WindowState.MAXIMIZED, WindowState.WINDOWED, WindowState.MINIMIZED, 'closing');
+        this.container.classList.add(newState);
+        this._applyLayout(newState);
+        if (this.onStateChange) this.onStateChange(newState, prevState);
+        return;
+      }
+
       // 正常切换 → 先冻结起点，再设目标（让 transition 平滑过渡）
       this._snapshotCurrentPosition();
       this.container.classList.remove(WindowState.MAXIMIZED, WindowState.WINDOWED, WindowState.MINIMIZED, 'closing');
       this.container.classList.add(newState);
-      this._applyLayout(newState);
+      // 安全网：如果容器被残留的 display:none 隐藏，恢复显示
+      if (this.container.style.display === 'none') this.container.style.display = 'flex';
+      this._applyLayoutWithTransition(newState);
 
     } else if (newState === WindowState.MINIMIZED) {
+      // 记住最小化前的状态，用于 restore 时恢复
+      if (prevState === WindowState.MAXIMIZED || prevState === WindowState.WINDOWED) {
+        this._stateBeforeMinimize = prevState;
+      }
       this._animateMinimize();
     }
 
@@ -123,12 +144,15 @@ class WindowInstance {
   toggleMaximize() {
     if (this._state === WindowState.MAXIMIZED) this.setState(WindowState.WINDOWED);
     else if (this._state === WindowState.WINDOWED) this.setState(WindowState.MAXIMIZED);
+    else if (this._state === WindowState.MINIMIZED) this.setState(this._stateBeforeMinimize || WindowState.MAXIMIZED);
   }
 
   minimize() { if (this._state !== WindowState.MINIMIZED) this.setState(WindowState.MINIMIZED); }
 
   restore() {
-    if (this._state === WindowState.MINIMIZED) this.setState(WindowState.WINDOWED);
+    if (this._state === WindowState.MINIMIZED) {
+      this.setState(this._stateBeforeMinimize || WindowState.MAXIMIZED);
+    }
   }
 
   maximize() { this.setState(WindowState.MAXIMIZED); }
@@ -175,7 +199,7 @@ class WindowInstance {
     }
   }
 
-  /** 冻结当前视觉位置为内联像素值（transition=none → 强制重排 → 恢复 transition） */
+  /** 冻结当前视觉位置为内联像素值 */
   _snapshotCurrentPosition() {
     if (!this.content) return;
     const r = this.content.getBoundingClientRect();
@@ -187,46 +211,147 @@ class WindowInstance {
     c.style.height = r.height + 'px';
     c.style.transform = '';
     void c.offsetWidth;
-    c.style.transition = '';
+  }
+
+  /** 应用目标布局，使用 !important transition 以覆盖 CSS 的 transition:none */
+  _applyLayoutWithTransition(state) {
+    if (!this.content) return;
+    
+    // 用 !important 覆盖 .rich-modal.maximized .rich-modal-content 的 transition: none !important
+    this.content.style.setProperty('transition',
+      'left 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'top 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'width 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'height 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'border-radius 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)',
+      'important');
+    
+    this._applyLayout(state);
+    
+    // 过渡完成后移除 inline !important transition
+    setTimeout(() => {
+      if (this.content) this.content.style.removeProperty('transition');
+    }, 300);
   }
 
   // ==================== 动画 ====================
 
   open(initialState) {
     this.container.style.display = 'flex';
-    this.container.classList.remove('closing');
-
-    // 打开动画
-    this.container.classList.add('window-open');
-    const onEnd = (e) => {
-      if (e.animationName !== 'winFadeIn') return;
-      this.container.classList.remove('window-open');
-      this.container.removeEventListener('animationend', onEnd);
-    };
-    this.container.addEventListener('animationend', onEnd);
-
-    this.setState(initialState || this.initialState);
+    this.container.classList.remove('closing', 'window-close', 'window-open');
+    
+    // 先应用目标状态，获取目标尺寸
+    this._state = initialState || this.initialState;
+    this.container.classList.add(this._state);
+    this._applyLayout(this._state);
+    
+    // 播放"由小变大"的打开动画（Windows 风格）
+    // 使用 animate() 直接动画 width/height/left/top，不用 transform:scale（避免 position:fixed 卡顿）
+    if (this.content) {
+      const targetRect = this.content.getBoundingClientRect();
+      const targetW = targetRect.width;
+      const targetH = targetRect.height;
+      const targetL = targetRect.left;
+      const targetT = targetRect.top;
+      
+      // 起始状态：从中心点开始，尺寸为目标的 50%
+      const startW = Math.max(targetW * 0.5, 200);
+      const startH = Math.max(targetH * 0.5, 150);
+      const startL = targetL + (targetW - startW) / 2;
+      const startT = targetT + (targetH - startH) / 2;
+      
+      // 设置起始状态
+      this.content.style.transition = 'none';
+      this.content.style.left = startL + 'px';
+      this.content.style.top = startT + 'px';
+      this.content.style.width = startW + 'px';
+      this.content.style.height = startH + 'px';
+      this.content.style.opacity = '0';
+      void this.content.offsetWidth;
+      
+      // 播放动画
+      const anim = this.content.animate([
+        { left: startL + 'px', top: startT + 'px', width: startW + 'px', height: startH + 'px', opacity: 0 },
+        { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 }
+      ], {
+        duration: 220,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)'  // ease-out 曲线，类似 Windows
+      });
+      
+      anim.onfinish = () => {
+        this.content.style.transition = '';
+        this.content.style.opacity = '';
+        // 恢复 CSS 控制的布局（移除内联样式，让 CSS 类接管）
+        if (this._state === WindowState.MAXIMIZED) {
+          this.content.style.left = '';
+          this.content.style.top = '';
+          this.content.style.width = '';
+          this.content.style.height = '';
+        }
+      };
+    }
+    
     WindowManager.bringToFront(this);
   }
 
   close() {
+    // 取消所有进行中的动画，防止 onfinish 竞态
+    if (this._minimizeAnim) { this._minimizeAnim.cancel(); this._minimizeAnim = null; }
+    if (this._restoreAnim) { this._restoreAnim.cancel(); this._restoreAnim = null; }
+
     if (this._state === WindowState.MINIMIZED) {
       this.container.style.display = 'none';
       this.container.classList.remove(WindowState.MINIMIZED);
-    } else {
-      this.container.classList.add('closing', 'window-close');
-      const onEnd = (e) => {
-        if (e.animationName !== 'winFadeOut') return;
-        this.container.classList.remove('window-close', 'closing');
-        this.container.classList.remove(WindowState.MAXIMIZED, WindowState.WINDOWED);
+      this._state = null;
+      if (this.onClose) this.onClose();
+    } else if (this.content) {
+      // 播放"由大变小"的关闭动画（Windows 风格）
+      const targetRect = this.content.getBoundingClientRect();
+      const targetW = targetRect.width;
+      const targetH = targetRect.height;
+      const targetL = targetRect.left;
+      const targetT = targetRect.top;
+      
+      // 结束状态：缩小到中心的 50%
+      const endW = Math.max(targetW * 0.5, 200);
+      const endH = Math.max(targetH * 0.5, 150);
+      const endL = targetL + (targetW - endW) / 2;
+      const endT = targetT + (targetH - endH) / 2;
+      
+      // 移除可能残留的 window-open 类
+      this.container.classList.remove('window-open');
+      this.container.classList.add('closing');
+      
+      // 设置起始状态
+      this.content.style.transition = 'none';
+      
+      // 播放动画
+      const anim = this.content.animate([
+        { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 },
+        { left: endL + 'px', top: endT + 'px', width: endW + 'px', height: endH + 'px', opacity: 0 }
+      ], {
+        duration: 180,
+        easing: 'cubic-bezier(0.4, 0, 0.6, 1)'  // ease-in，比打开快一点
+      });
+      
+      const finishClose = () => {
+        this.container.classList.remove('closing', WindowState.MAXIMIZED, WindowState.WINDOWED);
         this.container.style.display = 'none';
-        this.container.removeEventListener('animationend', onEnd);
+        this.content.style.transition = '';
+        this._state = null;
+        if (this.onClose) this.onClose();
       };
-      this.container.addEventListener('animationend', onEnd);
+      
+      anim.onfinish = finishClose;
+      // 兜底
+      setTimeout(finishClose, 250);
+    } else {
+      // 无 content 时直接关闭
+      this.container.classList.remove(WindowState.MAXIMIZED, WindowState.WINDOWED);
+      this.container.style.display = 'none';
+      this._state = null;
+      if (this.onClose) this.onClose();
     }
-
-    this._state = null;
-    if (this.onClose) this.onClose();
   }
 
   _getTaskbarTab() {
@@ -236,6 +361,9 @@ class WindowInstance {
   _animateMinimize() {
     const c = this.content;
     const tab = this._getTaskbarTab();
+
+    // 取消正在进行的恢复动画
+    if (this._restoreAnim) { this._restoreAnim.cancel(); this._restoreAnim = null; }
 
     if (!tab) {
       this.container.style.display = 'none';
@@ -257,7 +385,11 @@ class WindowInstance {
       { transform: `translate(${dx}px,${dy}px) scale(${scale})`, opacity: 0.1 }
     ], { duration: 220, easing: 'cubic-bezier(0.7,0,0.8,0.3)' });
 
+    this._minimizeAnim = anim;
     anim.onfinish = () => {
+      // 守卫：如果已被新动画取代（cancel 不会触发 onfinish，但已排队的会），跳过
+      if (this._minimizeAnim !== anim) return;
+      this._minimizeAnim = null;
       c.style.transition = '';
       this.container.style.display = 'none';
       this.container.classList.add(WindowState.MINIMIZED);
@@ -267,6 +399,9 @@ class WindowInstance {
   _restoreFromMinimized(targetState) {
     const c = this.content;
     const tab = this._getTaskbarTab();
+
+    // 取消正在进行的最小化动画，防止其 onfinish 覆盖恢复后的 DOM 状态
+    if (this._minimizeAnim) { this._minimizeAnim.cancel(); this._minimizeAnim = null; }
 
     // 先设好目标布局
     c.style.transition = 'none';
@@ -295,7 +430,12 @@ class WindowInstance {
       { transform: 'translate(0,0) scale(1)', opacity: 1 }
     ], { duration: 250, easing: 'cubic-bezier(0.1,0.9,0.2,1)' });
 
-    anim.onfinish = () => { c.style.transition = ''; };
+    this._restoreAnim = anim;
+    anim.onfinish = () => {
+      if (this._restoreAnim !== anim) return;
+      this._restoreAnim = null;
+      c.style.transition = '';
+    };
     if (this.onStateChange) this.onStateChange(targetState, WindowState.MINIMIZED);
   }
 

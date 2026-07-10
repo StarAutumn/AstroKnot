@@ -11,6 +11,8 @@
     justify-content: center;
     overflow: hidden;
     transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+    /* 性能优化：限制合成层边界 */
+    isolation: isolate;
 }
 
 /* 向上滑动退出动画 */
@@ -57,6 +59,8 @@
     animation: startPageRainbowFlow 12s ease-in-out infinite alternate;
     pointer-events: none;
     z-index: 0;
+    will-change: opacity;
+    transform: translateZ(0);
 }
 
 /* 第二层渐变动画 - 垂直流动，不同节奏 */
@@ -77,6 +81,8 @@
     animation: startPageRainbowFlowVertical 16s ease-in-out infinite alternate-reverse;
     pointer-events: none;
     z-index: 0;
+    will-change: opacity;
+    transform: translateZ(0);
 }
 
 @keyframes startPageRainbowFlow {
@@ -128,6 +134,8 @@
     pointer-events: none;
     overflow: hidden;
     z-index: 1;
+    /* 性能优化：限制飘带区域的合成层边界 */
+    isolation: isolate;
 }
 
 /* 飘带基础样式 - 更宽 */
@@ -137,6 +145,8 @@
     height: 200px;
     opacity: 0;
     filter: blur(8px);
+    will-change: transform, opacity;
+    transform: translateZ(0);
 }
 
 /* 飘带1 - 青色弯曲飘带 */
@@ -564,6 +574,8 @@
     background: inherit;
     filter: blur(25px);
     opacity: 0.6;
+    will-change: opacity;
+    transform: translateZ(0);
 }
 
 .ribbon::after {
@@ -573,6 +585,8 @@
     background: inherit;
     filter: blur(50px);
     opacity: 0.3;
+    will-change: opacity;
+    transform: translateZ(0);
 }
 
 .start-page-container {
@@ -585,6 +599,8 @@
     max-width: 600px;
     width: 100%;
     padding: 40px 60px;
+    /* 性能优化：限制合成层边界 */
+    isolation: isolate;
 }
 
 /* 磨砂玻璃背景 - 上下延伸到屏幕边缘，两边渐变消失 */
@@ -621,6 +637,9 @@
         rgba(0, 0, 0, 0.6) 92%,
         transparent 100%
     );
+    /* 性能优化：限制 backdrop-filter 重绘范围 */
+    isolation: isolate;
+    will-change: transform;
 }
 
 /* 右下角按钮组 */
@@ -649,6 +668,7 @@
     justify-content: center;
     transition: all 0.2s ease;
     padding: 0;
+    will-change: transform;
 }
 
 .start-page-corner-btn svg {
@@ -681,6 +701,7 @@
     object-fit: contain;
     filter: drop-shadow(0 0 30px rgba(74, 175, 255, 0.3));
     animation: logoFloat 3s ease-in-out infinite;
+    will-change: transform;
 }
 
 @keyframes logoFloat {
@@ -729,6 +750,7 @@
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+    will-change: transform;
 }
 
 .start-page-btn::before {

@@ -4,6 +4,12 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { appState } from '../module0_AppState.js';
+import { saveCurrentProjectData } from '../module2_TreeData.js';
+
+// 慢双击重命名状态
+let _lastLabelClickId = null;
+let _lastLabelClickTime = 0;
+let _labelRenameActive = false;
 
 // ==================== 随机位置生成 ====================
 export function generateRandomPosition(existing, base = new THREE.Vector3(0, 0, 0)) {
@@ -123,6 +129,43 @@ function easeInBack(t) {
   const c1 = 1.70158;
   const c3 = c1 + 1;
   return c3 * t * t * t - c1 * t * t;
+}
+
+// ============================================================
+//  3D 标签内联重命名
+// ============================================================
+function _startLabelRename(div, node) {
+  _labelRenameActive = true;
+  const originalName = div.textContent;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = originalName;
+  input.style.cssText = 'background:#0a1a24;border:1px solid #0ff;color:#fff;padding:0 6px;border-radius:20px;font-size:12px;outline:none;width:80px;text-align:center;';
+
+  div.textContent = '';
+  div.appendChild(input);
+  input.focus();
+  input.select();
+
+  const finish = (save) => {
+    _labelRenameActive = false;
+    const newName = save ? (input.value.trim() || originalName) : originalName;
+    if (newName !== originalName) {
+      node.name = newName;
+      saveCurrentProjectData();
+      if (typeof window.forceRefreshTreePanel === 'function') window.forceRefreshTreePanel();
+    }
+    div.textContent = node.name;
+  };
+
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  // 防止点击 input 时冒泡到 div 的 click 处理
+  input.addEventListener('click', (e) => e.stopPropagation());
 }
 
 function animateNodeIn(nodeId) {
@@ -332,13 +375,43 @@ export function createNodeMesh(node, pos) {
     rz: 0.6 + Math.random() * 0.7
   };
 
-  // 🏷️ CSS2D 标签
+  // 🏷️ CSS2D 标签（支持慢双击重命名）
   const div = document.createElement('div');
   div.textContent = node.name;
-  div.style.cssText = 'color:#ffffff;font-size:12px;background:#000000;backdrop-filter:blur(6px);padding:2px 10px;border-radius:40px;border:1px solid #444444;white-space:nowrap;pointer-events:none;transition:opacity 0.3s ease;';
+  div.dataset.nodeId = node.id;
+  div.style.cssText = 'color:#ffffff;font-size:12px;background:#000000;backdrop-filter:blur(6px);padding:2px 10px;border-radius:40px;border:1px solid #444444;white-space:nowrap;pointer-events:auto;cursor:default;transition:opacity 0.3s ease;';
   const label = new CSS2DObject(div);
   div.addEventListener('transitionend', function () {
     if (div.style.opacity === '0') label.visible = false;
+  });
+
+  // 慢双击重命名
+  div.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (_labelRenameActive) return;
+
+    const now = Date.now();
+    const nodeId = div.dataset.nodeId;
+
+    // 慢双击检测：同一选中节点标签在 300-1500ms 内再次单击 → 进入重命名
+    if (appState.selectedNodeIds.has(nodeId) && _lastLabelClickId === nodeId
+        && now - _lastLabelClickTime > 300 && now - _lastLabelClickTime < 1500) {
+      _startLabelRename(div, node);
+      _lastLabelClickId = null;
+      _lastLabelClickTime = 0;
+      return;
+    }
+
+    // 普通单击 → 选中节点
+    _lastLabelClickId = nodeId;
+    _lastLabelClickTime = now;
+    // 同步选中状态（使下一次慢双击检测能通过 selectedNodeIds.has 检查）
+    if (!appState.selectedNodeIds.has(nodeId)) {
+      appState.selectedNodeIds.clear();
+      appState.selectedNodeIds.add(nodeId);
+      appState.lastSelectedNodeId = nodeId;
+      if (typeof window.forceRefreshTreePanel === 'function') window.forceRefreshTreePanel();
+    }
   });
   const labelOffset = appState.NODE_RADIUS + 0.28;
   label.position.set(pos.x, pos.y + labelOffset, pos.z);

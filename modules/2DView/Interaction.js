@@ -8,6 +8,7 @@ import { openRichEditor } from '../richEditor/index.js';
 import { showContextMenu, hideContextMenu, showBlankContextMenu, hideBlankContextMenu, completeConvertChildMode, cancelConvertChildMode } from '../module8_ContextMenu.js';
 import { updateLinesVis } from '../VisualComponents/index.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { showToast } from '../module5_SelectAndEdit.js';
 import { copySelectedNodes, pasteNodes, createNodeInProject, getNextChildName } from '../MoveMode/MoveCore.js';
 import {
   canvas, ctx, container, visible, transform,
@@ -727,22 +728,41 @@ function onDoubleClick(e) {
 }
 
 // ============================================================
-//  Click 处理
+//  Click 处理 + 慢双击重命名
 // ============================================================
+let _last2DClickedId = null;
+let _last2DClickTime = 0;
+let _2dRenameActive = false;
+
 function handleClick(worldPos, e) {
   if (e.button !== 0) return;
+  if (_2dRenameActive) return;
+
   const pos = getCanvasPos(e);
   const hit = nodeHitAreas.find(area =>
     worldPos.x >= area.x && worldPos.x <= area.x + area.width &&
     worldPos.y >= area.y && worldPos.y <= area.y + area.height
   );
   if (hit?.id) {
+    const now = Date.now();
+    // 慢双击检测：同一选中节点在 300-1500ms 内再次单击 → 进入重命名
+    if (appState.selectedNodeIds.has(hit.id) && _last2DClickedId === hit.id
+        && now - _last2DClickTime > 300 && now - _last2DClickTime < 1500) {
+      _start2DRename(hit);
+      _last2DClickedId = null;
+      _last2DClickTime = 0;
+      return;
+    }
+
     setSelectedNode(hit.id, e.ctrlKey);
     clearBoxSelectNodeIds();
     setHasValidBoxSelection(false);
     document.getElementById('addChildNodeBtn').style.display = 'block';
     document.getElementById('toggleChildrenContextBtn').style.display = 'block';
     document.getElementById('locateOtherViewBtn').style.display = 'block';
+
+    _last2DClickedId = hit.id;
+    _last2DClickTime = now;
   } else if (!isInBoxSelectionArea(pos)) {
     if (!e.ctrlKey) clearSelected();
     clearBoxSelectNodeIds();
@@ -752,7 +772,75 @@ function handleClick(worldPos, e) {
       setLineTooltipJustOpened(false);
       appState.hideLineTooltip();
     }
+    _last2DClickedId = null;
   }
+}
+
+// ============================================================
+//  2D 节点内联重命名（在 canvas 上覆盖 input 元素）
+// ============================================================
+function _start2DRename(hitArea) {
+  const node = appState.nodeMap.get(hitArea.id);
+  if (!node) return;
+
+  _2dRenameActive = true;
+  const originalName = node.name;
+
+  // 将世界坐标转为 canvas 屏幕坐标
+  const screenX = hitArea.x * transform.scale + canvas.width / 2 + transform.offsetX;
+  const screenY = hitArea.y * transform.scale + canvas.height / 2 + transform.offsetY;
+  const screenW = hitArea.width * transform.scale;
+  const screenH = hitArea.height * transform.scale;
+
+  // 获取 canvas 的页面位置
+  const rect = canvas.getBoundingClientRect();
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = originalName;
+  input.className = 'node-2d-rename-input';
+  input.style.cssText = `
+    position: fixed;
+    left: ${rect.left + screenX}px;
+    top: ${rect.top + screenY + screenH / 2 - 13}px;
+    width: ${Math.max(screenW, 60)}px;
+    height: 26px;
+    background: #0a1a24;
+    border: 1px solid #0ff;
+    color: #fff;
+    padding: 0 6px;
+    border-radius: 13px;
+    font-size: 12px;
+    outline: none;
+    text-align: center;
+    z-index: 10000;
+    pointer-events: auto;
+  `;
+
+  document.body.appendChild(input);
+  input.focus();
+  input.select();
+
+  const finish = (save) => {
+    _2dRenameActive = false;
+    const newName = save ? (input.value.trim() || originalName) : originalName;
+    if (newName !== originalName) {
+      node.name = newName;
+      saveCurrentProjectData();
+      if (typeof window.forceRefreshTreePanel === 'function') window.forceRefreshTreePanel();
+      // 更新 3D 标签
+      const obj = appState.nodeMeshes.get(hitArea.id);
+      if (obj && obj.label) obj.label.element.textContent = newName;
+      draw();
+    }
+    input.remove();
+  };
+
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
 }
 
 // ============================================================

@@ -21,6 +21,7 @@ let _modalOpenTimestamp = 0;
 let _sandboxIframeSrcdoc = '';
 
 export function getModalWindowState() { return _modalWindowState; }
+export function getPrevModalState() { return _prevModalState; }
 export function getModalOpenTimestamp() { return _modalOpenTimestamp; }
 export function setModalOpenTimestamp(t) { _modalOpenTimestamp = t; }
 
@@ -131,6 +132,67 @@ export function setModalState(newState) {
 
   const content = modalRich.querySelector('.rich-modal-content');
 
+  // 首次打开（模态框没有任何状态类）→ 直接应用布局，不做 snapshot+transition
+  // 否则 getBoundingClientRect() 会捕获刚显示时的错误尺寸，导致过渡卡顿
+  const hasStateClass = modalRich.classList.contains('maximized') ||
+                         modalRich.classList.contains('windowed') ||
+                         modalRich.classList.contains('minimized');
+  if (!hasStateClass && content) {
+    // 首次打开：播放"由小变大"的打开动画（Windows 风格）
+    // 使用 animate() 直接动画 width/height/left/top，不用 transform:scale（避免 position:fixed 卡顿）
+    content.style.transition = 'none';
+    modalRich.classList.remove('maximized', 'windowed', 'minimized');
+    _applyModalLayout(newState, content);
+    
+    // 获取目标尺寸
+    const targetRect = content.getBoundingClientRect();
+    const targetW = targetRect.width;
+    const targetH = targetRect.height;
+    const targetL = targetRect.left;
+    const targetT = targetRect.top;
+    
+    // 起始状态：从中心点开始，尺寸为目标的 50%
+    const startW = Math.max(targetW * 0.5, 200);
+    const startH = Math.max(targetH * 0.5, 150);
+    const startL = targetL + (targetW - startW) / 2;
+    const startT = targetT + (targetH - startH) / 2;
+    
+    // 设置起始状态
+    content.style.left = startL + 'px';
+    content.style.top = startT + 'px';
+    content.style.width = startW + 'px';
+    content.style.height = startH + 'px';
+    content.style.opacity = '0';
+    void content.offsetWidth;
+    
+    // 播放动画
+    const anim = content.animate([
+      { left: startL + 'px', top: startT + 'px', width: startW + 'px', height: startH + 'px', opacity: 0 },
+      { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 }
+    ], {
+      duration: 220,
+      easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+    });
+    
+    anim.onfinish = function () {
+      content.style.transition = '';
+      content.style.opacity = '';
+      // 最大化状态：恢复 CSS 控制的布局
+      if (newState === 'maximized') {
+        content.style.left = '';
+        content.style.top = '';
+        content.style.width = '';
+        content.style.height = '';
+      }
+    };
+    
+    _updateMaxIcon(newState);
+    window._pause3DAnimation = (newState === 'maximized');
+    appState.editorOpen = (newState === 'maximized');
+    if (window.Taskbar) window.Taskbar.setEditorActive('rich', newState !== 'minimized');
+    return;
+  }
+
   // 最小化 → 先播放缩入动画，再隐藏
   if (newState === 'minimized' && prevState !== 'minimized' && content) {
     _prevModalState = prevState;
@@ -174,7 +236,15 @@ export function setModalState(newState) {
     content.style.height = rect.height + 'px';
     content.style.transform = '';
     void content.offsetWidth;
-    content.style.transition = '';
+    // 用 !important 覆盖 .rich-modal.maximized .rich-modal-content 的 transition: none !important
+    // 否则 windowed→maximized 切换时没有过渡动画
+    content.style.setProperty('transition',
+      'left 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'top 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'width 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'height 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), ' +
+      'border-radius 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)',
+      'important');
   }
   modalRich.classList.remove('maximized', 'windowed', 'minimized');
   _applyModalLayout(newState, content);
@@ -182,6 +252,13 @@ export function setModalState(newState) {
   window._pause3DAnimation = (newState === 'maximized');
   appState.editorOpen = (newState === 'maximized');
   if (window.Taskbar) window.Taskbar.setEditorActive('rich', newState !== 'minimized');
+  // 过渡完成后移除 inline !important transition，恢复 CSS 默认行为
+  // （最大化时 CSS 的 transition: none !important 重新生效，防止后续操作产生多余过渡）
+  if (content) {
+    setTimeout(function () {
+      content.style.removeProperty('transition');
+    }, 300);
+  }
 }
 
 function _applyModalLayout(state, content) {

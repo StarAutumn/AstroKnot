@@ -60,6 +60,7 @@ export class SandboxContext {
   get modal() { return this._modal; }
   get content() { return this._content; }
   get preview() { return this._preview; }
+  set preview(value) { this._preview = value; }
   get consoleOut() { return this._consoleOut; }
   get nodeName() { return this._nodeName; }
 

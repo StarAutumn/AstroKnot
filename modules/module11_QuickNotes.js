@@ -30,6 +30,11 @@ function getFirstSentence(html) {
 // 防抖定时器
 let _saveTimer = null;
 
+// 慢双击重命名状态
+let _lastQNoteClickId = null;
+let _lastQNoteClickTime = 0;
+let _qnoteRenameActive = false;
+
 /**
  * 从磁盘/localStorage 加载快速笔记
  */
@@ -242,12 +247,28 @@ export function renderQuickNotesList() {
         });
     });
 
-    // 点击笔记项打开编辑器（编辑中不触发）
+    // 点击笔记项打开编辑器 + 慢双击重命名
     list.querySelectorAll('.quick-item').forEach(item => {
         item.addEventListener('click', () => {
             if (item.querySelector('.qnote-title-input')) return;
+            if (_qnoteRenameActive) return;
+
             const noteId = item.dataset.id;
+            const now = Date.now();
+
+            // 慢双击检测：同一选中笔记在 300-1500ms 内再次单击 → 进入重命名
+            if (appState.currentQuickNoteId === noteId && _lastQNoteClickId === noteId
+                && now - _lastQNoteClickTime > 300 && now - _lastQNoteClickTime < 1500) {
+                startQuickNoteRename(item);
+                _lastQNoteClickId = null;
+                _lastQNoteClickTime = 0;
+                return;
+            }
+
+            // 普通单击 → 打开编辑器
             openRichEditorCK(null, noteId, initCKEditor);
+            _lastQNoteClickId = noteId;
+            _lastQNoteClickTime = now;
         });
     });
 }
@@ -257,6 +278,7 @@ function startQuickNoteRename(item) {
     const titleSpan = item.querySelector('.qnote-title');
     if (!titleSpan) return;
 
+    _qnoteRenameActive = true;
     const currentTitle = titleSpan.textContent;
 
     const input = document.createElement('input');
@@ -269,16 +291,15 @@ function startQuickNoteRename(item) {
 
     setTimeout(function () { input.focus(); input.select(); }, 0);
 
-    let cancelHandler = function (e) {
-        if (!item.contains(e.target)) {
-            finishQuickNoteRename(input, false);
-            document.removeEventListener('click', cancelHandler);
-        }
-    };
-    document.addEventListener('click', cancelHandler);
+    input.addEventListener('blur', function () { finishQuickNoteRename(input, true); });
+    input.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); input.value = currentTitle; finishQuickNoteRename(input, false); }
+    });
 }
 
 function finishQuickNoteRename(input, save) {
+    _qnoteRenameActive = false;
     let item = input.closest('.quick-item');
 
     if (save) {

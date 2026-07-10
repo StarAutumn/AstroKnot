@@ -17,6 +17,11 @@ let isPinned = localStorage.getItem(PIN_KEY) === 'true';
 let selectedPaths = new Set();
 let _fileDragCounter = 0; // 全局文件拖拽计数器（用于显示/隐藏 dock）
 
+// 慢双击重命名状态
+let _lastClickedPath = null;
+let _lastClickTime = 0;
+let _renameActive = false; // 重命名进行中，屏蔽其他点击事件
+
 // ---- 持久化 ----
 
 function getSavedItems() {
@@ -148,35 +153,56 @@ function removeItems(paths) {
   renderDock();
 }
 
-function renameItem(targetPath) {
-  const container = document.getElementById('dockPanelItems');
-  const children = container.children;
-  for (const child of children) {
-    if (child.dataset.path !== targetPath) continue;
-    const label = child.querySelector('.dock-label');
-    if (!label) continue;
-    const input = document.createElement('input');
-    input.className = 'dock-rename-input';
-    input.value = label.textContent;
-    input.style.width = Math.max(label.offsetWidth + 20, 60) + 'px';
-    label.replaceWith(input);
-    input.focus();
-    input.select();
+/**
+ * 开始内联重命名（慢双击或右键菜单触发）
+ * @param {HTMLElement} el - dock 项 DOM 元素
+ * @param {Object} item - dock 项数据 { path, name, ... }
+ */
+function _startInlineRename(el, item) {
+  const label = el.querySelector('.dock-label');
+  if (!label) return;
 
-    const finish = () => {
-      const newName = input.value.trim() || label.textContent;
+  _renameActive = true;
+  const originalName = label.textContent;
+
+  const input = document.createElement('input');
+  input.className = 'dock-rename-input';
+  input.value = originalName;
+  input.style.width = Math.max(label.offsetWidth + 20, 60) + 'px';
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const finish = (save) => {
+    _renameActive = false;
+    const newName = save ? (input.value.trim() || originalName) : originalName;
+    if (newName !== originalName) {
       const items = getSavedItems();
-      const idx = items.findIndex(i => i.path === targetPath);
+      const idx = items.findIndex(i => i.path === item.path);
       if (idx >= 0) items[idx].name = newName;
       saveItems(items);
-      renderDock();
-    };
+    }
+    renderDock();
+  };
 
-    input.addEventListener('blur', finish);
-    input.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') input.blur();
-      if (ev.key === 'Escape') { input.value = label.textContent; input.blur(); }
-    });
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+    if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+  });
+}
+
+/**
+ * 右键菜单触发的重命名（找到对应 DOM 元素后调用内联重命名）
+ */
+function renameItem(targetPath) {
+  const container = document.getElementById('dockPanelItems');
+  if (!container) return;
+  for (const child of container.children) {
+    if (child.dataset.path !== targetPath) continue;
+    const items = getSavedItems();
+    const item = items.find(i => i.path === targetPath);
+    if (item) _startInlineRename(child, item);
     break;
   }
 }
@@ -202,7 +228,37 @@ function showProperties(targetPath) {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 }
 
+// ---- 图标 emoji 回退 ----
+
+function _getEmojiForExt(filePath) {
+  const ext = (filePath || '').split('.').pop().toLowerCase();
+  if (ext === 'exe') return '⚙';
+  if (ext === 'lnk') return '🔗';
+  if (ext === 'bat' || ext === 'cmd') return '💻';
+  if (['url', 'html', 'htm'].includes(ext)) return '🌐';
+  return '📄';
+}
+
 // ---- 图标提取 ----
+
+/**
+ * 启动时重新提取所有图标（清除旧数据，用新的 PowerShell 方案重新提取）
+ */
+function _retryFailedIcons() {
+  if (!window.api || !window.api.extractExeIcon) return;
+  const items = getSavedItems();
+  let needsSave = false;
+  for (const item of items) {
+    // 清除所有旧 iconData — 旧版用 Electron getFileIcon 提取的质量差/白纸图标
+    // 改用 PowerShell + System.Drawing 重新提取
+    if (item.iconData) {
+      item.iconData = null;
+      needsSave = true;
+    }
+    extractAndCacheIcon(item, items);
+  }
+  if (needsSave) saveItems(items);
+}
 
 async function extractAndCacheIcon(item, items) {
   try {
@@ -212,9 +268,13 @@ async function extractAndCacheIcon(item, items) {
         item.iconData = dataUri;
         saveItems(items);
         renderDock();
+      } else {
+        console.warn('[Dock] 图标提取返回数据过短，跳过:', item.path);
       }
     }
-  } catch (e) { /* emoji fallback */ }
+  } catch (e) {
+    console.warn('[Dock] 图标提取失败:', item.path, e.message);
+  }
 }
 
 // ---- 选中状态 ----
@@ -245,17 +305,22 @@ function renderDock() {
     if (item.iconData) {
       const img = document.createElement('img');
       img.src = item.iconData;
-      img.style.width = '20px';
-      img.style.height = '20px';
+      img.style.width = '24px';
+      img.style.height = '24px';
+      img.style.imageRendering = 'auto';
       img.draggable = false;
+      // 图标加载失败时回退到 emoji，并清除损坏的 iconData
+      img.addEventListener('error', () => {
+        item.iconData = null;
+        const savedItems = getSavedItems();
+        const si = savedItems.find(i => i.path === item.path);
+        if (si) { si.iconData = null; saveItems(savedItems); }
+        iconSpan.innerHTML = '';
+        iconSpan.textContent = _getEmojiForExt(item.path);
+      });
       iconSpan.appendChild(img);
     } else {
-      const ext = (item.path || '').split('.').pop().toLowerCase();
-      if (ext === 'exe') iconSpan.textContent = '⚙';
-      else if (ext === 'lnk') iconSpan.textContent = '🔗';
-      else if (ext === 'bat' || ext === 'cmd') iconSpan.textContent = '💻';
-      else if (['url', 'html', 'htm'].includes(ext)) iconSpan.textContent = '🌐';
-      else iconSpan.textContent = '📄';
+      iconSpan.textContent = _getEmojiForExt(item.path);
     }
     el.appendChild(iconSpan);
 
@@ -264,8 +329,21 @@ function renderDock() {
     labelSpan.textContent = item.name;
     el.appendChild(labelSpan);
 
-    // 单击：选中（Ctrl 多选）
+    // 单击：选中（Ctrl 多选）+ 慢双击重命名
     el.addEventListener('click', (e) => {
+      if (_renameActive) return; // 重命名进行中，不处理
+
+      const now = Date.now();
+      // 慢双击检测：同一选中项在 300-1500ms 内再次单击 → 进入重命名
+      if (selectedPaths.has(item.path) && _lastClickedPath === item.path
+          && now - _lastClickTime > 300 && now - _lastClickTime < 1500) {
+        _startInlineRename(el, item);
+        _lastClickedPath = null;
+        _lastClickTime = 0;
+        return;
+      }
+
+      // 普通单击 → 选中
       if (e.ctrlKey || e.metaKey) {
         if (selectedPaths.has(item.path)) selectedPaths.delete(item.path);
         else selectedPaths.add(item.path);
@@ -274,6 +352,9 @@ function renderDock() {
         selectedPaths.add(item.path);
       }
       updateSelectedClass();
+
+      _lastClickedPath = item.path;
+      _lastClickTime = now;
     });
 
     // 双击：启动
@@ -330,6 +411,7 @@ function addApp() {
     if (changed) {
       saveItems(items);
       renderDock();
+      // 只提取新添加项的图标（它们没有 iconData）
       for (const item of items) {
         if (!item.iconData) extractAndCacheIcon(item, items);
       }
@@ -401,6 +483,37 @@ export function initDock() {
 
   // ---- 文件拖拽支持 ----
   initFileDrop(panel);
+
+  // ---- 启动时重新提取失败的图标 ----
+  _retryFailedIcons();
+
+  // ---- 应用库面板初始化 ----
+  initAppPanel();
+}
+
+// ---- 应用库面板 ----
+
+let _appPanel = null;
+
+async function initAppPanel() {
+  // Web 版跳过（无 window.api）
+  if (!window.__ELECTRON__ || !window.api) return;
+
+  // 动态导入避免循环依赖
+  const { AppManager } = await import('../AppLibrary/AppManager.js');
+  const { AppPanel } = await import('../AppLibrary/AppPanel.js');
+  const { AppRunner } = await import('../AppLibrary/AppRunner.js');
+
+  const appManager = new AppManager();
+  const appRunner = new AppRunner();
+  _appPanel = new AppPanel(appManager, appRunner);
+
+  // 全局可访问（供 3D 场景拖拽使用）
+  window.AppManager = appManager;
+  window.AppRunner = appRunner;
+  window.AppPanel = _appPanel;
+
+  await _appPanel.refresh();
 }
 
 // ---- 文件拖拽：从外部拖入文件到快捷栏 ----

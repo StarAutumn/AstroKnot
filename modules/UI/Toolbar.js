@@ -272,7 +272,7 @@ export function bindToolbarButtons() {
   </div>
   <div id="darkOnlySettings" class="dark-only" style="margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--divider);">
     <div style="display:flex; align-items:center; justify-content:space-between;">
-      <span style="font-size:12px; color:var(--text-secondary);">🌈 任务栏七彩流光特效</span>
+      <span style="font-size:12px; color:var(--text-secondary);">🌈 任务栏 & 标题栏七彩流光特效</span>
       <label class="toggle-switch"><input type="checkbox" id="taskbarRainbowCheck"><span class="toggle-slider"></span></label>
     </div>
   </div>
@@ -692,13 +692,15 @@ export function bindToolbarButtons() {
         });
       }
 
-      // 绑定任务栏七彩流光开关
+      // 绑定任务栏 & 标题栏七彩流光开关
       const rainbowCheck = popup.querySelector('#taskbarRainbowCheck');
       if (rainbowCheck) {
         rainbowCheck.checked = appState.taskbarRainbow !== false;
         rainbowCheck.addEventListener('change', function (e) {
           appState.taskbarRainbow = e.target.checked;
           document.getElementById('taskbar').classList.toggle('no-rainbow', !e.target.checked);
+          const ab = document.getElementById('appTitleBar');
+          if (ab) ab.classList.toggle('no-rainbow', !e.target.checked);
           saveSettingsToStorage();
         });
       }
@@ -956,12 +958,15 @@ export function bindToolbarButtons() {
                   { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')', opacity: 0.15 }
                 ], { duration: 250, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
                 anim.onfinish = function () {
+                  gp.popup.classList.add('minimized');
+                  gp.popup.classList.remove('windowed', 'maximized');
                   gp.popup.style.display = 'none';
                   content.style.transform = '';
                   if (window.Taskbar) window.Taskbar.setEditorActive('settings', false);
                 };
               } else {
                 // 恢复显示
+                gp.popup.classList.remove('minimized');
                 gp.popup.classList.add('windowed');
                 gp.popup.style.display = '';
                 if (window._bringModalToFront) window._bringModalToFront(gp.popup);
@@ -986,7 +991,23 @@ export function bindToolbarButtons() {
               }
             },
             close: hideSettingsPopup,
-            maximize: function () { gp.popup.classList.add('windowed'); if (window._bringModalToFront) window._bringModalToFront(gp.popup); },
+            maximize: function () {
+              // 从最小化恢复时先显示
+              if (gp.popup.classList.contains('minimized')) {
+                gp.popup.classList.remove('minimized');
+                gp.popup.style.display = '';
+              }
+              // 切换最大化/窗口化
+              if (gp.popup.classList.contains('maximized')) {
+                gp.popup.classList.remove('maximized');
+                gp.popup.classList.add('windowed');
+              } else {
+                gp.popup.classList.remove('windowed');
+                gp.popup.classList.add('maximized');
+              }
+              if (window._bringModalToFront) window._bringModalToFront(gp.popup);
+              if (window.Taskbar) window.Taskbar.setEditorActive('settings', true);
+            },
             minimize: function () {
               const content = gp.popup.querySelector('.settings-modal-content');
               if (!content) { gp.popup.style.display = 'none'; return; }
@@ -1004,6 +1025,8 @@ export function bindToolbarButtons() {
                 { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')', opacity: 0.15 }
               ], { duration: 250, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
               anim.onfinish = function () {
+                gp.popup.classList.add('minimized');
+                gp.popup.classList.remove('windowed', 'maximized');
                 gp.popup.style.display = 'none';
                 content.style.transform = '';
                 if (window.Taskbar) window.Taskbar.setEditorActive('settings', false);
@@ -1074,6 +1097,8 @@ export function bindToolbarButtons() {
           { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')', opacity: 0.15 }
         ], { duration: 250, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
         anim.onfinish = function () {
+          gp.popup.classList.add('minimized');
+          gp.popup.classList.remove('windowed', 'maximized');
           gp.popup.style.display = 'none';
           content.style.transform = '';
           if (window.Taskbar) window.Taskbar.setEditorActive('settings', false);
@@ -1491,7 +1516,8 @@ export function bindToolbarButtons() {
     function showVersionMap() {
       const mc = popup.querySelector('.versionmap-modal-content');
       if (popup.classList.contains('minimized')) {
-        // 从最小化恢复
+        // 从最小化恢复 —— 用 JS 动画，暂时屏蔽 CSS 入场动画
+        popup.classList.add('restoring');
         popup.classList.remove('minimized');
         popup.classList.add('windowed');
         if (mc) {
@@ -1510,14 +1536,20 @@ export function bindToolbarButtons() {
             mc.style.transition = 'transform 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.25s';
             mc.style.transform = 'translate(0,0) scale(1)';
             mc.style.opacity = '1';
-            setTimeout(() => { mc.style.transition = ''; mc.style.transform = ''; }, 260);
+            setTimeout(() => {
+              mc.style.transition = '';
+              mc.style.transform = '';
+              popup.classList.remove('restoring');
+            }, 260);
           });
+        } else {
+          popup.classList.remove('restoring');
         }
         if (window.Taskbar) window.Taskbar.setEditorActive('versionmap', true);
         if (window._bringModalToFront) window._bringModalToFront(popup);
         return;
       }
-      // 首次或重新打开
+      // 首次或重新打开 —— CSS 入场动画自动触发
       popup.classList.remove('closing', 'maximized');
       popup.classList.add('windowed');
       if (mc) {
@@ -1563,7 +1595,23 @@ export function bindToolbarButtons() {
           }
         },
         close: hideVersionMap,
-        maximize: function () { popup.classList.add('windowed'); popup.classList.remove('minimized'); if (window._bringModalToFront) window._bringModalToFront(popup); if (window.Taskbar) window.Taskbar.setEditorActive('versionmap', true); },
+        maximize: function () {
+              // 从最小化恢复时先显示
+              if (popup.classList.contains('minimized')) {
+                popup.classList.remove('minimized');
+                popup.style.display = '';
+              }
+              // 切换最大化/窗口化
+              if (popup.classList.contains('maximized')) {
+                popup.classList.remove('maximized');
+                popup.classList.add('windowed');
+              } else {
+                popup.classList.remove('windowed');
+                popup.classList.add('maximized');
+              }
+              if (window._bringModalToFront) window._bringModalToFront(popup);
+              if (window.Taskbar) window.Taskbar.setEditorActive('versionmap', true);
+            },
         minimize: function () {
           const content = popup.querySelector('.versionmap-modal-content');
           if (!content) { popup.classList.add('minimized'); popup.classList.remove('windowed'); return; }
@@ -1595,13 +1643,24 @@ export function bindToolbarButtons() {
     // ── 关闭 ──
     function hideVersionMap() {
       if (popup.classList.contains('maximized')) {
-        popup.classList.remove('maximized', 'windowed');
-        if (window.Taskbar) window.Taskbar.removeEditor('versionmap');
+        // 最大化状态：添加关闭动画
+        popup.classList.add('closing');
+        const mc = popup.querySelector('.versionmap-modal-content');
+        if (mc) {
+          mc.style.transition = 'opacity 0.2s cubic-bezier(0.55,0,1,0.45), transform 0.2s cubic-bezier(0.55,0,1,0.45)';
+          mc.style.opacity = '0';
+          mc.style.transform = 'scale(0.96)';
+        }
+        setTimeout(() => {
+          if (mc) { mc.style.transition = ''; mc.style.opacity = ''; mc.style.transform = ''; }
+          popup.classList.remove('maximized', 'windowed', 'closing', 'restoring');
+          if (window.Taskbar) window.Taskbar.removeEditor('versionmap');
+        }, 210);
         return;
       }
       popup.classList.add('closing');
       setTimeout(() => {
-        popup.classList.remove('windowed', 'closing', 'maximized', 'minimized');
+        popup.classList.remove('windowed', 'closing', 'maximized', 'minimized', 'restoring');
         if (window.Taskbar) window.Taskbar.removeEditor('versionmap');
       }, 200);
     }

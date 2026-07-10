@@ -1,7 +1,10 @@
-/* ── 窗口开关动画 ── */
+/* ── 窗口开关动画 ──
+    只用 opacity 渐变，不用 transform:scale()
+    因为 scale() 会改变 position:fixed 子元素的包含块，导致卡顿和空隙
+── */
 @keyframes winFadeIn {
-    from { opacity: 0; transform: scale(0.93); }
-    to   { opacity: 1; transform: scale(1); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes winFadeOut {
     from { opacity: 1; }
@@ -147,6 +150,27 @@
 #settingsPopup.windowed .settings-modal-content {
     pointer-events: auto;
 }
+#settingsPopup.maximized {
+    display: flex;
+    pointer-events: none;
+}
+#settingsPopup.maximized .settings-modal-content {
+    pointer-events: auto;
+    position: fixed;
+    top: var(--titlebar-height, 38px);
+    left: 0;
+    width: 100vw;
+    height: calc(100vh - var(--titlebar-height, 38px) - 44px);
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    animation: none;
+    transition: none;
+}
+body.is-fullscreen #settingsPopup.maximized .settings-modal-content {
+    top: 0;
+    height: calc(100vh - 44px);
+}
 
 .settings-modal-content {
     position: fixed;
@@ -204,6 +228,59 @@ body.light-mode .settings-modal-content::after {
 }
 #settingsPopup.windowed.closing .settings-modal-content {
   animation: settingsContentOut 0.2s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+/* ── 版本时间线模态框打开/关闭动画 ── */
+#versionMapPopup.windowed:not(.closing):not(.minimized):not(.restoring) .versionmap-modal-content {
+  animation: versionMapContentIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+#versionMapPopup.windowed.closing .versionmap-modal-content {
+  animation: versionMapContentOut 0.2s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+/* ── 版本时间线最大化 ── */
+#versionMapPopup.maximized {
+    display: flex;
+    pointer-events: none;
+}
+#versionMapPopup.maximized .versionmap-modal-content {
+    pointer-events: auto;
+    position: fixed;
+    top: var(--titlebar-height, 38px);
+    left: 0;
+    width: 100vw;
+    height: calc(100vh - var(--titlebar-height, 38px) - 44px);
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    animation: none;
+    transition: none;
+}
+body.is-fullscreen #versionMapPopup.maximized .versionmap-modal-content {
+    top: 0;
+    height: calc(100vh - 44px);
+}
+
+@keyframes versionMapContentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes versionMapContentOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.88) translateY(16px);
+  }
 }
 
 #settingsPopup.windowed .settings-modal-content .modal-resize-handle:hover {

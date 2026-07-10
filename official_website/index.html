@@ -560,14 +560,87 @@
 
         /* 创意介绍卡片 */
         .intro-card {
-            background: var(--panel-bg);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--panel-border);
-            border-radius: var(--panel-radius);
-            padding: 3rem;
-            box-shadow: var(--panel-shadow);
+            background: rgba(20, 50, 80, 0.35);
+            backdrop-filter: blur(24px) saturate(1.6);
+            -webkit-backdrop-filter: blur(24px) saturate(1.6);
+            border: 1px solid rgba(80, 160, 255, 0.25);
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 32px rgba(0, 40, 80, 0.4),
+                        inset 0 1px 0 rgba(120, 180, 255, 0.15);
             position: relative;
             overflow: hidden;
+            max-width: 560px;
+            margin-left: auto;
+            margin-right: 3rem;
+            /* 模态框动画 */
+            transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+                        opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+                        box-shadow 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform, opacity;
+        }
+
+        /* 模态框关闭态：缩小 + 淡出 */
+        #intro.intro-closed .intro-card {
+            transform: scale(0.6) translateY(30px);
+            opacity: 0;
+            box-shadow: none;
+        }
+
+        /* 模态框打开态：正常大小 + 完整阴影 */
+        #intro.intro-open .intro-card {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+            box-shadow: 0 0 60px rgba(0, 255, 255, 0.08), var(--panel-shadow);
+        }
+
+        /* 模态框离场态：缩小 + 淡出（方向向上） */
+        #intro.intro-exit .intro-card {
+            transform: scale(0.7) translateY(-20px);
+            opacity: 0;
+            box-shadow: none;
+        }
+
+        /* 文字元素：打字机/渐变动画 */
+        .intro-content h3,
+        .intro-content p,
+        .intro-content li {
+            transition: opacity 0.5s ease;
+        }
+
+        /* 打字机逐个显示的元素 */
+        .intro-content .typewriter-item {
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.45s ease, transform 0.45s ease;
+        }
+        .intro-content .typewriter-item.typing-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 打字机光标 */
+        .intro-content .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.1em;
+            background: var(--accent);
+            margin-left: 2px;
+            vertical-align: text-bottom;
+            animation: blink-cursor 0.7s step-end infinite;
+        }
+        @keyframes blink-cursor {
+            50% { opacity: 0; }
+        }
+
+        /* 减少动画偏好 */
+        @media (prefers-reduced-motion: reduce) {
+            #intro .intro-card,
+            .intro-content .typewriter-item {
+                transition: none !important;
+                transform: none !important;
+                opacity: 1 !important;
+            }
         }
 
         .intro-card::before {
@@ -577,7 +650,28 @@
             left: 0;
             right: 0;
             height: 2px;
-            background: var(--tech-line);
+            background: linear-gradient(90deg, transparent, rgba(80, 160, 255, 0.5), transparent);
+        }
+
+        /* 创意介绍区域布局：标题和卡片靠右 */
+        #intro .section-header {
+            text-align: right;
+            padding-right: 3rem;
+        }
+        #intro {
+            max-width: 100%;
+            padding-right: 0;
+        }
+
+        /* 目标用户区域：标题靠右 */
+        #users .section-header {
+            text-align: right;
+            padding-right: 3rem;
+        }
+
+        /* 核心功能区域：标题居中 */
+        #features .section-header {
+            text-align: center;
         }
 
         .intro-content h3 {
@@ -685,7 +779,172 @@
             font-size: 0.95rem;
         }
 
-        /* Value Cards (价值与意义) */
+        /* 目标用户卡片 — 蓝色毛玻璃 + 沿地球弧面排列 */
+        .user-cards-orbit {
+            position: relative;
+            width: 100%;
+            height: 620px;
+            pointer-events: none;
+        }
+
+        .user-card {
+            background: rgba(20, 50, 80, 0.35);
+            backdrop-filter: blur(24px) saturate(1.6);
+            -webkit-backdrop-filter: blur(24px) saturate(1.6);
+            border: 1px solid rgba(80, 160, 255, 0.25);
+            border-radius: 14px;
+            padding: 1.5rem 1.8rem;
+            width: 300px;
+            box-shadow: 0 8px 32px rgba(0, 40, 80, 0.4),
+                        inset 0 1px 0 rgba(120, 180, 255, 0.15);
+            position: absolute;
+            overflow: hidden;
+            pointer-events: auto;
+            /* 弧面定位：每张卡片有独立的 --card-right, --card-top, --card-rotate */
+            right: var(--card-right, 50px);
+            top: var(--card-top, 50px);
+            transform: translateX(150px) rotate(var(--card-rotate, 0deg));
+            opacity: 0;
+            transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                        opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+            transition-delay: var(--card-delay, 0s);
+        }
+
+        .user-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(80, 160, 255, 0.5), transparent);
+        }
+
+        .user-card.visible {
+            transform: translateX(0) rotate(var(--card-rotate, 0deg));
+            opacity: 1;
+        }
+
+        .user-card.visible:hover {
+            z-index: 10;
+            transform: translateX(-10px) rotate(0deg) scale(1.08);
+            box-shadow: 0 12px 48px rgba(0, 60, 120, 0.6),
+                        inset 0 1px 0 rgba(120, 180, 255, 0.25);
+            border-color: rgba(80, 160, 255, 0.5);
+        }
+
+        .user-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.6rem;
+            color: rgba(140, 200, 255, 0.95);
+            font-weight: 600;
+        }
+
+        .user-card p {
+            color: rgba(180, 210, 240, 0.85);
+            line-height: 1.6;
+            font-size: 0.88rem;
+        }
+
+        .user-card p strong {
+            color: rgba(160, 215, 255, 0.95);
+        }
+
+        /* 核心功能卡片 — 蓝色毛玻璃 + 三行滚动 */
+        .feature-scroll-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            width: 100%;
+            overflow: hidden;
+            padding: 1.5rem 0;
+        }
+
+        .feature-scroll-row {
+            overflow: hidden;
+            width: 100%;
+            mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+            -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+        }
+
+        .feature-scroll-track {
+            display: flex;
+            gap: 1rem;
+            width: max-content;
+        }
+
+        /* 从左到右滚动 */
+        .row-ltr .feature-scroll-track {
+            animation: scroll-ltr 30s linear infinite;
+        }
+
+        /* 从右到左滚动 */
+        .row-rtl .feature-scroll-track {
+            animation: scroll-rtl 30s linear infinite;
+        }
+
+        @keyframes scroll-ltr {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        @keyframes scroll-rtl {
+            0% { transform: translateX(-50%); }
+            100% { transform: translateX(0); }
+        }
+
+        /* 鼠标悬浮暂停 */
+        .feature-scroll-row:hover .feature-scroll-track {
+            animation-play-state: paused;
+        }
+
+        .glass-card {
+            background: rgba(20, 50, 80, 0.35);
+            backdrop-filter: blur(24px) saturate(1.6);
+            -webkit-backdrop-filter: blur(24px) saturate(1.6);
+            border: 1px solid rgba(80, 160, 255, 0.25);
+            border-radius: 12px;
+            padding: 1.3rem 1.5rem;
+            width: 260px;
+            min-width: 260px;
+            box-shadow: 0 6px 24px rgba(0, 40, 80, 0.35),
+                        inset 0 1px 0 rgba(120, 180, 255, 0.12);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(80, 160, 255, 0.5), transparent);
+        }
+
+        .glass-card:hover {
+            transform: translateY(-4px) scale(1.04);
+            box-shadow: 0 10px 36px rgba(0, 60, 120, 0.5),
+                        inset 0 1px 0 rgba(120, 180, 255, 0.2);
+            border-color: rgba(80, 160, 255, 0.5);
+        }
+
+        .glass-card h3 {
+            font-size: 1.05rem;
+            margin-bottom: 0.5rem;
+            color: rgba(140, 200, 255, 0.95);
+            font-weight: 600;
+        }
+
+        .glass-card p {
+            color: rgba(180, 210, 240, 0.8);
+            line-height: 1.55;
+            font-size: 0.85rem;
+        }
+
+        /* Value Cards (价值与意义) — 全息玻璃样式 */
         .value-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -694,44 +953,223 @@
         }
 
         .value-card {
-            background: var(--panel-bg);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--panel-border);
-            border-radius: var(--panel-radius);
-            padding: 2.5rem;
-            text-align: center;
-            transition: all 0.3s ease;
+            background: linear-gradient(
+                135deg,
+                rgba(40, 80, 140, 0.18) 0%,
+                rgba(80, 160, 255, 0.08) 40%,
+                rgba(160, 100, 255, 0.12) 70%,
+                rgba(60, 140, 220, 0.15) 100%
+            );
+            backdrop-filter: blur(28px) saturate(1.4);
+            -webkit-backdrop-filter: blur(28px) saturate(1.4);
+            border: 1px solid rgba(120, 200, 255, 0.25);
+            border-radius: 18px;
+            padding: 2rem 2.2rem;
+            text-align: left;
+            transition: all 0.35s ease;
             position: relative;
+            overflow: hidden;
+        }
+
+        /* 全息彩虹光泽 — 顶部光线 */
+        .value-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -50%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(
+                105deg,
+                transparent 30%,
+                rgba(100, 200, 255, 0.06) 45%,
+                rgba(180, 120, 255, 0.08) 50%,
+                rgba(100, 255, 200, 0.06) 55%,
+                transparent 70%
+            );
+            pointer-events: none;
+            transition: transform 0.6s ease;
+        }
+
+        /* 底部渐变边线 */
+        .value-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 15%;
+            right: 15%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(100, 200, 255, 0.4), rgba(160, 120, 255, 0.3), transparent);
         }
 
         .value-card:hover {
-            transform: translateY(-8px);
-            border-color: rgba(0, 255, 255, 0.55);
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 255, 255, 0.08);
+            transform: translateY(-6px);
+            border-color: rgba(120, 200, 255, 0.45);
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.4),
+                0 0 40px rgba(80, 160, 255, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
         }
 
-        .value-icon {
-            font-size: 3rem;
-            margin-bottom: 1.5rem;
-            display: block;
+        .value-card:hover::before {
+            transform: translateX(20%);
         }
 
         .value-card h3 {
-            color: var(--accent-light);
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
+            color: #b0e0ff;
+            font-size: 1.2rem;
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .value-card h3 .value-icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
         }
 
         .value-card p {
-            color: var(--text-secondary);
-            line-height: 1.7;
+            color: rgba(180, 220, 255, 0.65);
+            line-height: 1.75;
+            font-size: 0.92rem;
+        }
+
+        /* City Layer (价值与意义区段背景 — 城市生长动画) */
+        #city-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;            /* 高于星空(-1)，低于内容区块(1) */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.8s ease;
+            pointer-events: none;  /* 不拦截事件，保证页面滚动顺畅 */
+            overflow: hidden;
+        }
+
+        #city-layer.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #city-layer canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
         }
 
         /* Tech Stack */
+        /* 技术实现区段 — 两行蓝色毛玻璃滚动播放 */
         .tech-section {
-            border-top: 1px solid rgba(0, 255, 255, 0.1);
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 0;
+            margin: 0;
+            max-width: none;
+            overflow: hidden;
         }
 
+        .tech-section .section-header {
+            position: absolute;
+            top: 12%;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 2;
+        }
+
+        .tech-marquee-container {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            right: 0;
+            width: 100%;
+            overflow: hidden;
+            z-index: 2;
+        }
+
+        .tech-marquee-row {
+            display: flex;
+            gap: 1.5rem;
+            padding: 0.8rem 0;
+            will-change: transform;
+        }
+
+        /* 第一行：向左滚动 */
+        .tech-marquee-row.row-1 {
+            animation: marqueeLeft 40s linear infinite;
+        }
+
+        /* 第二行：向右滚动（反向） */
+        .tech-marquee-row.row-2 {
+            animation: marqueeRight 50s linear infinite;
+        }
+
+        @keyframes marqueeLeft {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        @keyframes marqueeRight {
+            0% { transform: translateX(-50%); }
+            100% { transform: translateX(0); }
+        }
+
+        /* 悬停时暂停滚动 */
+        .tech-marquee-container:hover .tech-marquee-row {
+            animation-play-state: paused;
+        }
+
+        .tech-item-blue {
+            background: rgba(20, 50, 80, 0.35);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(100, 180, 255, 0.25);
+            border-radius: 16px;
+            padding: 1.2rem 2rem;
+            min-width: 280px;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tech-item-blue::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(100, 200, 255, 0.5), transparent);
+        }
+
+        .tech-item-blue:hover {
+            background: rgba(30, 70, 110, 0.45);
+            border-color: rgba(100, 200, 255, 0.4);
+            transform: scale(1.02);
+        }
+
+        .tech-item-blue .tech-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #66f0ff;
+            font-family: 'Consolas', 'Monaco', monospace;
+            text-shadow: 0 0 10px rgba(100, 200, 255, 0.3);
+        }
+
+        .tech-item-blue .tech-desc {
+            color: rgba(180, 220, 255, 0.7);
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+        }
+
+        /* 原样式保留（兼容其他位置使用） */
         .tech-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1032,6 +1470,166 @@
                 box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
             }
         }
+
+        /* ── 应用预览：滚动方向感知动画 ── */
+        #demo .section-header,
+        #demo .demo-container {
+            transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                        opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform, opacity;
+        }
+
+        /* 初始隐藏态：在左侧 */
+        #demo.slide-enter .section-header {
+            transform: translateX(-120%);
+            opacity: 0;
+        }
+        #demo.slide-enter .demo-container {
+            transform: translateX(-120%);
+            opacity: 0;
+        }
+
+        /* 可见态：在原位 */
+        #demo.slide-center .section-header {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        #demo.slide-center .demo-container {
+            transform: translateX(0);
+            opacity: 1;
+            transition-delay: 0.15s;  /* 预览框比标题稍晚 */
+        }
+
+        /* 价值卡片 3D 投影浮层（贴在建筑表面上） */
+        #value-card-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 1;           /* 高于城市层(0)，低于内容(1) */
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.8s ease;
+        }
+        #value-card-overlay.active { opacity: 1; visibility: visible; }
+
+        .value-card-3d {
+            position: absolute;
+            background: linear-gradient(
+                135deg,
+                rgba(40, 80, 140, 0.22) 0%,
+                rgba(80, 160, 255, 0.10) 40%,
+                rgba(160, 100, 255, 0.14) 70%,
+                rgba(60, 140, 220, 0.18) 100%
+            );
+            backdrop-filter: blur(28px) saturate(1.4);
+            -webkit-backdrop-filter: blur(28px) saturate(1.4);
+            border: 1px solid rgba(120, 200, 255, 0.3);
+            border-radius: 14px;
+            padding: 1rem 1.3rem;
+            width: 220px;
+            pointer-events: auto;
+            overflow: hidden;
+            transition: opacity 0.4s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+            cursor: pointer;
+        }
+
+        /* 悬浮放大效果 */
+        .value-card-3d:hover {
+            transform: scale(1.18);
+            border-color: rgba(140, 220, 255, 0.6);
+            box-shadow:
+                0 0 30px rgba(100, 200, 255, 0.35),
+                0 0 60px rgba(160, 120, 255, 0.2),
+                0 8px 32px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .value-card-3d::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -50%; width: 200%; height: 100%;
+            background: linear-gradient(
+                105deg,
+                transparent 30%,
+                rgba(100, 200, 255, 0.06) 45%,
+                rgba(180, 120, 255, 0.08) 50%,
+                rgba(100, 255, 200, 0.06) 55%,
+                transparent 70%
+            );
+            pointer-events: none;
+        }
+
+        .value-card-3d::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 15%; right: 15%; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(100, 200, 255, 0.4), rgba(160, 120, 255, 0.3), transparent);
+        }
+
+        .value-card-3d h4 {
+            color: #b0e0ff;
+            font-size: 0.95rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-weight: 600;
+        }
+
+        .value-card-3d h4 .value-icon {
+            font-size: 0.95rem;
+        }
+
+        .value-card-3d p {
+            color: rgba(180, 220, 255, 0.6);
+            font-size: 0.78rem;
+            line-height: 1.6;
+        }
+
+        /* 滑出态：向右弹开 */
+        #demo.slide-exit .section-header {
+            transform: translateX(120%);
+            opacity: 0;
+        }
+        #demo.slide-exit .demo-container {
+            transform: translateX(120%);
+            opacity: 0;
+            transition-delay: 0s;
+        }
+
+        /* 减少动画偏好：关闭过渡效果 */
+        @media (prefers-reduced-motion: reduce) {
+            #demo .section-header,
+            #demo .demo-container {
+                transition: none !important;
+                transform: none !important;
+                opacity: 1 !important;
+            }
+        }
+
+        /* ── 行星标签 ── */
+        .planet-label {
+            position: absolute;
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(200, 230, 255, 0.85);
+            text-shadow: 0 0 12px currentColor, 0 0 30px currentColor;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            pointer-events: none;
+            transition: font-size 0.3s ease, text-shadow 0.3s ease;
+            transform-origin: center bottom;
+        }
+        .planet-label.active {
+            color: #fff;
+            font-size: 15px;
+            text-shadow: 0 0 20px currentColor, 0 0 50px currentColor, 0 0 80px rgba(0, 255, 255, 0.3);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .planet-label { transition: none !important; }
+        }
     </style>
 </head>
 
@@ -1039,6 +1637,26 @@
 
     <!-- 全屏3D场景背景（固定不动） -->
     <canvas id="starfield-canvas"></canvas>
+
+    <!-- 「价值与意义」区段背景 — 城市生长动画层（滚动到时淡入） -->
+    <div id="city-layer"></div>
+
+    <!-- 价值卡片 3D 投影浮层（贴在城市建筑表面） -->
+    <div id="value-card-overlay">
+        <div class="value-card-3d" id="vc-left">
+            <h4><span class="value-icon">⚡</span>效率提升</h4>
+            <p>将记录、整理、创作统一到同一工具，消除切换负担。3D 可视化帮助快速定位知识盲区，缩短从想法到成品的路径。</p>
+        </div>
+        <div class="value-card-3d" id="vc-bridge">
+            <h4><span class="value-icon">🧩</span>思维范式革新</h4>
+            <p>突破传统文档的线性限制，提供「先宏观后微观」的新型知识组织方式，更符合发散性思维习惯。</p>
+        </div>
+        <div class="value-card-3d" id="vc-right">
+            <h4><span class="value-icon">🌍</span>社会价值</h4>
+            <p>为教育领域提供可视化知识管理方案，降低专业内容创作门槛，让非技术人员也能制作复合型文档。</p>
+        </div>
+    </div>
+
     <!-- ============================================================
      固定顶部导航栏
      ============================================================ -->
@@ -1224,22 +1842,22 @@
             ">AstroKnot</h1>
             </div>
 
-            <p class="hero-subtitle">3D 知识网络可视化与编辑工具<br>将你的思维以星图的形式呈现</p>
+            <p class="hero-subtitle">3D 知识网络可视化与编辑工具<br>将你的思维以星图的形式呈现，让每个节点都能运行代码</p>
             <!-- ✨ 新增体验链接 -->
             <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 12px;">
                 <a href="https://astroknot.netlify.app/" target="_blank" class="hero-cta-link"
                     style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
                     🚀 体验网页演示版
                 </a>
-                <a href="#" class="hero-cta-link"
+                <a href="https://github.com/StarAutumn/AstroKnot/releases/tag/e838eb9" target="_blank" class="hero-cta-link"
                     style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
                     <i class="fab fa-windows"></i> Windows 版
                 </a>
-                <a href="#" class="hero-cta-link"
+                <a href="https://github.com/StarAutumn/AstroKnot/releases/tag/e838eb9" target="_blank" class="hero-cta-link"
                     style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
                     <i class="fab fa-apple"></i> macOS 版
                 </a>
-                <a href="#" class="hero-cta-link"
+                <a href="https://github.com/StarAutumn/AstroKnot/releases/tag/e838eb9" target="_blank" class="hero-cta-link"
                     style="margin:0; display: inline-flex; align-items: center; gap: 6px;">
                     <i class="fab fa-linux"></i> Linux 版
                 </a>
@@ -1274,29 +1892,35 @@
 
         <div class="intro-card">
             <div class="intro-content">
-                <h3>💡 想解决什么问题</h3>
-                <p>
+                <h3 class="typewriter-item">想解决什么问题</h3>
+                <p class="typewriter-item">
                     在信息爆炸的时代，知识工作者面临三大核心困境：<strong
                         style="color: var(--accent-light);">知识碎片化</strong>——笔记散落在各处，难以形成体系；<strong
                         style="color: var(--accent-light);">思维线性化</strong>——传统文档无法展现知识点之间的复杂关联；<strong
                         style="color: var(--accent-light);">创作割裂化</strong>——记录想法、整理资料、深度编辑需要在多个工具间切换。
                 </p>
 
-                <h3>🎯 产品形态</h3>
-                <p>
+                <h3 class="typewriter-item">产品形态</h3>
+                <p class="typewriter-item">
                     AstroKnot 是一款基于 Electron + Three.js 的桌面端知识管理应用。它将每个知识点抽象为 3D
                     空间中的「星节点」，节点间的关联以螺旋连线呈现，配合星云粒子效果，让整个知识网络如宇宙星图般直观可见。用户可以在 3D 视图中自由探索、在 2D
-                    思维导图中整理结构，双击任意节点即可打开功能完整的富文本编辑器进行深度创作。
+                    思维导图中整理结构，双击任意节点即可打开功能完整的富文本编辑器进行深度创作，或切换到代码沙盒 IDE 运行前端项目。内置版本控制系统记录每一次变更，终端、AI 对话、日历排班等系统级工具一应俱全。
                 </p>
 
-                <h3>✨ 核心创新点</h3>
+                <h3 class="typewriter-item">核心创新点</h3>
                 <ul>
-                    <li><strong style="color: var(--accent);">三维空间知识映射</strong> — 打破传统二维笔记的局限，用 3D 星图形式展现知识的立体结构</li>
-                    <li><strong style="color: var(--accent);">全栈式创作环境</strong> — 集成富文本、表格、公式、代码、音频、视频等 12+ 种内容类型于单一节点内
+                    <li class="typewriter-item"><strong style="color: var(--accent);">三维空间知识映射</strong> — 打破传统二维笔记的局限，用 3D 星图形式展现知识的立体结构</li>
+                    <li class="typewriter-item"><strong style="color: var(--accent);">全栈式创作环境</strong> — 集成富文本、表格、公式、代码、音频、视频等 12+ 种内容类型于单一节点内
                     </li>
-                    <li><strong style="color: var(--accent);">AI 深度融合</strong> — 内置 Chat/Agent 双模式 AI 对话，支持项目上下文感知的工具调用
+                    <li class="typewriter-item"><strong style="color: var(--accent);">节点内代码沙盒</strong> — 每个节点可嵌入 VSCode 风格 IDE，支持 HTML/CSS/JS 实时预览、终端、esbuild 打包
                     </li>
-                    <li><strong style="color: var(--accent);">视图自由切换</strong> — 3D 星图 / 2D 思维导图无缝切换，适应不同思考场景</li>
+                    <li class="typewriter-item"><strong style="color: var(--accent);">AI 深度融合</strong> — 内置 Chat/Agent 双模式 AI 对话，支持项目上下文感知的工具调用
+                    </li>
+                    <li class="typewriter-item"><strong style="color: var(--accent);">版本控制系统</strong> — 类 Git 的版本图，支持提交、分支、diff、回滚，每个节点都有完整的变更历史
+                    </li>
+                    <li class="typewriter-item"><strong style="color: var(--accent);">视图自由切换</strong> — 3D 星图 / 2D 思维导图无缝切换，适应不同思考场景</li>
+                    <li class="typewriter-item"><strong style="color: var(--accent);">便携式数据架构</strong> — 所有用户数据（项目、笔记、设置）集中在应用目录下，整个文件夹移动即可无损迁移
+                    </li>
                 </ul>
             </div>
         </div>
@@ -1309,33 +1933,29 @@
             <div class="section-accent-line"></div>
         </div>
 
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🎓</div>
+        <div class="user-cards-orbit">
+            <div class="user-card" style="--card-delay: 0s; --card-right: 30px; --card-top: 30px; --card-rotate: -8deg;">
                 <h3>学生 / 研究者</h3>
                 <p><strong>使用场景：</strong>课程笔记整理、论文文献管理、课题研究梳理<br><br>
                     <strong>当前痛点：</strong>笔记分散在不同 App 中，复习时难以建立跨学科的知识关联；文献和笔记之间缺少直观的链接关系。
                 </p>
             </div>
 
-            <div class="feature-card">
-                <div class="feature-icon">💼</div>
+            <div class="user-card" style="--card-delay: 0.12s; --card-right: 80px; --card-top: 175px; --card-rotate: -3deg;">
                 <h3>知识工作者</h3>
                 <p><strong>使用场景：</strong>产品需求文档、技术方案沉淀、行业研究分析<br><br>
                     <strong>当前痛点：</strong>传统文档是线性的，无法体现业务模块之间的依赖关系；需要同时使用 Notion（记录）+ XMind（梳理）+ Word（输出），效率低下。
                 </p>
             </div>
 
-            <div class="feature-card">
-                <div class="feature-icon">👨‍💻</div>
+            <div class="user-card" style="--card-delay: 0.24s; --card-right: 110px; --card-top: 320px; --card-rotate: 3deg;">
                 <h3>开发者 / 技术写作者</h3>
                 <p><strong>使用场景：</strong>技术博客写作、开源项目文档、API 设计文档<br><br>
                     <strong>当前痛点：</strong>需要频繁插入代码块、数学公式、架构图，现有工具对混合内容的支持不够友好；缺乏能同时承载文字、代码、图表的创作环境。
                 </p>
             </div>
 
-            <div class="feature-card">
-                <div class="feature-icon">🧠</div>
+            <div class="user-card" style="--card-delay: 0.36s; --card-right: 70px; --card-top: 465px; --card-rotate: 8deg;">
                 <h3>创意工作者</h3>
                 <p><strong>使用场景：</strong>剧本大纲构思、游戏世界观设定、创意灵感捕捉<br><br>
                     <strong>当前痛点：</strong>想法是网状的，但工具是线性的；需要一种能像「思维导图」一样发散、又像「文档」一样深入的表达方式。
@@ -1348,136 +1968,108 @@
     <section id="features">
         <div class="section-header">
             <h2 class="section-title">核心功能</h2>
-            <p class="section-subtitle">融合 3D 可视化、富文本编辑、AI 对话的下一代知识管理平台</p>
+            <p class="section-subtitle">融合 3D 可视化、代码沙盒、版本控制、AI 对话的知识工作台</p>
             <div class="section-accent-line"></div>
         </div>
 
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🌌</div>
-                <h3>3D 知识网络</h3>
-                <p>基于 Three.js 渲染，螺旋连线、星云粒子、节点光环，支持旋转/缩放/平移，让知识网络如星图般璀璨。</p>
+        <div class="feature-scroll-rows">
+            <!-- 第一行：从左到右 -->
+            <div class="feature-scroll-row row-ltr">
+                <div class="feature-scroll-track">
+                    <div class="glass-card"><h3>3D 知识网络</h3><p>Three.js 渲染，螺旋连线、星云粒子、节点光环、Bloom 辉光，3D 极简/完整双模式。</p></div>
+                    <div class="glass-card"><h3>富文本编辑器</h3><p>TinyMCE 7，字体/段落/样式、图片自由放置、形状、文本框、文件链接、分栏，深色/浅色双主题。</p></div>
+                    <div class="glass-card"><h3>代码沙盒 IDE</h3><p>VSCode 风格迷你 IDE：Monaco Editor + 文件树 + 标签页 + esbuild 打包，HTML/CSS/JS 实时预览。</p></div>
+                    <div class="glass-card"><h3>表格 & 公式</h3><p>Univer 电子表格 + LaTeX 公式编辑器，常用符号面板，支持拖拽缩放。</p></div>
+                    <!-- 重复一组用于无缝循环 -->
+                    <div class="glass-card"><h3>3D 知识网络</h3><p>Three.js 渲染，螺旋连线、星云粒子、节点光环、Bloom 辉光，3D 极简/完整双模式。</p></div>
+                    <div class="glass-card"><h3>富文本编辑器</h3><p>TinyMCE 7，字体/段落/样式、图片自由放置、形状、文本框、文件链接、分栏，深色/浅色双主题。</p></div>
+                    <div class="glass-card"><h3>代码沙盒 IDE</h3><p>VSCode 风格迷你 IDE：Monaco Editor + 文件树 + 标签页 + esbuild 打包，HTML/CSS/JS 实时预览。</p></div>
+                    <div class="glass-card"><h3>表格 & 公式</h3><p>Univer 电子表格 + LaTeX 公式编辑器，常用符号面板，支持拖拽缩放。</p></div>
+                </div>
             </div>
 
-            <div class="feature-card">
-                <div class="feature-icon">✏️</div>
-                <h3>富文本编辑器</h3>
-                <p>基于 TinyMCE 7，支持字体/段落/样式、图片自由放置、形状、文本框、文件链接、分栏等专业级编辑能力。</p>
+            <!-- 第二行：从右到左 -->
+            <div class="feature-scroll-row row-rtl">
+                <div class="feature-scroll-track">
+                    <div class="glass-card"><h3>多媒体嵌入</h3><p>音频波形可视化 + EQ 均衡器、视频、幻灯片放映，全方位多媒体支持。</p></div>
+                    <div class="glass-card"><h3>AI 对话集成</h3><p>Chat/Agent 双模式，多模型切换，工具调用，项目上下文感知，让 AI 成为创作助手。</p></div>
+                    <div class="glass-card"><h3>版本控制</h3><p>类 Git 版本图系统，提交、分支、diff 对比、回滚，每个节点完整变更历史。</p></div>
+                    <div class="glass-card"><h3>内置终端</h3><p>node-pty + xterm.js，多标签页终端，PowerShell/Zsh 自动适配。</p></div>
+                    <div class="glass-card"><h3>多媒体嵌入</h3><p>音频波形可视化 + EQ 均衡器、视频、幻灯片放映，全方位多媒体支持。</p></div>
+                    <div class="glass-card"><h3>AI 对话集成</h3><p>Chat/Agent 双模式，多模型切换，工具调用，项目上下文感知，让 AI 成为创作助手。</p></div>
+                    <div class="glass-card"><h3>版本控制</h3><p>类 Git 版本图系统，提交、分支、diff 对比、回滚，每个节点完整变更历史。</p></div>
+                    <div class="glass-card"><h3>内置终端</h3><p>node-pty + xterm.js，多标签页终端，PowerShell/Zsh 自动适配。</p></div>
+                </div>
             </div>
 
-            <div class="feature-card">
-                <div class="feature-icon">📊</div>
-                <h3>表格 & 公式编辑器</h3>
-                <p>基于 Univer 的完整电子表格编辑能力 + LaTeX 公式编辑器，常用符号面板，支持拖拽缩放。</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">💻</div>
-                <h3>代码块编辑</h3>
-                <p>基于 Monaco Editor，支持 81 种编程语言语法高亮，内置代码片段模板，开发者友好。</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">🎵</div>
-                <h3>多媒体嵌入</h3>
-                <p>音频（WaveSurfer.js 波形可视化 + EQ 均衡器）、视频、幻灯片放映，全方位多媒体支持。</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">🤖</div>
-                <h3>AI 对话集成</h3>
-                <p>支持 Chat/Agent 双模式，多模型切换，工具调用（项目上下文感知），让 AI 成为你创作助手。</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">🎨</div>
-                <h3>绘图 & 覆盖层</h3>
-                <p>手绘笔/铅笔/荧光笔/彩虹笔，支持撤销重做；图片/形状/文本框/图表自由放置，可拖拽缩放旋转。</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">🔄</div>
-                <h3>视图切换系统</h3>
-                <p>3D 星图 / 2D 思维导图无缝切换，图层管理，满足不同思考和表达场景的需求。</p>
+            <!-- 第三行：从左到右 -->
+            <div class="feature-scroll-row row-ltr">
+                <div class="feature-scroll-track">
+                    <div class="glass-card"><h3>绘图 & 覆盖层</h3><p>手绘笔/铅笔/荧光笔/彩虹笔，撤销重做；图片/形状/文本框/图表自由放置，拖拽缩放旋转。</p></div>
+                    <div class="glass-card"><h3>视图切换 & 图层</h3><p>3D 星图 / 2D 思维导图无缝切换，多图层管理，满足不同思考和表达场景。</p></div>
+                    <div class="glass-card"><h3>日历 & 排班</h3><p>月/周/日三视图日历，日程管理，四象限事项，智能排班，法定节假日自动识别。</p></div>
+                    <div class="glass-card"><h3>便携式架构</h3><p>所有数据集中在应用目录下，整个文件夹移动/复制即可无损迁移，接近绿色应用体验。</p></div>
+                    <div class="glass-card"><h3>绘图 & 覆盖层</h3><p>手绘笔/铅笔/荧光笔/彩虹笔，撤销重做；图片/形状/文本框/图表自由放置，拖拽缩放旋转。</p></div>
+                    <div class="glass-card"><h3>视图切换 & 图层</h3><p>3D 星图 / 2D 思维导图无缝切换，多图层管理，满足不同思考和表达场景。</p></div>
+                    <div class="glass-card"><h3>日历 & 排班</h3><p>月/周/日三视图日历，日程管理，四象限事项，智能排班，法定节假日自动识别。</p></div>
+                    <div class="glass-card"><h3>便携式架构</h3><p>所有数据集中在应用目录下，整个文件夹移动/复制即可无损迁移，接近绿色应用体验。</p></div>
+                </div>
             </div>
         </div>
     </section>
 
     <!-- 作品价值与意义 -->
-    <section id="value">
+    <section id="value" style="min-height: 100vh;">
         <div class="section-header">
             <h2 class="section-title">价值与意义</h2>
             <div class="section-accent-line"></div>
         </div>
-
-        <div class="value-grid">
-            <div class="value-card">
-                <span class="value-icon">⚡</span>
-                <h3>效率提升</h3>
-                <p>将「记录 → 整理 → 创作」三个环节统一到同一个工具中，消除工具切换带来的认知负担。3D 可视化帮助用户快速定位知识盲区和关联缺口，大幅缩短从想法到成品的路径。</p>
-            </div>
-
-            <div class="value-card">
-                <span class="value-icon">🧩</span>
-                <h3>思维范式革新</h3>
-                <p>突破传统文档的线性限制，提供「先宏观后微观」的新型知识组织方式。用户可以先在 3D 星图中把握全局，再逐个深入节点细节，更符合人类大脑的发散性思维习惯。</p>
-            </div>
-
-            <div class="value-card">
-                <span class="value-icon">🌍</span>
-                <h3>社会价值</h3>
-                <p>为教育领域提供可视化的知识管理方案，帮助学生建立系统性思维框架。降低专业内容创作的门槛，让非技术人员也能轻松制作包含代码、公式、多媒体的复合型文档。</p>
-            </div>
-        </div>
+        <!-- 卡片已移至 3D 投影浮层 #value-card-overlay，贴在城市建筑表面 -->
     </section>
 
-    <!-- 技术栈 -->
-    <section id="tech" class="tech-section" style="padding: 6rem 2rem; max-width: 1400px; margin: 0 auto;">
+    <!-- 技术栈 — 两行蓝色毛玻璃滚动播放 -->
+    <section id="tech" class="tech-section">
         <div class="section-header">
             <h2 class="section-title">技术实现</h2>
             <p class="section-subtitle">构建于成熟的开源技术栈之上</p>
             <div class="section-accent-line"></div>
         </div>
-        <div class="tech-grid">
-            <div class="tech-item">
-                <div class="tech-name">Electron 29</div>
-                <div class="tech-desc">桌面应用框架（无边框窗口）</div>
+        <div class="tech-marquee-container">
+            <!-- 第一行：向左滚动（8个技术 × 2份 = 无缝循环） -->
+            <div class="tech-marquee-row row-1">
+                <div class="tech-item-blue"><div class="tech-name">Electron 29</div><div class="tech-desc">桌面应用框架（无边框窗口）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Three.js 0.128</div><div class="tech-desc">3D 渲染引擎（节点、粒子、辉光）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">TinyMCE 7</div><div class="tech-desc">富文本编辑器（inline 模式）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Univer 0.25</div><div class="tech-desc">电子表格编辑器</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Monaco Editor</div><div class="tech-desc">代码编辑（81 种语言）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">MathJax 3 / MathLive</div><div class="tech-desc">LaTeX 公式渲染与编辑</div></div>
+                <div class="tech-item-blue"><div class="tech-name">WaveSurfer.js 7</div><div class="tech-desc">音频波形可视化</div></div>
+                <div class="tech-item-blue"><div class="tech-name">FFmpeg.wasm</div><div class="tech-desc">浏览器端视频处理</div></div>
+                <!-- 复制一份实现无缝循环 -->
+                <div class="tech-item-blue"><div class="tech-name">Electron 29</div><div class="tech-desc">桌面应用框架（无边框窗口）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Three.js 0.128</div><div class="tech-desc">3D 渲染引擎（节点、粒子、辉光）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">TinyMCE 7</div><div class="tech-desc">富文本编辑器（inline 模式）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Univer 0.25</div><div class="tech-desc">电子表格编辑器</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Monaco Editor</div><div class="tech-desc">代码编辑（81 种语言）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">MathJax 3 / MathLive</div><div class="tech-desc">LaTeX 公式渲染与编辑</div></div>
+                <div class="tech-item-blue"><div class="tech-name">WaveSurfer.js 7</div><div class="tech-desc">音频波形可视化</div></div>
+                <div class="tech-item-blue"><div class="tech-name">FFmpeg.wasm</div><div class="tech-desc">浏览器端视频处理</div></div>
             </div>
-            <div class="tech-item">
-                <div class="tech-name">Three.js 0.128</div>
-                <div class="tech-desc">3D 渲染引擎（节点、粒子、辉光）</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">TinyMCE 7</div>
-                <div class="tech-desc">富文本编辑器（inline 模式）</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">Univer 0.25</div>
-                <div class="tech-desc">电子表格编辑器</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">Monaco Editor</div>
-                <div class="tech-desc">代码块编辑（81 种语言）</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">MathJax 3 / MathLive</div>
-                <div class="tech-desc">LaTeX 公式渲染与编辑</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">WaveSurfer.js 7</div>
-                <div class="tech-desc">音频波形可视化</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">FFmpeg.wasm</div>
-                <div class="tech-desc">浏览器端视频处理</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">Fabric.js</div>
-                <div class="tech-desc">画布操作与遮罩</div>
-            </div>
-            <div class="tech-item">
-                <div class="tech-name">SoundTouchJS</div>
-                <div class="tech-desc">音频变速/变调处理</div>
+            <!-- 第二行：向右滚动（6个技术 × 2份 = 无缝循环，反向） -->
+            <div class="tech-marquee-row row-2">
+                <div class="tech-item-blue"><div class="tech-name">node-pty + xterm.js</div><div class="tech-desc">内置终端（多标签页）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">esbuild-wasm</div><div class="tech-desc">浏览器端模块打包</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Fabric.js</div><div class="tech-desc">画布操作与遮罩</div></div>
+                <div class="tech-item-blue"><div class="tech-name">SoundTouchJS</div><div class="tech-desc">音频变速/变调处理</div></div>
+                <div class="tech-item-blue"><div class="tech-name">highlight.js</div><div class="tech-desc">代码语法高亮</div></div>
+                <div class="tech-item-blue"><div class="tech-name">html2canvas</div><div class="tech-desc">DOM 截图</div></div>
+                <!-- 复制一份实现无缝循环 -->
+                <div class="tech-item-blue"><div class="tech-name">node-pty + xterm.js</div><div class="tech-desc">内置终端（多标签页）</div></div>
+                <div class="tech-item-blue"><div class="tech-name">esbuild-wasm</div><div class="tech-desc">浏览器端模块打包</div></div>
+                <div class="tech-item-blue"><div class="tech-name">Fabric.js</div><div class="tech-desc">画布操作与遮罩</div></div>
+                <div class="tech-item-blue"><div class="tech-name">SoundTouchJS</div><div class="tech-desc">音频变速/变调处理</div></div>
+                <div class="tech-item-blue"><div class="tech-name">highlight.js</div><div class="tech-desc">代码语法高亮</div></div>
+                <div class="tech-item-blue"><div class="tech-name">html2canvas</div><div class="tech-desc">DOM 截图</div></div>
             </div>
         </div>
     </section>
@@ -1487,7 +2079,7 @@
     <!-- CTA -->
     <section class="cta-section">
         <h2 class="cta-title">AstroKnot，像宇航员一样去探索您的知识宇宙</h2>
-        <p class="cta-desc">用 3D 星图重新定义知识管理的方式</p>
+        <p class="cta-desc">用 3D 星图重新定义知识管理，让每个节点都能思考与运行</p>
         <a href="https://astroknot.netlify.app/" target="_blank" class="cta-button primary">体验网页演示版</a>
         <a href="#intro" class="cta-button">回到顶部</a>
     </section>
@@ -1500,8 +2092,261 @@
         </p>
     </footer>
 
+    <!-- 应用预览：滚动方向感知动画 -->
+    <script>
+    (function () {
+        var demoSection = document.getElementById('demo');
+        if (!demoSection) return;
+
+        // 初始状态：隐藏在左侧
+        demoSection.classList.add('slide-enter');
+
+        var lastScrollY = window.scrollY;
+        var scrollDir = 0;  // -1=上滚, 1=下滚
+        var ticking = false;
+
+        // 检测滚动方向
+        window.addEventListener('scroll', function () {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(function () {
+                var currentY = window.scrollY;
+                var delta = currentY - lastScrollY;
+                // 阈值5px，避免微小滚动抖动
+                if (Math.abs(delta) > 5) {
+                    scrollDir = delta > 0 ? 1 : -1;
+                }
+                lastScrollY = currentY;
+                ticking = false;
+            });
+        }, { passive: true });
+
+        // 当前动画状态
+        var currentSlideState = 'slide-enter';
+        var prevRatio = 0;
+
+        function setSlideState(newState) {
+            if (currentSlideState === newState) return;
+            demoSection.classList.remove('slide-enter', 'slide-center', 'slide-exit');
+            demoSection.classList.add(newState);
+            currentSlideState = newState;
+        }
+
+        var observer = new IntersectionObserver(function (entries) {
+            var entry = entries[0];
+            if (!entry) return;
+
+            var ratio = entry.intersectionRatio;
+            var isIntersecting = entry.isIntersecting;
+
+            // ratio 趋势：上升=正在进入视口，下降=正在离开视口
+            var ratioGoingDown = ratio < prevRatio;
+            var ratioGoingUp = ratio > prevRatio;
+            prevRatio = ratio;
+
+            if (!isIntersecting || ratio < 0.02) {
+                // 完全离开视口：根据滚动方向决定归位方向
+                if (scrollDir > 0) {
+                    setSlideState('slide-exit');
+                } else {
+                    setSlideState('slide-enter');
+                }
+            } else if (ratio >= 0.35) {
+                // 充分进入视口
+                if (ratioGoingUp || currentSlideState === 'slide-center') {
+                    // 正在进入或已在居中 → 居中显示
+                    setSlideState('slide-center');
+                } else if (ratioGoingDown && currentSlideState === 'slide-center') {
+                    // 曾居中但现在 ratio 在下降 → 触发离场动画（元素仍可见！）
+                    if (scrollDir > 0) {
+                        setSlideState('slide-exit');
+                    } else {
+                        setSlideState('slide-enter');
+                    }
+                }
+            } else if (ratio >= 0.15 && ratioGoingDown && currentSlideState === 'slide-center') {
+                // ratio 正在下降且仍可见 → 提前触发离场动画
+                if (scrollDir > 0) {
+                    setSlideState('slide-exit');
+                } else {
+                    setSlideState('slide-enter');
+                }
+            } else if (ratio >= 0.2 && ratioGoingUp) {
+                // ratio 正在上升 → 进入动画
+                setSlideState('slide-center');
+            }
+            // 其余情况保持当前状态，避免闪烁
+        }, {
+            threshold: [0, 0.02, 0.1, 0.15, 0.2, 0.3, 0.35, 0.5, 0.7]
+        });
+
+        observer.observe(demoSection);
+    })();
+    </script>
+
+    <!-- 创意介绍：模态框打开/关闭 + 打字机动画 -->
+    <script>
+    (function () {
+        var introSection = document.getElementById('intro');
+        if (!introSection) return;
+
+        // 初始状态：模态框关闭
+        introSection.classList.add('intro-closed');
+
+        var lastScrollY = window.scrollY;
+        var scrollDir = 0;
+        var ticking = false;
+
+        // 检测滚动方向
+        window.addEventListener('scroll', function () {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(function () {
+                var currentY = window.scrollY;
+                var delta = currentY - lastScrollY;
+                if (Math.abs(delta) > 5) {
+                    scrollDir = delta > 0 ? 1 : -1;
+                }
+                lastScrollY = currentY;
+                ticking = false;
+            });
+        }, { passive: true });
+
+        // 打字机相关状态
+        var typingItems = introSection.querySelectorAll('.typewriter-item');
+        var currentIntroState = 'intro-closed';
+        var prevRatio = 0;
+        var typingTimer = null;
+        var typingIndex = 0;
+        var cursorEl = null;
+
+        // 逐个显示文字元素（打字机效果）
+        function startTyping() {
+            // 先隐藏所有
+            typingItems.forEach(function (el) {
+                el.classList.remove('typing-visible');
+            });
+            typingIndex = 0;
+            clearTimeout(typingTimer);
+
+            // 创建光标
+            if (!cursorEl) {
+                cursorEl = document.createElement('span');
+                cursorEl.className = 'typing-cursor';
+            }
+
+            typeNext();
+        }
+
+        function typeNext() {
+            if (currentIntroState !== 'intro-open') return;
+            if (typingIndex >= typingItems.length) {
+                // 打字完成，移除光标
+                if (cursorEl && cursorEl.parentNode) cursorEl.parentNode.removeChild(cursorEl);
+                return;
+            }
+
+            var el = typingItems[typingIndex];
+            el.classList.add('typing-visible');
+
+            // 把光标附到当前元素末尾
+            if (cursorEl && cursorEl.parentNode) cursorEl.parentNode.removeChild(cursorEl);
+            el.appendChild(cursorEl);
+
+            typingIndex++;
+
+            // 延迟显示下一个：h3 较短 120ms，p/li 较长 180ms
+            var delay = el.tagName === 'H3' ? 120 : 180;
+            typingTimer = setTimeout(typeNext, delay);
+        }
+
+        // 隐藏所有文字元素（渐变消失）
+        function fadeOutText() {
+            clearTimeout(typingTimer);
+            if (cursorEl && cursorEl.parentNode) cursorEl.parentNode.removeChild(cursorEl);
+
+            // 从最后一个到第一个依次淡出（倒序）
+            var items = Array.from(typingItems);
+            var i = items.length - 1;
+            function fadeNext() {
+                if (i < 0) return;
+                items[i].classList.remove('typing-visible');
+                i--;
+                setTimeout(fadeNext, 40);
+            }
+            fadeNext();
+        }
+
+        function setIntroState(newState) {
+            if (currentIntroState === newState) return;
+
+            var oldState = currentIntroState;
+            currentIntroState = newState;
+
+            introSection.classList.remove('intro-closed', 'intro-open', 'intro-exit');
+            introSection.classList.add(newState);
+
+            // 状态转换时的副作用
+            if (newState === 'intro-open') {
+                // 模态框打开 → 延迟后开始打字
+                setTimeout(startTyping, 400);
+            } else if (newState === 'intro-exit' || newState === 'intro-closed') {
+                // 模态框关闭 → 文字淡出
+                fadeOutText();
+            }
+        }
+
+        // IntersectionObserver 检测
+        var observer = new IntersectionObserver(function (entries) {
+            var entry = entries[0];
+            if (!entry) return;
+
+            var ratio = entry.intersectionRatio;
+            var isIntersecting = entry.isIntersecting;
+
+            var ratioGoingDown = ratio < prevRatio;
+            var ratioGoingUp = ratio > prevRatio;
+            prevRatio = ratio;
+
+            if (!isIntersecting || ratio < 0.02) {
+                // 完全离开视口
+                if (scrollDir > 0) {
+                    setIntroState('intro-exit');
+                } else {
+                    setIntroState('intro-closed');
+                }
+            } else if (ratio >= 0.35) {
+                if (ratioGoingUp || currentIntroState === 'intro-open') {
+                    setIntroState('intro-open');
+                } else if (ratioGoingDown && currentIntroState === 'intro-open') {
+                    // 仍在视口但 ratio 在下降 → 提前触发离场
+                    if (scrollDir > 0) {
+                        setIntroState('intro-exit');
+                    } else {
+                        setIntroState('intro-closed');
+                    }
+                }
+            } else if (ratio >= 0.15 && ratioGoingDown && currentIntroState === 'intro-open') {
+                // 仍可见但正在离开
+                if (scrollDir > 0) {
+                    setIntroState('intro-exit');
+                } else {
+                    setIntroState('intro-closed');
+                }
+            } else if (ratio >= 0.2 && ratioGoingUp) {
+                setIntroState('intro-open');
+            }
+        }, {
+            threshold: [0, 0.02, 0.1, 0.15, 0.2, 0.3, 0.35, 0.5, 0.7]
+        });
+
+        observer.observe(introSection);
+    })();
+    </script>
+
     <!-- 完整3D场景背景（模块1+7+14 整合） -->
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="planet-camera.js"></script>
     <script>
         // ============================================================
         //  AstroKnot 完整3D场景 — 作为全页背景
@@ -1514,9 +2359,38 @@
             var canvas = document.getElementById('starfield-canvas');
             if (!canvas) return;
 
-            var renderer, scene, camera, skySphere;
+            var renderer, scene, camera, skySphere, earthGroup, earthMat;
+            var _camLerpFactor = 0, _defaultCamPos = null, _introCamPos = null, _defaultLookAt = null, _introLookAt = null, _camTargetFactor = 0;
+            // 复用临时 Vector3 避免每帧 new（性能优化）
+            var _lookAtTmpVec = null, _worldDirTmpVec = null;
+            if (THREE.Vector3) { _lookAtTmpVec = new THREE.Vector3(); _worldDirTmpVec = new THREE.Vector3(); }
+            var _featuresCamPos = null, _featuresLookAt = null, _featuresTargetFactor = 0;
+            var _featuresLerpState = 0;
+            var _activeSection = 'default'; // 'default' | 'intro' | 'features'
             var tm = 0;
             var starGroups = [], nebulaFlowGroups = [], flowField = null;
+            var bgAnimationRunning = false;  // 动画循环运行状态标记
+            // ── 星球+相机系统（抽离至 planet-camera.js） ──
+            var planetCamera = null;
+
+            // ── 性能检测：低端设备粒子降级 ──
+            var _isLowEnd = (function () {
+                try {
+                    var c = document.createElement('canvas');
+                    var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+                    if (!gl) return true;
+                    var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+                    var rendererStr = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL).toLowerCase() : '';
+                    // 集成显卡或移动设备标记为低端
+                    if (/mali|adreno|powervr|apple gpu|intel.*hd|intel.*uhd|swiftshader/i.test(rendererStr)) return true;
+                    // 纹理单元少于 8 个为低端
+                    if (gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS) < 8) return true;
+                    return false;
+                } catch (e) { return false; }
+            })();
+            // 降级乘数：低端设备粒子数减半
+            var _particleScale = _isLowEnd ? 0.5 : 1.0;
+            if (_isLowEnd) console.log('[AstroKnot BG] 检测到低端设备，粒子数量降级为50%');
 
             // ──────────────────────────────────────
             //  模块1: 纹理生成（createGlowTexture + createPanoramaTexture）
@@ -1720,18 +2594,12 @@
                     });
                 }
 
-                // 巨型亮星十字光芒
-                for (var i = 0; i < 10; i++) {
-                    var cx = Math.random() * W, cy = Math.random() * H, ss = 80 + Math.random() * 120, h = (i * 30) % 360;
+                // 暗星背景
+                for (var i = 0; i < 8000; i++) {
+                    var cx = Math.random() * W, cy = Math.random() * H;
                     dp(cx, cy, function (x, y) {
-                        ctx.save(); ctx.globalCompositeOperation = 'lighter';
-                        var gh = ctx.createLinearGradient(x - ss, y, x + ss, y);
-                        gh.addColorStop(0, 'transparent'); gh.addColorStop(0.5, 'hsla(' + h + ',90%,80%,0.45)'); gh.addColorStop(1, 'transparent');
-                        ctx.fillStyle = gh; ctx.fillRect(x - ss, y - 3, ss * 2, 7);
-                        var gv = ctx.createLinearGradient(x, y - ss, x, y + ss);
-                        gv.addColorStop(0, 'transparent'); gv.addColorStop(0.5, 'hsla(' + h + ',90%,80%,0.45)'); gv.addColorStop(1, 'transparent');
-                        ctx.fillStyle = gv; ctx.fillRect(x - 3, y - ss, 7, ss * 2);
-                        ctx.restore();
+                        ctx.beginPath(); ctx.arc(x, y, Math.random() + 0.2, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(200,220,255,' + (Math.random() * 0.2 + 0.05).toFixed(2) + ')'; ctx.fill();
                     });
                 }
 
@@ -1744,6 +2612,7 @@
             //  模块7: 场景初始化
             // ──────────────────────────────────────
             function createRadialStarField(count, rx, ry, rz, size, colorFn, center, falloff, glowTex) {
+                count = Math.floor(count * _particleScale);  // 低端设备粒子降级
                 center = center || new THREE.Vector3(0, 0, 0); falloff = falloff || 120;
                 var g = new THREE.BufferGeometry(), p = [], c = [], tmp = new THREE.Vector3();
                 for (var i = 0; i < count; i++) {
@@ -1758,6 +2627,12 @@
                 return new THREE.Points(g, mat);
             }
 
+            // ──────────────────────────────────────
+            //  行星节点 + 相机飞入 + 拖拽 → 已抽离至 planet-camera.js
+            //  函数: createEnergyLine, createRadialGlowTexture, createMeteor,
+            //        createPlanet, syncSphericalFromCamera, projectToScreen, updateLabels
+            // ──────────────────────────────────────
+
             function initScene() {
                 renderer = new THREE.WebGLRenderer({
                     canvas: canvas,
@@ -1767,70 +2642,29 @@
                     stencil: false,
                     depth: true
                 });
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
                 renderer.outputColorSpace = THREE.SRGBColorSpace;
                 renderer.toneMapping = THREE.ACESFilmicToneMapping;
                 renderer.toneMappingExposure = 1.0;
+
+                // GPU 崩溃恢复：检测 webglcontextlost，延迟重建 renderer
+                canvas.addEventListener('webglcontextlost', function (e) {
+                    e.preventDefault();
+                    console.warn('[AstroKnot BG] WebGL 上下文丢失，3秒后尝试恢复…');
+                    bgAnimationRunning = false;
+                    setTimeout(function () {
+                        try { initScene(); console.log('[AstroKnot BG] WebGL 上下文已恢复'); } catch (err) { console.error('[AstroKnot BG] 恢复失败:', err); }
+                    }, 3000);
+                });
+
                 onResize();
 
                 scene = new THREE.Scene();
                 scene.fog = new THREE.FogExp2(0x030314, 0.004);
 
                 camera = new THREE.PerspectiveCamera(40, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-                camera.position.set(0, 4.5, 8);
-
-                // ── 鼠标拖拽视角控制（挂载到document，穿透所有层）──
-                var orbitTarget = new THREE.Vector3(0, 0, 0);
-                var isDragging = false, lastX = 0, lastY = 0;
-                var spherical = { theta: 0, phi: Math.PI / 3, radius: 12 };
-                function updateCameraFromSpherical() {
-                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
-                    camera.position.x = orbitTarget.x + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
-                    camera.position.y = orbitTarget.y + spherical.radius * Math.cos(spherical.phi);
-                    camera.position.z = orbitTarget.z + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
-                    camera.lookAt(orbitTarget);
-                }
-                function isTextElement(el) {
-                    if (!el || el === document.body || el === document.documentElement) return false;
-                    var tag = el.tagName.toLowerCase();
-                    if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'span', 'a', 'label', 'input', 'textarea', 'button', 'img'].indexOf(tag) !== -1) return true;
-                    if (el.classList.contains('intro-card') || el.classList.contains('feature-item') ||
-                        el.classList.contains('value-item') || el.classList.contains('tech-stack') ||
-                        el.classList.contains('tech-item') || el.classList.contains('section-header') ||
-                        el.classList.contains('hero-content') || el.classList.contains('card') ||
-                        el.classList.contains('panel') || el.classList.contains('cta-btn')) return true;
-                    return isTextElement(el.parentElement);
-                }
-                document.addEventListener('mousedown', function (e) {
-                    if (e.button !== 0) return;
-                    if (isTextElement(e.target)) return;
-                    isDragging = true; lastX = e.clientX; lastY = e.clientY;
-                    document.body.style.userSelect = 'none';
-                    e.preventDefault();
-                });
-                document.addEventListener('mousemove', function (e) {
-                    if (!isDragging) return;
-                    var dx = (e.clientX - lastX) * 0.005, dy = (e.clientY - lastY) * 0.005;
-                    lastX = e.clientX; lastY = e.clientY;
-                    spherical.theta -= dx; spherical.phi += dy;
-                    updateCameraFromSpherical();
-                });
-                document.addEventListener('mouseup', function () {
-                    isDragging = false;
-                    document.body.style.userSelect = '';
-                });
-                // 触摸支持
-                canvas.addEventListener('touchstart', function (e) {
-                    if (e.touches.length === 1) { isDragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
-                }, { passive: true });
-                canvas.addEventListener('touchmove', function (e) {
-                    if (!isDragging || e.touches.length !== 1) return;
-                    var dx = (e.touches[0].clientX - lastX) * 0.005, dy = (e.touches[0].clientY - lastY) * 0.005;
-                    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
-                    spherical.theta -= dx; spherical.phi += dy;
-                    updateCameraFromSpherical();
-                }, { passive: true });
-                canvas.addEventListener('touchend', function () { isDragging = false; });
+                camera.position.set(0, 1, 8);
+                camera.lookAt(0, 0, 0);
 
                 var glowTex = createGlowTexture();
                 var panoramaTex = createPanoramaTexture();
@@ -1859,9 +2693,17 @@
                         'vec3 satFn(vec3 col,float s){float g=dot(col,vec3(0.299,0.587,0.114));return mix(vec3(g),col,s);}',
                         'void main(){vec4 tc=texture2D(textureMap,vUv);vec3 col=hueShiftFn(tc.rgb,hueShift);',
                         'col=satFn(col,saturation);col*=brightness;',
+                        // 非银河区域压暗：银河带在赤道附近(vDistanceToPole≈0.4~0.6)
+                        // 极区和高纬区域大幅压暗
+                        'float mwCenter=0.5,mwHalf=0.18;',
+                        'float mwDist=abs(vDistanceToPole-mwCenter);',
+                        'float mwMask=1.0-smoothstep(0.0,mwHalf,mwDist);',
+                        // 银河带内保持原亮度，带外压暗到15%
+                        'float darkFactor=mix(0.15,1.0,mwMask);',
+                        'col*=darkFactor;',
                         // 抗摩尔纹：基于像素位置的微噪点抖动
                         'float dither=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453);',
-                        'col+=((dither-0.5)*0.02);',
+                        'col+=((dither-0.5)*0.015);',
                         'gl_FragColor=vec4(col,1.);}'
                     ].join('\n'),
                     side: THREE.BackSide, depthWrite: false, depthTest: true
@@ -1884,7 +2726,7 @@
                 scene.add(galaxy1); scene.add(galaxy2);
 
                 // 尘埃场
-                var dc = 1000, dg = new THREE.BufferGeometry(), dp = [], dc2 = [];
+                var dc = Math.floor(1000 * _particleScale), dg = new THREE.BufferGeometry(), dp = [], dc2 = [];
                 for (var i = 0; i < dc; i++) {
                     var t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1), r = 15 + Math.random() * 60;
                     dp.push(Math.sin(p) * Math.cos(t) * r, Math.sin(p) * Math.sin(t) * r * 0.6, Math.cos(p) * r);
@@ -1897,7 +2739,7 @@
                 var dustField = new THREE.Points(dg, dm); scene.add(dustField);
 
                 // 彩虹场
-                var rc = 600, rg = new THREE.BufferGeometry(), rp = [], rc2 = [];
+                var rc = Math.floor(600 * _particleScale), rg = new THREE.BufferGeometry(), rp = [], rc2 = [];
                 for (var i = 0; i < rc; i++) {
                     var t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1), r = 80 + Math.random() * 100;
                     rp.push(Math.sin(p) * Math.cos(t) * r, Math.sin(p) * Math.sin(t) * r * 0.5, Math.cos(p) * r);
@@ -1909,7 +2751,7 @@
                 var rainbowField = new THREE.Points(rg, rm); scene.add(rainbowField);
 
                 // 闪烁星空（精简版）
-                var tc = 15000, tg = new THREE.BufferGeometry(), tp = [], tco = [];
+                var tc = Math.floor(15000 * _particleScale), tg = new THREE.BufferGeometry(), tp = [], tco = [];
                 for (var i = 0; i < tc; i++) {
                     var th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), r = 40 + Math.random() * 150;
                     tp.push(Math.sin(ph) * Math.cos(th) * r, Math.sin(ph) * Math.sin(th) * r * 0.7, Math.cos(ph) * r);
@@ -1923,7 +2765,7 @@
                 var twinkleField = new THREE.Points(tg, tm2); scene.add(twinkleField);
 
                 // 流动场
-                var fc = 300, fg = new THREE.BufferGeometry(), fp = [], fc3 = [];
+                var fc = Math.floor(300 * _particleScale), fg = new THREE.BufferGeometry(), fp = [], fc3 = [];
                 for (var i = 0; i < fc; i++) {
                     var a = Math.random() * Math.PI * 2, r = 50 + Math.random() * 70;
                     fp.push(Math.cos(a) * r, (Math.random() - 0.5) * 30 - 10, Math.sin(a) * r);
@@ -1957,17 +2799,179 @@
                 var pl1 = new THREE.PointLight(0xff44aa, 0.5); pl1.position.set(2, 3, 2); scene.add(pl1);
                 var pl2 = new THREE.PointLight(0x44ffaa, 0.4); pl2.position.set(-2, 1.5, 3); scene.add(pl2);
 
-                console.log('[AstroKnot BG] 3D场景初始化完成 — ' + starGroups.length + '个动画组, ' + nebulaFlowGroups.length + '个色相偏移组');
+                // ── 地球模型（NASA Blue Marble 纹理）──
+                // 刚离开地球的视角：地球在左下占1/3屏幕
+                earthGroup = new THREE.Object3D();
+                earthGroup.position.set(-3.5, -3, -2);
+                var earthGeo = new THREE.SphereGeometry(5, 64, 32);
+                var earthTex = new THREE.TextureLoader().load(
+                    'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
+                );
+                var bumpTex = new THREE.TextureLoader().load(
+                    'https://unpkg.com/three-globe/example/img/earth-topology.png'
+                );
+                earthMat = new THREE.MeshStandardMaterial({
+                    map: earthTex,
+                    bumpMap: bumpTex,
+                    bumpScale: 0.15,
+                    metalness: 0.1,
+                    roughness: 0.8
+                });
+                var earth = new THREE.Mesh(earthGeo, earthMat);
+                earth.rotation.z = 23.43 * Math.PI / 180;  // 地轴倾斜
+                earthGroup.add(earth);
+
+                // 大气层辉光（外发光 + 内层薄雾）
+                var atmosGeo = new THREE.SphereGeometry(5.25, 64, 32);
+                var atmosMat = new THREE.MeshBasicMaterial({
+                    color: 0x4488ff,
+                    transparent: true, opacity: 0.08,
+                    side: THREE.BackSide
+                });
+                earthGroup.add(new THREE.Mesh(atmosGeo, atmosMat));
+                // 更外层淡辉光
+                var outerAtmosGeo = new THREE.SphereGeometry(5.6, 64, 32);
+                var outerAtmosMat = new THREE.MeshBasicMaterial({
+                    color: 0x3366cc,
+                    transparent: true, opacity: 0.04,
+                    side: THREE.BackSide
+                });
+                earthGroup.add(new THREE.Mesh(outerAtmosGeo, outerAtmosMat));
+
+                scene.add(earthGroup);
+
+                // ── 太阳（模拟地日距离，艺术化缩放）──
+                // 真实比例无法呈现（日地距离是地球半径的23500倍），
+                // 这里用艺术化距离：远到能照亮地球半面，近到肉眼可见
+                var sunGroup = new THREE.Object3D();
+                sunGroup.position.set(40, 25, -30);
+
+                // 太阳球体（自发光）
+                var sunGeo = new THREE.SphereGeometry(4, 32, 32);
+                var sunMat = new THREE.MeshBasicMaterial({
+                    color: 0xfff4e0
+                });
+                sunGroup.add(new THREE.Mesh(sunGeo, sunMat));
+
+                // 太阳内层辉光
+                var sunGlow1 = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: glowTex, color: 0xffcc44,
+                    transparent: true, opacity: 0.6,
+                    blending: THREE.AdditiveBlending, depthWrite: false
+                }));
+                sunGlow1.scale.set(20, 20, 1);
+                sunGroup.add(sunGlow1);
+
+                // 太阳外层辉光
+                var sunGlow2 = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: glowTex, color: 0xff8800,
+                    transparent: true, opacity: 0.2,
+                    blending: THREE.AdditiveBlending, depthWrite: false
+                }));
+                sunGlow2.scale.set(40, 40, 1);
+                sunGroup.add(sunGlow2);
+
+                scene.add(sunGroup);
+
+                // 太阳光照（从太阳方向照射地球，产生明暗面）
+                var sunLight = new THREE.DirectionalLight(0xfff0dd, 2.0);
+                sunLight.position.copy(sunGroup.position);
+                scene.add(sunLight);
+
+                // ── 行星+相机系统（已抽离至 planet-camera.js，暂时禁用）──
+                // planetCamera = new PlanetCameraSystem({
+                //     three: THREE,
+                //     scene: scene,
+                //     camera: camera,
+                //     glowTex: glowTex,
+                //     particleScale: _particleScale,
+                //     canvas: canvas
+                // });
+                // planetCamera.init();
+
+                // ── 固定视角 + 滚动微调 ──
+                // 默认：相机 (0, 1, 8) 看向 (0, 0, 0)，地球占左下
+                // 滚动到「创意介绍」时：视角大幅朝太阳方向旋转，太阳出现在右上
+                _defaultCamPos = new THREE.Vector3(0, 1, 8);
+                _defaultLookAt = new THREE.Vector3(0, 0, 0);
+                // 太阳在 (40, 25, -30)，只微微右转上仰，地球仍占屏幕一半
+                _introCamPos = new THREE.Vector3(0, 1, 8);
+                _introLookAt = new THREE.Vector3(2, 1.5, -1);
+                // 核心功能：逼近地球，地球填满屏幕，场景变暗
+                _featuresCamPos = new THREE.Vector3(-2.8, -1.5, 3);
+                _featuresLookAt = new THREE.Vector3(-3.5, -3, -2);
+                _camLerpFactor = 0;
+                _camTargetFactor = 0;
+                _featuresTargetFactor = 0;
+                _activeSection = 'default';
+
+                // 统一 section 观察器：优先级 features > intro > default
+                function _updateActiveSection() {
+                    if (_featuresTargetFactor > 0.5) {
+                        _activeSection = 'features';
+                    } else if (_camTargetFactor > 0.5) {
+                        _activeSection = 'intro';
+                    } else {
+                        _activeSection = 'default';
+                    }
+                }
+
+                var _introObserver = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        _camTargetFactor = entry.intersectionRatio > 0.2 ? 1 : 0;
+                        _updateActiveSection();
+                    });
+                }, { threshold: [0, 0.1, 0.2, 0.3, 0.5] });
+                var _introSection = document.getElementById('intro');
+                if (_introSection) _introObserver.observe(_introSection);
+
+                var _featuresObserver = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        _featuresTargetFactor = entry.intersectionRatio > 0.15 ? 1 : 0;
+                        _updateActiveSection();
+                    });
+                }, { threshold: [0, 0.1, 0.15, 0.2, 0.3, 0.5] });
+                var _featuresSection = document.getElementById('features');
+                if (_featuresSection) _featuresObserver.observe(_featuresSection);
+
+                // ── 目标用户卡片：滚动到时从右向左弹出 ──
+                var _userCards = document.querySelectorAll('.user-card');
+                if (_userCards.length) {
+                    var _userObserver = new IntersectionObserver(function (entries) {
+                        entries.forEach(function (entry) {
+                            if (entry.intersectionRatio > 0.15) {
+                                entry.target.classList.add('visible');
+                            } else if (entry.intersectionRatio < 0.05) {
+                                entry.target.classList.remove('visible');
+                            }
+                        });
+                    }, { threshold: [0, 0.05, 0.1, 0.15, 0.2, 0.3] });
+                    _userCards.forEach(function (card) { _userObserver.observe(card); });
+                }
+
+                console.log('[AstroKnot BG] 3D场景初始化完成 — ' + starGroups.length + '个动画组, ' + nebulaFlowGroups.length + '个色相偏移组' + (_isLowEnd ? ' (低端设备降级)' : ''));
+                bgAnimationRunning = true;
                 animate();
             }
 
             // ──────────────────────────────────────
-            //  模块14: 动画循环
+            //  模块14: 动画循环（含性能优化）
+            //  - 页面隐藏时彻底停止 rAF，恢复时重启
+            //  - 视锥距离 LOD：相机远时简化闪烁计算（与 module14 一致）
             // ──────────────────────────────────────
             function animate() {
+                if (document.hidden || window._cityActive) {
+                    // 页面不可见，或城市场景激活时（避免双重型 3D 场景同帧运行）停止动画循环
+                    bgAnimationRunning = false;
+                    return;
+                }
+                bgAnimationRunning = true;
                 requestAnimationFrame(animate);
-                if (document.hidden) return;
                 tm += 0.016;
+
+                // 视锥距离 LOD：相机远离时降低粒子动画精度（与 module14 一致）
+                var camDist = camera.position.length();
+                var enableDetailedParticles = camDist < 40;
 
                 // 天空球旋转 + 色相偏移
                 if (skySphere) {
@@ -1976,29 +2980,34 @@
                         skySphere.material.uniforms.hueShift.value = (tm * 0.015) % 1;
                 }
 
-                // 粒子闪烁（与 module14 算法一致）
+                // 粒子闪烁（与 module14 算法一致，含视锥距离 LOD）
                 for (var i = 0; i < starGroups.length; i++) {
                     var g = starGroups[i];
                     if (!g.points || !g.points.visible) continue;
                     var baseOp = g.baseOpacity * (0.85 + 0.15 * Math.sin(tm * g.speed + g.phase));
-                    var flicker = 0.55 + 0.45 * (
-                        Math.sin(tm * 0.05 + g.phase * 10) * 0.35 +
-                        Math.cos(tm * 0.07 + g.phase * 7) * 0.25 +
-                        Math.sin(tm * 0.01 + g.phase * 13) * 0.35 +
-                        Math.cos(tm * 1.0 + g.phase * 17) * 0.15 +
-                        Math.sin(tm * 1.5 + g.phase * 21) * 0.15 +
-                        Math.sin(tm * 2.8 + g.phase * 5) * Math.cos(tm * 9.7 + g.phase * 11) * 0.20
-                    );
+                    // 相机远时使用简化的闪烁计算（少 90% 三角函数），无法察觉差异
+                    var flicker = enableDetailedParticles
+                        ? 0.55 + 0.45 * (
+                            Math.sin(tm * 0.05 + g.phase * 10) * 0.35 +
+                            Math.cos(tm * 0.07 + g.phase * 7) * 0.25 +
+                            Math.sin(tm * 0.01 + g.phase * 13) * 0.35 +
+                            Math.cos(tm * 1.0 + g.phase * 17) * 0.15 +
+                            Math.sin(tm * 1.5 + g.phase * 21) * 0.15 +
+                            Math.sin(tm * 2.8 + g.phase * 5) * Math.cos(tm * 9.7 + g.phase * 11) * 0.20
+                        )
+                        : 0.7 + 0.3 * Math.sin(tm * g.speed * 0.5 + g.phase);
                     var op = Math.max(0.03, Math.min(1, baseOp * flicker));
                     if (g.points.material.opacity !== undefined) g.points.material.opacity = op;
                 }
 
-                // 色相偏移
-                var hueShiftVal = tm * 0.015;
-                for (var i = 0; i < nebulaFlowGroups.length; i++) {
-                    var n = nebulaFlowGroups[i];
-                    if (n && n.material && n.material.uniforms && n.material.uniforms.uHueShift)
-                        n.material.uniforms.uHueShift.value = hueShiftVal;
+                // 色相偏移（相机远时跳过，颜色不变而已，看不出来）
+                if (enableDetailedParticles) {
+                    var hueShiftVal = tm * 0.015;
+                    for (var i = 0; i < nebulaFlowGroups.length; i++) {
+                        var n = nebulaFlowGroups[i];
+                        if (n && n.material && n.material.uniforms && n.material.uniforms.uHueShift)
+                            n.material.uniforms.uHueShift.value = hueShiftVal;
+                    }
                 }
 
                 // 流动场动画
@@ -2015,8 +3024,101 @@
                 if (nebulaFlowGroups[2]) nebulaFlowGroups[2].rotation.y += 0.0008;
                 if (nebulaFlowGroups[3]) nebulaFlowGroups[3].rotation.x += 0.0006;
 
+                // 地球自转（核心功能 section 时停止）
+                if (earthGroup && _activeSection !== 'features') {
+                    earthGroup.rotation.y += 0.001;
+                }
+
+                // 相机滚动平滑旋转（三段：default / intro / features）
+                if (_defaultCamPos && _introCamPos && _featuresCamPos) {
+                    _camLerpFactor += (_camTargetFactor - _camLerpFactor) * 0.025;
+                    _featuresLerpState += (_featuresTargetFactor - _featuresLerpState) * 0.025;
+                    if (_camLerpFactor < 0.001) _camLerpFactor = 0;
+                    if (_featuresLerpState < 0.001) _featuresLerpState = 0;
+
+                    // 根据活跃 section 选择目标
+                    var _targetPos, _targetLookAt;
+                    if (_activeSection === 'features') {
+                        _targetPos = _featuresCamPos;
+                        _targetLookAt = _featuresLookAt;
+                    } else if (_activeSection === 'intro') {
+                        _targetPos = _introCamPos;
+                        _targetLookAt = _introLookAt;
+                    } else {
+                        _targetPos = _defaultCamPos;
+                        _targetLookAt = _defaultLookAt;
+                    }
+
+                    // 每帧 lerp 向目标（复用临时 Vector3）
+                    camera.position.lerp(_targetPos, 0.025);
+                    camera.getWorldDirection(_worldDirTmpVec).multiplyScalar(10).add(camera.position);
+                    _lookAtTmpVec.copy(_worldDirTmpVec);
+                    _lookAtTmpVec.lerp(_targetLookAt, 0.025);
+                    camera.lookAt(_lookAtTmpVec);
+                }
+
+                // 地球变暗：核心功能 section 时压暗地球
+                if (earthMat) {
+                    var _targetEmissiveIntensity = _activeSection === 'features' ? 0.0 : 0.0;
+                    // 通过降低粗糙度+增加金属感来模拟暗面，实际用emissive控制
+                    var _targetDarken = _activeSection === 'features' ? 0.15 : 1.0;
+                    if (!earthMat._darken) earthMat._darken = 1.0;
+                    earthMat._darken += (_targetDarken - earthMat._darken) * 0.03;
+                    earthMat.color.setRGB(earthMat._darken, earthMat._darken, earthMat._darken);
+                    earthMat.emissive.setRGB(
+                        _activeSection === 'features' ? 0.02 : 0.0,
+                        _activeSection === 'features' ? 0.04 : 0.0,
+                        _activeSection === 'features' ? 0.08 : 0.0
+                    );
+                    earthMat.emissiveIntensity = _activeSection === 'features' ? 0.5 : 0.0;
+                }
+
+                // ── 行星+相机系统更新（已抽离至 planet-camera.js，暂时禁用）──
+                // if (planetCamera) planetCamera.update(tm);
+
                 renderer.render(scene, camera);
             }
+
+            // 页面可见性变化：隐藏时停止 rAF，可见时重启
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden && !bgAnimationRunning) {
+                    bgAnimationRunning = true;
+                    requestAnimationFrame(animate);
+                }
+            });
+
+            // 城市场景退出时恢复星空动画（由城市模块在 #value 离开时调用）
+            window._resumeStarfield = function () {
+                if (!document.hidden && !bgAnimationRunning && !window._cityActive) {
+                    bgAnimationRunning = true;
+                    requestAnimationFrame(animate);
+                }
+            };
+
+            // 城市重新激活时暂停星空
+            window._pauseStarfield = function () {
+                bgAnimationRunning = false;
+            };
+
+            // 城市向上退出时：星空直接处于「核心功能」稳定状态（地球近景）
+            // 城市层渐隐时，星空已是逼近地球后的稳定画面，不播放逼近动画
+            window._resumeStarfieldAtFeatures = function () {
+                if (!document.hidden && !bgAnimationRunning) {
+                    if (_featuresCamPos && _featuresLookAt && camera) {
+                        // 直接定位到核心功能的稳定相机位置（地球近景）
+                        camera.position.copy(_featuresCamPos);
+                        camera.lookAt(_featuresLookAt);
+                    }
+                    // 直接设为 features 稳定状态（lerp 已完成，不再移动）
+                    _camLerpFactor = 0;
+                    _camTargetFactor = 0;
+                    _featuresTargetFactor = 1;
+                    _featuresLerpState = 1;  // 已在 features 位置，无需 lerp
+                    _activeSection = 'features';
+                    bgAnimationRunning = true;
+                    requestAnimationFrame(animate);
+                }
+            };
 
             function onResize() {
                 var w = window.innerWidth, h = window.innerHeight;
@@ -2107,9 +3209,26 @@
             const renderer = new THREE.WebGLRenderer({
                 canvas: canvas3D,
                 antialias: true,
-                alpha: false
+                alpha: false,
+                powerPreference: 'high-performance',
+                stencil: false,
+                depth: true
             });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+            // GPU 崩溃恢复
+            let previewAnimRunning = false;
+            canvas3D.addEventListener('webglcontextlost', function (e) {
+                e.preventDefault();
+                console.warn('[AstroKnot Preview] WebGL 上下文丢失');
+                previewAnimRunning = false;
+            });
+            canvas3D.addEventListener('webglcontextrestored', function () {
+                console.log('[AstroKnot Preview] WebGL 上下文已恢复');
+                previewAnimRunning = true;
+                requestAnimationFrame(animate3D);
+            });
+
             resizeRenderer();
 
             const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -2891,7 +4010,14 @@
             let time3D = 0;
 
             function animate3D() {
+                // 页面不可见时停止动画循环
+                if (document.hidden) {
+                    previewAnimRunning = false;
+                    return;
+                }
+                previewAnimRunning = true;
                 requestAnimationFrame(animate3D);
+
                 if (is2DMode) {
                     // 2D模式：只更新2D动画
                     time2D += 0.016;
@@ -2955,6 +4081,14 @@
                 ro.observe(container);
             }
 
+            // 页面可见性变化：隐藏时停止 rAF，可见时重启
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden && !previewAnimRunning) {
+                    previewAnimRunning = true;
+                    requestAnimationFrame(animate3D);
+                }
+            });
+
             // ---------- 清理 ----------
             window.addEventListener('beforeunload', () => {
                 for (const line of lineItems) line.dispose();
@@ -2963,10 +4097,1934 @@
 
             // ---------- 启动 ----------
             buildScene3D();
+            previewAnimRunning = true;
             animate3D();
 
             console.log('[AstroKnot Preview] ✅ 3D/2D 双模式已启动');
         })();
+    </script>
+
+    <!-- ============================================================
+     城市生长动画 — 「价值与意义」区段背景
+     移植自 city.html（ES 模块 + importmap）。按需求：
+     - 仅自动播放（城市层 pointer-events:none，不拦截页面滚动）
+     - 去除 UI 覆盖层（进度条/提示/重播按钮）与鼠标悬停交互
+     由 #value 的 IntersectionObserver 控制显隐；激活时暂停星空场景。
+     ============================================================ -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ── 门控状态（模块级）──
+        let cityInited = false;
+        let cityRunning = false;
+        let cityRAF = null;
+        let _cityAPI = null;
+        let _cityVisible = false;
+        let _techVisible = false;  // #tech 区段可见性（用于判断滚动方向）
+        const cityLayer = document.getElementById('city-layer');
+        const vcOverlay = document.getElementById('value-card-overlay');  // 价值卡片浮层
+        const valueSection = document.getElementById('value');
+
+        function startCity() {
+            if (cityRunning || !_cityAPI) return;
+            cityRunning = true;
+            cityRAF = requestAnimationFrame(_cityAPI.animate);
+        }
+
+        function stopCity() {
+            cityRunning = false;
+            if (cityRAF) { cancelAnimationFrame(cityRAF); cityRAF = null; }
+        }
+
+        // ============================================================
+        //  initCityScene — 构建城市场景（首次进入 #value 时调用一次）
+        // ============================================================
+        function initCityScene() {
+            // ============================================================
+            //  1. 场景 / 相机 / 渲染器
+            // ============================================================
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x080c18);
+            scene.fog = new THREE.Fog(0x080c18, 45, 80);
+
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 120);
+            camera.position.set(28, 22, 32);
+            camera.lookAt(0, 2, 0);
+
+            // 性能优化：像素比限制 1.5（高DPI屏渲染像素减半，视觉几乎无差异）
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.shadowMap.enabled = true;
+            // PCFShadowMap 比 PCFSoftShadowMap 快，视觉差异小
+            renderer.shadowMap.type = THREE.PCFShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            cityLayer.appendChild(renderer.domElement);
+
+            // 控制器（pointer-events:none 下为惰性，保留以贴近原文件）
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.minDistance = 6;
+            controls.maxDistance = 80;
+            controls.maxPolarAngle = Math.PI / 2.15;
+            controls.target.set(0, 3, 0);
+            controls.update();
+
+            // ============================================================
+            //  2. 灯光（夜间科技感氛围）
+            // ============================================================
+            const ambient = new THREE.AmbientLight(0x304060, 0.45);
+            scene.add(ambient);
+
+            const hemi = new THREE.HemisphereLight(0x6088bb, 0x1a1a2e, 0.6);
+            scene.add(hemi);
+
+            const sun = new THREE.DirectionalLight(0xccddff, 1.2);
+            sun.position.set(20, 30, 10);
+            sun.castShadow = true;
+            // 阴影贴图 1024（视觉差异小，GPU内存与带宽减半）
+            sun.shadow.mapSize.width = 1024;
+            sun.shadow.mapSize.height = 1024;
+            sun.shadow.camera.near = 0.5;
+            sun.shadow.camera.far = 60;
+            sun.shadow.camera.left = -30;
+            sun.shadow.camera.right = 30;
+            sun.shadow.camera.top = 30;
+            sun.shadow.camera.bottom = -30;
+            scene.add(sun);
+
+            const fill = new THREE.DirectionalLight(0x6688ff, 0.4);
+            fill.position.set(-20, 10, -20);
+            scene.add(fill);
+
+            const rim = new THREE.DirectionalLight(0x4488cc, 0.2);
+            rim.position.set(0, -10, 20);
+            scene.add(rim);
+
+            // ============================================================
+            //  3. 地面（可见）
+            // ============================================================
+            const groundGeo = new THREE.PlaneGeometry(60, 60);
+            const groundMat = new THREE.MeshStandardMaterial({
+                color: 0x0a1628,
+                roughness: 0.7,
+                metalness: 0.1,
+            });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = 0;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 网格辅助
+            const gridHelper = new THREE.GridHelper(56, 28, 0x4488ff, 0x224466);
+            gridHelper.position.y = 0.01;
+            gridHelper.material.transparent = true;
+            gridHelper.material.opacity = 0;
+            scene.add(gridHelper);
+
+            // 外圈装饰环
+            const ringPoints = [];
+            const ringRadius = 26;
+            for (let i = 0; i <= 64; i++) {
+                const theta = (i / 64) * Math.PI * 2;
+                ringPoints.push(new THREE.Vector3(Math.cos(theta) * ringRadius, 0, Math.sin(theta) * ringRadius));
+            }
+            const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPoints);
+            const ringLine = new THREE.Line(ringGeo, new THREE.LineBasicMaterial({
+                color: 0x4488ff,
+                transparent: true,
+                opacity: 0.08,
+            }));
+            scene.add(ringLine);
+
+            // ============================================================
+            //  4. 定义河流路径（蜿蜒穿过城市）
+            // ============================================================
+            const riverPoints = [
+                new THREE.Vector3(-30, 0, -18),
+                new THREE.Vector3(-26, 0, -14),
+                new THREE.Vector3(-22, 0, -8),
+                new THREE.Vector3(-16, 0, -4),
+                new THREE.Vector3(-10, 0, 0),
+                new THREE.Vector3(-4, 0, 2),
+                new THREE.Vector3(2, 0, 1),
+                new THREE.Vector3(8, 0, -2),
+                new THREE.Vector3(14, 0, -4),
+                new THREE.Vector3(20, 0, -2),
+                new THREE.Vector3(26, 0, 2),
+                new THREE.Vector3(32, 0, 8),
+            ];
+            const fullCurve = new THREE.CatmullRomCurve3(riverPoints);
+            // 预采样路径点（用于碰撞检测和河流生长）
+            const PATH_SAMPLES = 300;
+            const fullPathPoints = [];
+            for (let i = 0; i <= PATH_SAMPLES; i++) {
+                const t = i / PATH_SAMPLES;
+                const pt = fullCurve.getPoint(t);
+                fullPathPoints.push(pt);
+            }
+
+            // 河流宽度
+            const riverWidth = 9;
+            const RIVER_THRESHOLD = riverWidth / 2 + 0.6;
+
+            // ============================================================
+            //  4.5 相机阶段动画（双向：支持向上/向下滚动的反向过渡）
+            //  阶段0=初始视角  阶段1=城市远视角  阶段2=城市近视角
+            // ============================================================
+            const camInitPos = new THREE.Vector3(28, 22, 32);
+            const camInitTarget = new THREE.Vector3(0, 2, 0);
+            const camInitDistance = camInitPos.distanceTo(camInitTarget);
+            const bridgeCenterPos = fullCurve.getPoint(0.5);
+            const bridgeTangentDir = fullCurve.getTangent(0.5);
+            const camDeckHeight = 1.5;
+            // 阶段1：沿河流方向看桥梁侧面（保持初始距离）
+            const camTargetPos = bridgeCenterPos.clone()
+                .add(bridgeTangentDir.clone().multiplyScalar(camInitDistance))
+                .setY(15);
+            const camLookAt = bridgeCenterPos.clone().setY(camDeckHeight + 2);
+            // 阶段2：更靠近桥梁（初始距离的 40%）
+            const camCloseDistance = camInitDistance * 0.4;
+            const camCloseTargetPos = bridgeCenterPos.clone()
+                .add(bridgeTangentDir.clone().multiplyScalar(camCloseDistance))
+                .setY(8);
+            const camCloseLookAt = bridgeCenterPos.clone().setY(camDeckHeight);
+            // 阶段3：向上退出 — 相机上升、远离城市（模拟升入太空，过渡到星空/地球视角）
+            const camUpExitPos = new THREE.Vector3(10, 60, 20);
+            const camUpExitLookAt = new THREE.Vector3(0, 0, 0);
+            // 四个阶段的相机配置
+            const camPhases = [
+                { pos: camInitPos.clone(), target: camInitTarget.clone() },      // 0: 初始
+                { pos: camTargetPos.clone(), target: camLookAt.clone() },        // 1: 城市远景
+                { pos: camCloseTargetPos.clone(), target: camCloseLookAt.clone() }, // 2: 靠近桥梁
+                { pos: camUpExitPos.clone(), target: camUpExitLookAt.clone() }   // 3: 向上退出
+            ];
+            // 阶段过渡状态
+            let camCurrentPhase = 0;       // 当前所在阶段
+            let camTargetPhase = 0;        // 过渡目标阶段
+            let camTransitionProgress = 1; // 过渡进度（1=已完成）
+            let camTransitionDuration = 3.0;
+            const camTransitionStartPos = new THREE.Vector3();
+            const camTransitionStartTarget = new THREE.Vector3();
+
+            // 触发相机阶段过渡（支持任意方向）
+            function transitionCameraTo(targetPhase, duration) {
+                if (camTargetPhase === targetPhase && camTransitionProgress < 1) return; // 正在过渡到同一目标
+                if (camCurrentPhase === targetPhase && camTransitionProgress >= 1) return; // 已在该阶段
+                camTransitionStartPos.copy(camera.position);
+                camTransitionStartTarget.copy(controls.target);
+                camCurrentPhase = camTargetPhase; // 当前阶段 = 之前的过渡目标
+                camTargetPhase = targetPhase;
+                camTransitionProgress = 0;
+                camTransitionDuration = duration;
+            }
+
+            // ---------- 判断点是否在河流区域内 ----------
+            function isNearRiver(x, z, threshold = RIVER_THRESHOLD) {
+                for (const pt of fullPathPoints) {
+                    const dx = x - pt.x;
+                    const dz = z - pt.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
+                    if (dist < threshold) return true;
+                }
+                return false;
+            }
+
+            // ---------- 河流材质（复用） ----------
+            const riverMat = new THREE.MeshPhysicalMaterial({
+                color: 0x0088cc,
+                transparent: true,
+                opacity: 0.55,
+                roughness: 0.15,
+                metalness: 0.4,
+                envMapIntensity: 0.6,
+                clearcoat: 0.1,
+                clearcoatRoughness: 0.2,
+                side: THREE.DoubleSide,
+            });
+
+            const riverEdgeMat = new THREE.LineBasicMaterial({
+                color: 0x66ccff,
+                transparent: true,
+                opacity: 0.08,
+            });
+
+            // ---------- 河流容器 ----------
+            const riverGroup = new THREE.Group();
+            scene.add(riverGroup);
+
+            // 河流装饰容器（浮标、船只等）
+            const riverDecorGroup = new THREE.Group();
+            scene.add(riverDecorGroup);
+
+            let lastRiverProgress = -1;
+
+            // ---------- 构建河流（根据进度） ----------
+            function buildRiver(progress) {
+                if (Math.abs(progress - lastRiverProgress) < 0.001) return;
+                lastRiverProgress = progress;
+
+                while (riverGroup.children.length > 0) {
+                    const child = riverGroup.children[0];
+                    if (child.geometry) child.geometry.dispose();
+                    riverGroup.remove(child);
+                }
+
+                if (progress < 0.02) return;
+
+                const count = Math.floor(PATH_SAMPLES * progress);
+                if (count < 4) return;
+
+                const pts = fullPathPoints.slice(0, count + 1);
+                if (pts.length < 4) return;
+
+                try {
+                    const subCurve = new THREE.CatmullRomCurve3(pts);
+                    const tubeGeo = new THREE.TubeGeometry(subCurve, Math.min(80, Math.max(20, pts.length * 2)), riverWidth / 2, 8,
+                        false);
+                    const mesh = new THREE.Mesh(tubeGeo, riverMat);
+                    mesh.scale.y = 0.05;
+                    mesh.position.y = 0.01;
+                    mesh.receiveShadow = false;
+                    riverGroup.add(mesh);
+
+                    // 蓝色荧光沿岸线 — 两侧各一条发光线
+                    const bankGlowMat = new THREE.LineBasicMaterial({
+                        color: 0x44ccff,
+                        transparent: true,
+                        opacity: 0.55,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                    });
+                    const bankOffset = riverWidth / 2 + 0.3;
+                    for (const side of [-1, 1]) {
+                        const bankPts = [];
+                        for (let i = 0; i <= Math.min(count, pts.length - 1); i++) {
+                            const t = i / Math.max(1, count);
+                            const pt = subCurve.getPoint(Math.min(t, 1));
+                            const tan = subCurve.getTangent(Math.min(t, 0.999));
+                            const normal = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+                            bankPts.push(new THREE.Vector3(
+                                pt.x + normal.x * side * bankOffset,
+                                0.05,
+                                pt.z + normal.z * side * bankOffset
+                            ));
+                        }
+                        if (bankPts.length >= 2) {
+                            const bankGeo = new THREE.BufferGeometry().setFromPoints(bankPts);
+                            const bankLine = new THREE.Line(bankGeo, bankGlowMat);
+                            riverGroup.add(bankLine);
+                        }
+                    }
+
+                    const edgesGeo = new THREE.EdgesGeometry(tubeGeo);
+                    const edgeLine = new THREE.LineSegments(edgesGeo, riverEdgeMat);
+                    edgeLine.scale.y = 0.05;
+                    edgeLine.position.y = 0.01;
+                    riverGroup.add(edgeLine);
+
+                    // 添加河面波光效果
+                    const waveCount = Math.floor(count / 3);
+                    for (let i = 0; i < waveCount; i++) {
+                        const t = Math.random();
+                        const wavePos = subCurve.getPoint(t);
+                        const waveMat = new THREE.SpriteMaterial({
+                            map: carTexture,
+                            color: new THREE.Color().setHSL(0.55 + Math.random() * 0.1, 0.8, 0.6 + Math.random() * 0.3),
+                            transparent: true,
+                            blending: THREE.AdditiveBlending,
+                            depthWrite: false,
+                            opacity: 0.15 + Math.random() * 0.15,
+                        });
+                        const waveSprite = new THREE.Sprite(waveMat);
+                        waveSprite.scale.set(0.3 + Math.random() * 0.4, 0.3 + Math.random() * 0.4, 1);
+                        waveSprite.position.set(wavePos.x + (Math.random() - 0.5) * riverWidth * 0.6, 0.02, wavePos.z + (Math.random() - 0.5) * riverWidth * 0.6);
+                        riverGroup.add(waveSprite);
+                    }
+
+                    // 添加浮标
+                    const buoyCount = Math.floor(count / 5);
+                    for (let i = 0; i < buoyCount; i++) {
+                        const t = 0.1 + Math.random() * 0.8;
+                        const buoyPos = subCurve.getPoint(t);
+                        const buoyOffset = (Math.random() - 0.5) * riverWidth * 0.7;
+                        const tangent = subCurve.getTangent(t);
+                        const buoyDir = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                        const buoyMat = new THREE.SpriteMaterial({
+                            map: carTexture,
+                            color: new THREE.Color().setHSL(Math.random(), 0.7 + Math.random() * 0.3, 0.5 + Math.random() * 0.2),
+                            transparent: true,
+                            blending: THREE.AdditiveBlending,
+                            depthWrite: false,
+                            opacity: 0.5,
+                        });
+                        const buoySprite = new THREE.Sprite(buoyMat);
+                        buoySprite.scale.set(0.2, 0.2, 1);
+                        buoySprite.position.set(
+                            buoyPos.x + buoyDir.x * buoyOffset,
+                            0.03,
+                            buoyPos.z + buoyDir.z * buoyOffset
+                        );
+                        riverGroup.add(buoySprite);
+                    }
+
+                } catch (e) {
+                    console.warn('河流构建失败:', e);
+                }
+            }
+
+            console.log('🌊 蜿蜒河流已定义，宽度 ' + riverWidth + ' 单位，将随城市同步生长');
+
+            // ============================================================
+            //  4.5 创建桥梁（横跨河流）
+            // ============================================================
+            let bridgeGroup = new THREE.Group();
+            scene.add(bridgeGroup);
+            let bridgeCars = [];
+            let _bridgeTowerPositions = [];  // 存储桥塔位置，供卡片放置参考
+
+            function createBridge() {
+                // 清空旧桥
+                while (bridgeGroup.children.length > 0) {
+                    const child = bridgeGroup.children[0];
+                    if (child.geometry) child.geometry.dispose();
+                    bridgeGroup.remove(child);
+                }
+                _bridgeTowerPositions = [];  // 重置桥塔位置记录
+                for (const car of bridgeCars) {
+                    scene.remove(car.mesh);
+                    car.mesh.material.dispose();
+                }
+                bridgeCars = [];
+
+                const t = 0.5;
+                const pos = fullCurve.getPoint(t);
+                const tangent = fullCurve.getTangent(t);
+                const dir = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                // ===== 随机颜色 =====
+                const bridgeColor1 = new THREE.Color().setHSL(Math.random(), 0.6 + Math.random() * 0.3, 0.4 + Math.random() * 0.3);
+                const bridgeColor2 = new THREE.Color().setHSL(Math.random(), 0.5 + Math.random() * 0.4, 0.3 + Math.random() * 0.3);
+                const bridgeColor3 = new THREE.Color().setHSL(Math.random(), 0.7 + Math.random() * 0.3, 0.5 + Math.random() * 0.3);
+                const towerEmissive = new THREE.Color().setHSL(Math.random(), 0.6, 0.2 + Math.random() * 0.2);
+                const cableColor1 = new THREE.Color().setHSL(Math.random(), 0.7 + Math.random() * 0.3, 0.5 + Math.random() * 0.3);
+                const cableColor2 = new THREE.Color().setHSL(Math.random(), 0.5 + Math.random() * 0.3, 0.4 + Math.random() * 0.2);
+                const edgeColor = new THREE.Color().setHSL(Math.random(), 0.8, 0.6 + Math.random() * 0.3);
+
+                // ===== 参数 =====
+                const bridgeLength = riverWidth * 1.2;   // 稍微加长
+                const bridgeWidth = 1.2;
+                const bridgeHeight = 0.2;
+                const deckHeight = 1.5;                  // 桥面抬高到1.5
+                const towerHeight = 5.0;
+                const cableCount = 5;
+
+
+                // ----- 1. 引桥（斜坡） -----
+                const rampMat = new THREE.MeshStandardMaterial({
+                    color: bridgeColor1,
+                    roughness: 0.6,
+                    metalness: 0.3,
+                    transparent: true,
+                    opacity: 0.7,
+                });
+                const rampLength = 2.5;
+                const rampWidth = bridgeWidth;  // 与桥面同宽，对齐更美观
+                const rampPositions = [-bridgeLength / 2 - rampLength / 2, bridgeLength / 2 + rampLength / 2];
+                for (const rOff of rampPositions) {
+                    let startPos, endPos;
+                    if (rOff < 0) {
+                        // 左端：地面在左（远离中心），桥面在右（靠近中心）
+                        startPos = pos.clone().add(dir.clone().multiplyScalar(rOff - rampLength / 2));
+                        endPos = pos.clone().add(dir.clone().multiplyScalar(rOff + rampLength / 2));
+                    } else {
+                        // 右端：地面在右（远离中心），桥面在左（靠近中心）
+                        startPos = pos.clone().add(dir.clone().multiplyScalar(rOff + rampLength / 2));
+                        endPos = pos.clone().add(dir.clone().multiplyScalar(rOff - rampLength / 2));
+                    }
+                    startPos.y = 0.0;                      // 地面
+                    endPos.y = deckHeight;                  // 桥面中心高度，使斜坡与桥面对齐
+
+                    const midPos = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+                    const direction = new THREE.Vector3().subVectors(endPos, startPos);
+                    const length = direction.length();
+                    direction.normalize();
+
+                    // 构造正确的旋转：确保宽度方向保持水平
+                    const horizontalDir = new THREE.Vector3(direction.x, 0, direction.z).normalize();
+                    const sideAxis = new THREE.Vector3(-horizontalDir.z, 0, horizontalDir.x);  // 垂直于水平方向
+                    const upAxis = new THREE.Vector3().crossVectors(sideAxis, direction).normalize();
+
+                    const rampMatrix = new THREE.Matrix4();
+                    rampMatrix.makeBasis(direction, upAxis, sideAxis);
+                    const rampQuaternion = new THREE.Quaternion();
+                    rampQuaternion.setFromRotationMatrix(rampMatrix);
+
+                    const rampGeo = new THREE.BoxGeometry(length, 0.05, rampWidth);
+                    const ramp = new THREE.Mesh(rampGeo, rampMat);
+                    ramp.position.copy(midPos);
+                    ramp.quaternion.copy(rampQuaternion);
+                    ramp.castShadow = true;
+                    ramp.receiveShadow = true;
+                    bridgeGroup.add(ramp);
+
+                    // 斜坡边缘发光带
+                    const rampEdgeMat = new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: 0.4 });
+                    const halfW = rampWidth / 2;
+                    const ep1 = [new THREE.Vector3(-length / 2, 0.03, -halfW), new THREE.Vector3(length / 2, 0.03, -halfW)];
+                    const ep2 = [new THREE.Vector3(-length / 2, 0.03, halfW), new THREE.Vector3(length / 2, 0.03, halfW)];
+                    const eg1 = new THREE.BufferGeometry().setFromPoints(ep1);
+                    const eg2 = new THREE.BufferGeometry().setFromPoints(ep2);
+                    const el1 = new THREE.Line(eg1, rampEdgeMat);
+                    const el2 = new THREE.Line(eg2, rampEdgeMat);
+                    el1.position.copy(midPos);
+                    el1.quaternion.copy(rampQuaternion);
+                    el2.position.copy(midPos);
+                    el2.quaternion.copy(rampQuaternion);
+                    bridgeGroup.add(el1);
+                    bridgeGroup.add(el2);
+                }
+
+                // ----- 2. 桥面（架高） -----
+                const deckGeo = new THREE.BoxGeometry(bridgeLength, bridgeHeight, bridgeWidth);
+                const deckMat = new THREE.MeshStandardMaterial({
+                    color: bridgeColor1,
+                    roughness: 0.5,
+                    metalness: 0.4,
+                    transparent: true,
+                    opacity: 0.85,
+                });
+                const deck = new THREE.Mesh(deckGeo, deckMat);
+                deck.position.set(pos.x, deckHeight, pos.z);
+                deck.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+                deck.castShadow = true;
+                deck.receiveShadow = true;
+                bridgeGroup.add(deck);
+
+                // 桥面边缘发光带
+                const edgeMat = new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: 0.6 });
+                const halfLen = bridgeLength / 2;
+                const halfWid = bridgeWidth / 2;
+                const p1 = [new THREE.Vector3(-halfLen, 0.02, -halfWid), new THREE.Vector3(halfLen, 0.02, -halfWid)];
+                const p2 = [new THREE.Vector3(-halfLen, 0.02, halfWid), new THREE.Vector3(halfLen, 0.02, halfWid)];
+                const g1 = new THREE.BufferGeometry().setFromPoints(p1);
+                const g2 = new THREE.BufferGeometry().setFromPoints(p2);
+                const l1 = new THREE.Line(g1, edgeMat);
+                const l2 = new THREE.Line(g2, edgeMat);
+                l1.position.copy(pos);
+                l1.position.y = deckHeight;
+                l1.quaternion.copy(deck.quaternion);
+                l2.position.copy(pos);
+                l2.position.y = deckHeight;
+                l2.quaternion.copy(deck.quaternion);
+                bridgeGroup.add(l1);
+                bridgeGroup.add(l2);
+
+                // ----- 3. 桥塔（锥体镂空结构，放在桥面两侧） -----
+                const towerMat = new THREE.MeshStandardMaterial({
+                    color: bridgeColor2,
+                    roughness: 0.3,
+                    metalness: 0.6,
+                    emissive: towerEmissive,
+                    emissiveIntensity: 0.15,
+                });
+                // 桥塔放在桥面两侧（垂直于桥方向），不挡路
+                const perpDir = new THREE.Vector3(-dir.z, 0, dir.x).normalize();  // 垂直于桥方向
+                const towerSideOffsets = [-halfWid - 1.0, halfWid + 1.0];  // 桥面两侧
+                const towerAlongOffsets = [-bridgeLength / 2 + 1.0, bridgeLength / 2 - 1.0];  // 桥面两端附近
+                for (const sideOff of towerSideOffsets) {
+                    for (const alongOff of towerAlongOffsets) {
+                        const towerPos = pos.clone()
+                            .add(dir.clone().multiplyScalar(alongOff))
+                            .add(perpDir.clone().multiplyScalar(sideOff));
+                        const towerTopY = deckHeight + towerHeight;
+                        // 记录桥塔位置（供卡片放置参考）
+                        _bridgeTowerPositions.push(towerPos.clone());
+
+                        // ---- 锥体镂空：4根立柱从底部向外倾斜，顶部收拢 ----
+                        const pillarSize = 0.08;
+                        // 底部四角位置（较大），顶部收拢到中心
+                        const baseRadius = 0.4;
+                        const topRadius = 0.1;
+                        const pillarMaterial = new THREE.MeshStandardMaterial({
+                            color: bridgeColor2,
+                            roughness: 0.3,
+                            metalness: 0.6,
+                            emissive: towerEmissive,
+                            emissiveIntensity: 0.15,
+                        });
+                        const cornerAngles = [Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75];
+
+                        for (const angle of cornerAngles) {
+                        // 底部位置（向外）
+                        const baseX = towerPos.x + Math.cos(angle) * baseRadius;
+                        const baseZ = towerPos.z + Math.sin(angle) * baseRadius;
+                        // 顶部位置（向中心收拢）
+                        const topX = towerPos.x + Math.cos(angle) * topRadius;
+                        const topZ = towerPos.z + Math.sin(angle) * topRadius;
+
+                        // 创建倾斜立柱：用细长的BoxGeometry，通过旋转实现倾斜
+                        const pillarHeight = towerTopY;
+                        const pillarLength = Math.sqrt(
+                            Math.pow(topX - baseX, 2) + Math.pow(topZ - baseZ, 2) + Math.pow(pillarHeight, 2)
+                        );
+                        const pillarGeo = new THREE.BoxGeometry(pillarSize, pillarLength, pillarSize);
+                        const pillar = new THREE.Mesh(pillarGeo, pillarMaterial);
+
+                        // 立柱中心位置
+                        const midX = (baseX + topX) / 2;
+                        const midZ = (baseZ + topZ) / 2;
+                        const midY = pillarHeight / 2;
+                        pillar.position.set(midX, midY, midZ);
+
+                        // 计算立柱方向并旋转
+                        const pillarDir = new THREE.Vector3(topX - baseX, pillarHeight, topZ - baseZ).normalize();
+                        const pillarQuat = new THREE.Quaternion();
+                        const pillarMatrix = new THREE.Matrix4();
+                        const pillarUp = new THREE.Vector3(0, 1, 0);
+                        const pillarSide = new THREE.Vector3().crossVectors(pillarUp, pillarDir).normalize();
+                        if (pillarSide.length() < 0.01) {
+                            pillarSide.set(1, 0, 0);
+                        }
+                        const pillarRealUp = new THREE.Vector3().crossVectors(pillarDir, pillarSide).normalize();
+                        pillarMatrix.makeBasis(pillarSide, pillarDir, pillarRealUp);
+                        pillarQuat.setFromRotationMatrix(pillarMatrix);
+                        pillar.quaternion.copy(pillarQuat);
+
+                        pillar.castShadow = true;
+                        pillar.receiveShadow = true;
+                        bridgeGroup.add(pillar);
+                    }
+
+                    // ---- 横梁（每隔一定高度加一圈，形成镂空锥体） ----
+                    const beamMat = new THREE.MeshStandardMaterial({
+                        color: bridgeColor2,
+                        roughness: 0.3,
+                        metalness: 0.5,
+                        emissive: towerEmissive,
+                        emissiveIntensity: 0.08,
+                    });
+                    const beamSpacing = 0.8;
+                    const beamCount = Math.floor(towerTopY / beamSpacing);
+                    for (let i = 1; i <= beamCount; i++) {
+                        const yPos = i * beamSpacing;
+                        if (yPos > towerTopY - 0.2) break;
+                        // 当前高度的半径（线性缩小）
+                        const currentRadius = baseRadius - (baseRadius - topRadius) * (yPos / towerTopY);
+                        // 四根横梁围成方形
+                        const beamWidth = currentRadius * 2;
+                        const beamGeo = new THREE.BoxGeometry(beamWidth, 0.05, 0.08);
+                        // 两根平行于 dir 方向
+                        for (let side = -1; side <= 1; side += 2) {
+                            const beam = new THREE.Mesh(beamGeo, beamMat);
+                            const beamPos = new THREE.Vector3(
+                                towerPos.x,
+                                yPos,
+                                towerPos.z + side * currentRadius * 0.5
+                            );
+                            beam.position.copy(beamPos);
+                            beam.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+                            beam.castShadow = true;
+                            beam.receiveShadow = true;
+                            bridgeGroup.add(beam);
+                        }
+                        // 两根垂直于 dir 方向
+                        const perpDir = new THREE.Vector3(-dir.z, 0, dir.x);
+                        const beamGeo2 = new THREE.BoxGeometry(0.08, 0.05, beamWidth);
+                        for (let side = -1; side <= 1; side += 2) {
+                            const beam = new THREE.Mesh(beamGeo2, beamMat);
+                            const beamPos = new THREE.Vector3(
+                                towerPos.x + side * currentRadius * 0.5,
+                                yPos,
+                                towerPos.z
+                            );
+                            beam.position.copy(beamPos);
+                            beam.castShadow = true;
+                            beam.receiveShadow = true;
+                            bridgeGroup.add(beam);
+                        }
+                    }
+
+                    // ---- 斜撑线（X形交叉，增强镂空感） ----
+                    const crossMat = new THREE.LineBasicMaterial({
+                        color: cableColor2,
+                        transparent: true,
+                        opacity: 0.25,
+                    });
+                    for (let i = 1; i < beamCount; i += 2) {
+                        const y1 = i * beamSpacing;
+                        const y2 = (i + 1) * beamSpacing;
+                        if (y2 > towerTopY - 0.2) break;
+                        const r1 = baseRadius - (baseRadius - topRadius) * (y1 / towerTopY);
+                        const r2 = baseRadius - (baseRadius - topRadius) * (y2 / towerTopY);
+                        // 四个角的连线
+                        for (const angle of cornerAngles) {
+                            const x1 = towerPos.x + Math.cos(angle) * r1;
+                            const z1 = towerPos.z + Math.sin(angle) * r1;
+                            const nextAngle = angle + Math.PI * 0.5;
+                            const x2 = towerPos.x + Math.cos(nextAngle) * r2;
+                            const z2 = towerPos.z + Math.sin(nextAngle) * r2;
+                            const pts = [new THREE.Vector3(x1, y1, z1), new THREE.Vector3(x2, y2, z2)];
+                            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                            const line = new THREE.Line(geo, crossMat);
+                            bridgeGroup.add(line);
+                        }
+                    }
+
+                    // ---- 桥塔底部发光光晕 ----
+                    const baseGlowMat = new THREE.SpriteMaterial({
+                        map: carTexture,
+                        color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
+                        transparent: true,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                        opacity: 0.3,
+                    });
+                    const baseGlow = new THREE.Sprite(baseGlowMat);
+                    baseGlow.scale.set(1.2, 1.2, 1);
+                    baseGlow.position.set(towerPos.x, 0.05, towerPos.z);
+                    bridgeGroup.add(baseGlow);
+
+                    // ---- 桥塔顶部装饰光点 ----
+                    const topLightMat = new THREE.SpriteMaterial({
+                        map: carTexture,
+                        color: bridgeColor3,
+                        transparent: true,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                    });
+                    const topLight = new THREE.Sprite(topLightMat);
+                    topLight.scale.set(0.6, 0.6, 1);
+                    topLight.position.set(towerPos.x, deckHeight + towerHeight, towerPos.z);
+                    bridgeGroup.add(topLight);
+
+                    // ----- 4. 拉索（从桥塔顶部斜拉） -----
+                    const cableMat = new THREE.LineBasicMaterial({
+                        color: cableColor1,
+                        transparent: true,
+                        opacity: 0.6,
+                    });
+                    // 塔顶中心位置（用于拉索起点）
+                    const towerTop = new THREE.Vector3(towerPos.x, deckHeight + towerHeight, towerPos.z);
+
+                    // 拉索：从塔顶拉到桥面
+                    for (let side = -1; side <= 1; side += 2) {
+                        for (let i = 1; i <= cableCount; i++) {
+                            const frac = i / (cableCount + 1);
+                            // 拉索目标点在桥面上
+                            const anchorPos = pos.clone()
+                                .add(dir.clone().multiplyScalar(alongOff * frac))
+                                .add(new THREE.Vector3(0, deckHeight, 0))
+                                .add(new THREE.Vector3(0, 0, side * halfWid * 0.5));
+                            const points = [towerTop.clone(), anchorPos];
+                            const geoLine = new THREE.BufferGeometry().setFromPoints(points);
+                            const line = new THREE.Line(geoLine, cableMat);
+                            bridgeGroup.add(line);
+                        }
+                    }
+
+                    // 外侧拉索：拉到地面（向外延伸）
+                    const groundCableMat = new THREE.LineBasicMaterial({
+                        color: cableColor2,
+                        transparent: true,
+                        opacity: 0.4,
+                    });
+                    // 向外拉到地面
+                    for (let i = 1; i <= 2; i++) {
+                        const frac = i / 3;
+                        const groundPos = towerPos.clone()
+                            .add(perpDir.clone().multiplyScalar(sideOff > 0 ? frac * 2 : -frac * 2));
+                        groundPos.y = 0.0;  // 地面
+                        const points = [towerTop.clone(), groundPos];
+                        const geoLine = new THREE.BufferGeometry().setFromPoints(points);
+                        const line = new THREE.Line(geoLine, groundCableMat);
+                        bridgeGroup.add(line);
+                    }
+                }
+            }
+
+                // ----- 5. 桥墩（从河底支撑桥面） -----
+                const pierMat = new THREE.MeshStandardMaterial({
+                    color: 0x335577,
+                    roughness: 0.7,
+                    metalness: 0.2,
+                    transparent: true,
+                    opacity: 0.6,
+                });
+                const pierPositions = [-bridgeLength / 2 + 0.5, -bridgeLength / 4, 0, bridgeLength / 4, bridgeLength / 2 - 0.5];
+                for (const offset of pierPositions) {
+                    const pierPos = pos.clone().add(dir.clone().multiplyScalar(offset));
+                    const pierHeight = deckHeight - bridgeHeight / 2 - 0.05;
+                    if (pierHeight < 0.5) continue;
+                    const pierGeo = new THREE.BoxGeometry(0.4, pierHeight, 0.4);
+                    const pier = new THREE.Mesh(pierGeo, pierMat);
+                    pier.position.set(pierPos.x, pierHeight / 2 + 0.05, pierPos.z);
+                    pier.castShadow = true;
+                    pier.receiveShadow = true;
+                    bridgeGroup.add(pier);
+
+                    const glowColor = new THREE.Color().setHSL(Math.random(), 0.6 + Math.random() * 0.4, 0.4 + Math.random() * 0.3);
+                    const glowMat = new THREE.SpriteMaterial({
+                        map: carTexture,
+                        color: glowColor,
+                        transparent: true,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                        opacity: 0.25,
+                    });
+                    const glow = new THREE.Sprite(glowMat);
+                    glow.scale.set(0.6, 0.6, 1);
+                    glow.position.set(pierPos.x, 0.05, pierPos.z);
+                    bridgeGroup.add(glow);
+                }
+
+                // ----- 6. 桥上车流 -----
+                const BRIDGE_CAR_COUNT = 14;
+                for (let i = 0; i < BRIDGE_CAR_COUNT; i++) {
+                    const progress = Math.random();
+                    const offset = (progress - 0.5) * bridgeLength;
+                    const carPos = pos.clone().add(dir.clone().multiplyScalar(offset));
+                    carPos.y = deckHeight + 0.1;
+
+                    const material = new THREE.SpriteMaterial({
+                        map: carTexture,
+                        color: new THREE.Color().setHSL(Math.random() * 1.0, 0.7 + Math.random() * 0.3, 0.5 + Math.random() * 0.3),
+                        transparent: true,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                    });
+                    const sprite = new THREE.Sprite(material);
+                    sprite.scale.set(0.3, 0.3, 1);
+                    sprite.position.copy(carPos);
+                    scene.add(sprite);
+
+                    bridgeCars.push({
+                        mesh: sprite,
+                        progress: progress,
+                        speed: 1.5 + Math.random() * 2.0,
+                        direction: Math.random() > 0.5 ? 1 : -1,
+                        bridgeLength: bridgeLength,
+                        center: pos.clone(),
+                        dir: dir.clone(),
+                        deckHeight: deckHeight,
+                    });
+                }
+            }
+
+            // ============================================================
+            //  5. 城市生成
+            // ============================================================
+            // ---------- 色板：不同层次的蓝色 ----------
+            const palette = [
+                { base: 0x2a5c8a, edge: 0x66ccff },
+                { base: 0x3a6c9a, edge: 0x66ccff },
+                { base: 0x4a7caa, edge: 0x88ddff },
+                { base: 0x5a8cba, edge: 0x88ddff },
+                { base: 0x2a6a8a, edge: 0x66ccff },
+                { base: 0x3a7a9a, edge: 0x66ccff },
+                { base: 0x4a8aaa, edge: 0x88ddff },
+                { base: 0x6a9cca, edge: 0xaaeeff },
+            ];
+
+            // ---------- 建筑数据 ----------
+            const buildings = [];
+            const buildingGroup = new THREE.Group();
+            scene.add(buildingGroup);
+
+            const GRID_SIZE = 28;
+            const STEP = 1.9;
+            const OFFSET = 0.35;
+            const DENSITY = 0.62;
+            const LANDMARK_CHANCE = 0.04;
+
+            const occupied = new Set();
+
+            function gridKey(x, z) {
+                return `${Math.round(x / STEP)},${Math.round(z / STEP)}`;
+            }
+
+            function isOccupied(x, z) {
+                return occupied.has(gridKey(x, z));
+            }
+
+            function markOccupied(x, z) {
+                occupied.add(gridKey(x, z));
+            }
+
+            // ---------- 辅助：为建筑生成窗户（独立正方形平面） ----------
+            function createWindowsForBuilding(width, height, depth, color, densityFactor = 1.0, windowColor = null) {
+                const windowMeshes = [];
+                const winSize = 0.22;
+                const geometry = new THREE.PlaneGeometry(winSize, winSize);
+                // 如果没有传入窗户颜色，随机生成
+                if (!windowColor) {
+                    windowColor = new THREE.Color().setHSL(Math.random() * 1.0, 0.7 + Math.random() * 0.2, 0.5 + Math.random() * 0.3);
+                }
+                // 性能优化：FrontSide（窗户背面贴墙不可见，减半渲染面数）
+                const material = new THREE.MeshStandardMaterial({
+                    color: windowColor,
+                    emissive: windowColor,
+                    emissiveIntensity: 0,
+                    transparent: false,
+                    roughness: 0.1,
+                    metalness: 0.3,
+                    side: THREE.FrontSide,
+                });
+
+                let count = Math.floor((height / 0.7) * densityFactor) + 1;
+                count += Math.floor(Math.random() * 4);
+                count = Math.max(2, Math.min(40, count));
+
+                const sides = [
+                    { dir: [1, 0, 0], axis: 'x', range: [0, depth] },
+                    { dir: [-1, 0, 0], axis: 'x', range: [0, depth] },
+                    { dir: [0, 0, 1], axis: 'z', range: [0, width] },
+                    { dir: [0, 0, -1], axis: 'z', range: [0, width] },
+                ];
+
+                for (let i = 0; i < count; i++) {
+                    const side = sides[Math.floor(Math.random() * sides.length)];
+                    const [dx, dy, dz] = side.dir;
+                    const halfW = width / 2;
+                    const halfD = depth / 2;
+                    const halfH = height / 2;
+                    let x, y, z;
+                    if (side.axis === 'x') {
+                        x = dx * halfW;
+                        y = (Math.random() - 0.5) * height * 0.85;
+                        z = (Math.random() - 0.5) * depth * 0.85;
+                    } else {
+                        x = (Math.random() - 0.5) * width * 0.85;
+                        y = (Math.random() - 0.5) * height * 0.85;
+                        z = dz * halfD;
+                    }
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(x, y, z);
+                    if (dx === 1) mesh.rotation.y = Math.PI / 2;
+                    else if (dx === -1) mesh.rotation.y = -Math.PI / 2;
+                    else if (dz === 1) mesh.rotation.y = 0;
+                    else if (dz === -1) mesh.rotation.y = Math.PI;
+                    const offset = 0.01;
+                    mesh.position.x += dx * offset;
+                    mesh.position.z += dz * offset;
+                    windowMeshes.push(mesh);
+                }
+
+                return { meshes: windowMeshes, material };
+            }
+
+            // ---------- 生成建筑循环（避开河流） ----------
+            // ----- 计算桥头位置，用于建筑避让 -----
+            const bridgeCenter = fullCurve.getPoint(0.5);
+            const bridgeTangent = fullCurve.getTangent(0.5);
+            const bridgeDir = new THREE.Vector3(-bridgeTangent.z, 0, bridgeTangent.x).normalize();
+            // 桥长与 createBridge 中保持一致（riverWidth * 1）
+            const rampLength = 2.5;  // 与 createBridge 中的 rampLength 保持一致
+            const bridgeLengthEst = riverWidth * 1.2;  // 与 createBridge 中的 bridgeLength 保持一致
+            const BRIDGE_HEAD_RADIUS = 3.0;  // 增大避让半径
+            const bridgeHeadPos1 = bridgeCenter.clone().add(bridgeDir.clone().multiplyScalar(bridgeLengthEst / 2 + rampLength + 0.5));
+            const bridgeHeadPos2 = bridgeCenter.clone().add(bridgeDir.clone().multiplyScalar(-bridgeLengthEst / 2 - rampLength - 0.5));
+
+            for (let ix = -GRID_SIZE / 2; ix <= GRID_SIZE / 2; ix++) {
+                for (let iz = -GRID_SIZE / 2; iz <= GRID_SIZE / 2; iz++) {
+                    if (Math.random() > DENSITY) continue;
+
+                    const x = ix * STEP + (Math.random() - 0.5) * OFFSET * 2;
+                    const z = iz * STEP + (Math.random() - 0.5) * OFFSET * 2;
+
+                    if (isNearRiver(x, z, RIVER_THRESHOLD)) continue;
+                    // 检查是否在桥头区域（避免建筑与桥头穿模）
+                    const dx1 = x - bridgeHeadPos1.x;
+                    const dz1 = z - bridgeHeadPos1.z;
+                    const dx2 = x - bridgeHeadPos2.x;
+                    const dz2 = z - bridgeHeadPos2.z;
+                    if (dx1 * dx1 + dz1 * dz1 < BRIDGE_HEAD_RADIUS * BRIDGE_HEAD_RADIUS ||
+                        dx2 * dx2 + dz2 * dz2 < BRIDGE_HEAD_RADIUS * BRIDGE_HEAD_RADIUS) {
+                        continue;
+                    }
+                    if (isOccupied(x, z)) continue;
+                    markOccupied(x, z);
+
+                    const dist = Math.sqrt(x * x + z * z);
+                    const maxDist = GRID_SIZE / 2 * STEP;
+
+                    const isLandmark = Math.random() < LANDMARK_CHANCE;
+                    let w, d, h;
+                    if (isLandmark) {
+                        w = 1.8 + Math.random() * 1.6;
+                        d = 1.8 + Math.random() * 1.6;
+                        h = 10 + Math.random() * 10;
+                    } else {
+                        w = 0.7 + Math.random() * 1.3;
+                        d = 0.7 + Math.random() * 1.3;
+                        h = 1.2 + Math.random() * 9;
+                    }
+
+                    const colorIdx = Math.floor(Math.random() * palette.length);
+                    const colors = palette[colorIdx];
+                    const targetY = h / 2;
+
+                    const delay = (dist / maxDist) * 1.3 + Math.random() * 0.2;  // 加速一倍
+                    const duration = 0.8 + Math.random() * 0.9;  // 加速一倍
+
+                    // 主体材质
+                    const bodyMat = new THREE.MeshStandardMaterial({
+                        color: colors.base,
+                        roughness: 0.5,
+                        metalness: 0.2,
+                    });
+                    const geo = new THREE.BoxGeometry(w, h, d);
+                    const mesh = new THREE.Mesh(geo, bodyMat);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    mesh.position.set(x, -h / 2 - 0.5, z);
+
+                    // 边缘线
+                    const edges = new THREE.EdgesGeometry(geo);
+                    const lineMat = new THREE.LineBasicMaterial({
+                        color: colors.edge,
+                        transparent: true,
+                        opacity: 0.3 + Math.random() * 0.25,
+                    });
+                    const wireframe = new THREE.LineSegments(edges, lineMat);
+                    wireframe.position.copy(mesh.position);
+
+                    // 生成窗户
+                    const densityFactor = isLandmark ? 2.0 : 1.0;
+                    // 随机生成窗户颜色（每个建筑不同，但同建筑统一）
+                    const windowHue = Math.random(); // 0~1 全色域
+                    const windowColor = new THREE.Color().setHSL(windowHue, 0.7 + Math.random() * 0.2, 0.5 + Math.random() * 0.3);
+                    const { meshes: windowMeshes, material: windowMat } = createWindowsForBuilding(w, h, d, colors.base, densityFactor, windowColor);
+                    for (const win of windowMeshes) {
+                        mesh.add(win);
+                    }
+
+                    buildingGroup.add(mesh);
+                    buildingGroup.add(wireframe);
+
+                    buildings.push({
+                        mesh,
+                        wireframe,
+                        targetY,
+                        currentY: -h / 2 - 0.5,
+                        delay,
+                        duration,
+                        progress: 0,
+                        finished: false,
+                        height: h,
+                        width: w,
+                        depth: d,
+                        x,
+                        z,
+                        isLandmark,
+                        windowMaterial: windowMat,
+                        windowMeshes: windowMeshes,
+                        windowLit: false,
+                        windowProgress: 0,
+                        windowDelay: 0.2 + Math.random() * 0.8,
+                        // 鼠标划过时新增的临时窗户
+                        hoverWindows: [],  // 存储临时窗户 { mesh, intensity, decay }
+                    });
+                }
+            }
+
+            buildings.sort((a, b) => a.delay - b.delay);
+
+            // ============================================================
+            //  5.2.5 找到3栋目标建筑，用于放置价值卡片（函数定义，延迟调用）
+            //  ① 屏幕左下角的楼（左岸、靠近相机）→ vc-left
+            //  ② 靠近左边桥塔的大楼 → vc-bridge
+            //  ③ 右边最显眼的大楼（最高、地标优先） → vc-right
+            //  注：需在 createBridge() 之后调用（桥塔位置才能用于选楼）
+            // ============================================================
+            let targetLeftUpper = null, targetLeftLower = null, targetRightBldg = null;
+
+            function selectCardTargetBuildings() {
+                // 使用阶段1相机位置做投影，按屏幕区域选楼
+                // 临时把相机放到阶段1位置做投影
+                const savedCamPos = camera.position.clone();
+                const savedCamTarget = controls.target.clone();
+                camera.position.copy(camPhases[1].pos);
+                controls.target.copy(camPhases[1].target);
+                camera.lookAt(camPhases[1].target);
+                camera.updateMatrixWorld();
+
+                // 投影所有已完成的较高建筑到屏幕，记录屏幕坐标
+                const candidates = buildings
+                    .filter(b => b.height > 3)
+                    .map(b => {
+                        const sp = projectToScreen(b.x, b.height * 0.55, b.z);
+                        return { b, sx: sp.x, sy: sp.y, behind: sp.behind, h: b.height, isLandmark: b.isLandmark };
+                    })
+                    .filter(o => !o.behind);  // 排除在相机背后的
+
+                // 恢复相机
+                camera.position.copy(savedCamPos);
+                controls.target.copy(savedCamTarget);
+                camera.lookAt(savedCamTarget);
+                camera.updateMatrixWorld();
+
+                const W = renderer.domElement.clientWidth || window.innerWidth;
+                const H = renderer.domElement.clientHeight || window.innerHeight;
+
+                // ① 屏幕左下角区域 (x < 40%, y > 55%)：选最高的
+                targetLeftLower = null;
+                const leftLowerCands = candidates.filter(o => o.sx < W * 0.4 && o.sy > H * 0.55)
+                    .sort((a, b) => b.h - a.h);
+                if (leftLowerCands.length > 0) targetLeftLower = leftLowerCands[0].b;
+
+                // ② 屏幕中上区域（靠近桥塔/桥）：x 在 30%-65%，y < 60%，选距桥塔最近的
+                targetLeftUpper = null;
+                if (_bridgeTowerPositions.length > 0) {
+                    const screenCenterBldgs = candidates.filter(o =>
+                        o.sx > W * 0.3 && o.sx < W * 0.65 && o.sy < H * 0.6 && o.b !== targetLeftLower
+                    );
+                    // 计算每个建筑到最近桥塔的世界距离
+                    const withTowerDist = screenCenterBldgs.map(o => {
+                        const minTowerDist = Math.min(..._bridgeTowerPositions.map(t =>
+                            Math.sqrt((o.b.x - t.x) ** 2 + (o.b.z - t.z) ** 2)));
+                        return { ...o, towerDist: minTowerDist };
+                    }).sort((a, b) => a.towerDist - b.towerDist);
+                    if (withTowerDist.length > 0) targetLeftUpper = withTowerDist[0].b;
+                }
+                // 备选：中上区域最高的
+                if (!targetLeftUpper) {
+                    const fallback = candidates.filter(o =>
+                        o.sx > W * 0.3 && o.sx < W * 0.65 && o.sy < H * 0.6 && o.b !== targetLeftLower
+                    ).sort((a, b) => b.h - a.h);
+                    if (fallback.length > 0) targetLeftUpper = fallback[0].b;
+                }
+
+                // ③ 屏幕右侧区域 (x > 55%)：地标优先 + 最高
+                targetRightBldg = null;
+                const rightCands = candidates.filter(o =>
+                    o.sx > W * 0.55 && o.b !== targetLeftLower && o.b !== targetLeftUpper
+                ).sort((a, b) => (b.isLandmark - a.isLandmark) || (b.h - a.h));
+                if (rightCands.length > 0) targetRightBldg = rightCands[0].b;
+
+                console.log('🎯 卡片目标建筑（屏幕投影选择）:', {
+                    leftLower: targetLeftLower ? { x: targetLeftLower.x.toFixed(1), z: targetLeftLower.z.toFixed(1), h: targetLeftLower.height.toFixed(1) } : null,
+                    nearTower: targetLeftUpper ? { x: targetLeftUpper.x.toFixed(1), z: targetLeftUpper.z.toFixed(1), h: targetLeftUpper.height.toFixed(1) } : null,
+                    right: targetRightBldg ? { x: targetRightBldg.x.toFixed(1), z: targetRightBldg.z.toFixed(1), h: targetRightBldg.height.toFixed(1) } : null
+                });
+            }
+
+            // DOM 引用 — 价值卡片浮层（vcOverlay 已在模块级声明）
+            const vcLeft = document.getElementById('vc-left');      // 左下角楼：效率提升
+            const vcBridge = document.getElementById('vc-bridge');  // 靠近桥塔：思维范式革新
+            const vcRight = document.getElementById('vc-right');    // 右侧大楼：社会价值
+
+            // 3D→2D 投影辅助函数
+            const _projVec = new THREE.Vector3();
+            function projectToScreen(worldX, worldY, worldZ) {
+                _projVec.set(worldX, worldY, worldZ);
+                _projVec.project(camera);
+                return {
+                    x: (_projVec.x * 0.5 + 0.5) * renderer.domElement.clientWidth,
+                    y: (-_projVec.y * 0.5 + 0.5) * renderer.domElement.clientHeight,
+                    behind: _projVec.z > 1
+                };
+            }
+
+            // 更新价值卡片位置（每帧调用）
+            function updateValueCardPositions() {
+                if (!vcOverlay || !vcOverlay.classList.contains('active')) return;
+
+                // ① 左下角楼：卡片贴在楼侧面（建筑中心高度）
+                if (targetLeftLower) {
+                    const pos = projectToScreen(
+                        targetLeftLower.x,
+                        targetLeftLower.height * 0.55,
+                        targetLeftLower.z
+                    );
+                    positionCard(vcLeft, pos, 'left');
+                }
+                // ② 靠近桥塔的楼：卡片贴在楼侧面（偏上）
+                if (targetLeftUpper) {
+                    const pos = projectToScreen(
+                        targetLeftUpper.x,
+                        targetLeftUpper.height * 0.7,
+                        targetLeftUpper.z
+                    );
+                    positionCard(vcBridge, pos, 'center');
+                }
+                // ③ 右侧大楼：卡片贴在楼侧面（建筑中心高度）
+                if (targetRightBldg) {
+                    const pos = projectToScreen(
+                        targetRightBldg.x,
+                        targetRightBldg.height * 0.55,
+                        targetRightBldg.z
+                    );
+                    positionCard(vcRight, pos, 'right');
+                }
+            }
+
+            // positionCard: 将卡片定位到屏幕坐标，并确保整个卡片在屏幕范围内
+            // side: 'left' | 'center' | 'right' — 决定卡片相对投影点的水平偏移方向
+            function positionCard(el, screenPos, side) {
+                if (!el) return;
+                if (screenPos.behind) {
+                    el.style.opacity = '0';
+                    return;
+                }
+                const cardW = el.offsetWidth || 220;
+                const cardH = el.offsetHeight || 130;
+                const margin = 16;
+
+                // 水平方向：根据 side 决定卡片相对建筑投影点的位置
+                let x;
+                if (side === 'left') {
+                    x = screenPos.x - cardW - 4;   // 卡片在投影点左侧
+                } else if (side === 'right') {
+                    x = screenPos.x + 4;            // 卡片在投影点右侧
+                } else {
+                    x = screenPos.x - cardW / 2;    // 居中
+                }
+                // 垂直方向：卡片中心对齐投影点
+                let y = screenPos.y - cardH / 2;
+
+                // Clamp 到屏幕范围内
+                x = Math.max(margin, Math.min(x, window.innerWidth - cardW - margin));
+                y = Math.max(margin, Math.min(y, window.innerHeight - cardH - margin));
+
+                el.style.opacity = '1';
+                el.style.left = x + 'px';
+                el.style.top = y + 'px';
+            }
+
+            // ============================================================
+            //  5.2.6 鼠标光标附近楼群窗户随机变亮（从 city.html 移植）
+            //  city-layer 有 pointer-events:none，所以在 window 上监听
+            // ============================================================
+            const clock = new THREE.Clock();  // 提前声明，供 hover 窗户和动画循环共用
+            const _hoverRaycaster = new THREE.Raycaster();
+            const _hoverMouse = new THREE.Vector2();
+            const _hoverMouseWorld = new THREE.Vector3();
+            let _hoverLastCheck = 0;
+            const HOVER_CHECK_INTERVAL = 0.03;   // 检测间隔（秒）
+            const HOVER_RADIUS = 5.0;            // 鼠标影响半径
+            const HOVER_WINDOW_SIZE = 0.22;      // 临时窗户大小
+            const HOVER_WINDOW_DURATION = 1.2;   // 临时窗户持续时间（秒）
+            const HOVER_WINDOWS_PER_CHECK = 3;   // 每次检测创建的窗户数量
+            const _hoverWindowGeo = new THREE.PlaneGeometry(HOVER_WINDOW_SIZE, HOVER_WINDOW_SIZE);
+
+            // 在 window 上监听鼠标移动（city-layer 的 pointer-events:none 会穿透）
+            window.addEventListener('mousemove', (event) => {
+                _hoverMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                _hoverMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            });
+
+            // 创建临时窗户（贴在建筑表面，随机颜色高亮）
+            // 使用 MeshBasicMaterial 替代 MeshStandardMaterial：无需光照计算，性能更好
+            // 通过 toneMapped:false 让颜色超过1实现 HDR 发光效果，视觉上与 emissive 一致
+            function createHoverWindow(building) {
+                const windowColor = new THREE.Color().setHSL(Math.random(), 0.8, 0.6);
+                const windowMat = new THREE.MeshBasicMaterial({
+                    color: windowColor.clone().multiplyScalar(2.5),  // HDR 高亮，模拟 emissiveIntensity 2.5
+                    transparent: true,
+                    opacity: 1.0,
+                    toneMapped: false,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                });
+                const windowMesh = new THREE.Mesh(_hoverWindowGeo, windowMat);
+
+                // 随机选择建筑表面位置
+                const localPos = new THREE.Vector3(
+                    (Math.random() - 0.5) * building.width * 0.85,
+                    (Math.random() - 0.5) * building.height * 0.85,
+                    (Math.random() - 0.5) * building.depth * 0.85
+                );
+                const sides = [
+                    { dir: [1, 0, 0], rot: Math.PI / 2 },
+                    { dir: [-1, 0, 0], rot: -Math.PI / 2 },
+                    { dir: [0, 0, 1], rot: 0 },
+                    { dir: [0, 0, -1], rot: Math.PI },
+                ];
+                const side = sides[Math.floor(Math.random() * sides.length)];
+                const [dx, dy, dz] = side.dir;
+                const offset = 0.02;
+                localPos.x = dx !== 0 ? dx * (building.width / 2 + offset) : localPos.x;
+                localPos.z = dz !== 0 ? dz * (building.depth / 2 + offset) : localPos.z;
+
+                windowMesh.position.set(localPos.x, localPos.y, localPos.z);
+                windowMesh.rotation.y = side.rot;
+                building.mesh.add(windowMesh);
+
+                building.hoverWindows.push({
+                    mesh: windowMesh,
+                    material: windowMat,
+                    intensity: 2.5,
+                    startTime: clock.elapsedTime,
+                });
+            }
+
+            // 检测鼠标附近的建筑并新增临时窗户
+            // 复用临时对象避免每帧 GC（关键性能优化）
+            const _hoverGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            const _hoverIntersectPoint = new THREE.Vector3();
+            const _HOVER_RADIUS_SQ = HOVER_RADIUS * HOVER_RADIUS;
+            function checkMouseHover(elapsed) {
+                if (elapsed - _hoverLastCheck < HOVER_CHECK_INTERVAL) return;
+                _hoverLastCheck = elapsed;
+                if (!allFinished) return;  // 城市生长完成后才生效
+
+                _hoverRaycaster.setFromCamera(_hoverMouse, camera);
+                if (!_hoverRaycaster.ray.intersectPlane(_hoverGroundPlane, _hoverIntersectPoint)) return;
+                _hoverMouseWorld.copy(_hoverIntersectPoint);
+
+                for (const b of buildings) {
+                    if (!b.finished) continue;
+                    const dx = b.mesh.position.x - _hoverMouseWorld.x;
+                    const dz = b.mesh.position.z - _hoverMouseWorld.z;
+                    // 平方距离比较，避免 sqrt 开销
+                    if (dx * dx + dz * dz < _HOVER_RADIUS_SQ) {
+                        for (let j = 0; j < HOVER_WINDOWS_PER_CHECK; j++) {
+                            createHoverWindow(b);
+                        }
+                    }
+                }
+            }
+
+            const totalBuildings = buildings.length;
+            console.log(`🏙️ 生成 ${totalBuildings} 栋科技建筑，已避开河道（阈值 ${RIVER_THRESHOLD}）。`);
+
+            // ============================================================
+            //  5.3 地面装饰（彩色发光点）
+            // ============================================================
+            function createGroundDecorations() {
+                const decorationGroup = new THREE.Group();
+                scene.add(decorationGroup);
+
+                // 装饰点数量
+                const DECO_COUNT = 1200;
+                // 装饰点大小
+                const DECO_SIZE = 0.72;
+                // 范围
+                const HALF = 30;
+
+                // 生成圆形纹理（与车灯类似，但可以更小）
+                const decoCanvas = document.createElement('canvas');
+                decoCanvas.width = 32;
+                decoCanvas.height = 32;
+                const ctx = decoCanvas.getContext('2d');
+                const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.3, 'rgba(200, 230, 255, 0.9)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 32, 32);
+                const decoTexture = new THREE.CanvasTexture(decoCanvas);
+
+                // 生成位置
+                const positions = [];
+                const colors = [];
+                for (let i = 0; i < DECO_COUNT; i++) {
+                    // 随机位置
+                    const x = (Math.random() - 0.5) * HALF * 2;
+                    const z = (Math.random() - 0.5) * HALF * 2;
+                    // 避开河流（使用现有的 isNearRiver 函数）
+                    if (isNearRiver(x, z, RIVER_THRESHOLD + 0.5)) continue;
+                    // 同时避免放在建筑正下方（可选，但为了丰富度，可以忽略，因为建筑会遮挡）
+                    // 但为了不影响建筑，可以放在建筑间隙，这里简单处理：只避开河流
+                    positions.push(x, 0.02, z);
+                    // 随机颜色
+                    const color = new THREE.Color().setHSL(Math.random() * 1.0, 0.7 + Math.random() * 0.3, 0.5 + Math.random() * 0.4);
+                    colors.push(color.r, color.g, color.b);
+                }
+
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+                const material = new THREE.PointsMaterial({
+                    size: DECO_SIZE,
+                    map: decoTexture,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    vertexColors: true,
+                    opacity: 0.8,
+                });
+
+                const points = new THREE.Points(geometry, material);
+                decorationGroup.add(points);
+
+                // 额外添加一些稍大的光点（稀疏分布，类似路灯或地标）
+                const BIG_COUNT = 60;
+                const bigPositions = [];
+                const bigColors = [];
+                for (let i = 0; i < BIG_COUNT; i++) {
+                    const x = (Math.random() - 0.5) * HALF * 2;
+                    const z = (Math.random() - 0.5) * HALF * 2;
+                    if (isNearRiver(x, z, RIVER_THRESHOLD + 0.5)) continue;
+                    bigPositions.push(x, 0.02, z);
+                    const color = new THREE.Color().setHSL(Math.random() * 1.0, 0.8, 0.6);
+                    bigColors.push(color.r, color.g, color.b);
+                }
+                const bigGeo = new THREE.BufferGeometry();
+                bigGeo.setAttribute('position', new THREE.Float32BufferAttribute(bigPositions, 3));
+                bigGeo.setAttribute('color', new THREE.Float32BufferAttribute(bigColors, 3));
+                const bigMat = new THREE.PointsMaterial({
+                    size: DECO_SIZE * 2.5,
+                    map: decoTexture,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    vertexColors: true,
+                    opacity: 0.6,
+                });
+                const bigPoints = new THREE.Points(bigGeo, bigMat);
+                decorationGroup.add(bigPoints);
+
+                // 保存引用以便重置时清除
+                window._decorationGroup = decorationGroup;
+            }
+
+            // ============================================================
+            //  5.5 车流系统（圆形光点穿梭，无视楼房，只避开河流）
+            // ============================================================
+            // 生成圆形光点纹理
+            function createCarTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                gradient.addColorStop(0, 'rgba(150, 230, 255, 1)');
+                gradient.addColorStop(0.4, 'rgba(80, 200, 255, 0.9)');
+                gradient.addColorStop(1, 'rgba(0, 100, 200, 0)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 64, 64);
+                return new THREE.CanvasTexture(canvas);
+            }
+
+            const carTexture = createCarTexture();
+
+            // 车流参数（地面）
+            const CAR_COUNT = 80;
+            const CAR_SPEED_MIN = 2.0;
+            const CAR_SPEED_MAX = 6.0;
+            const CAR_SIZE = 0.35;
+
+            let cars = [];
+
+            function generateCarPath() {
+                const maxAttempts = 30;
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    const start = getRandomValidPoint();
+                    const end = getRandomValidPoint();
+                    if (!start || !end) continue;
+                    if (isPathClear(start, end)) {
+                        return { start, end };
+                    }
+                }
+                return {
+                    start: new THREE.Vector3(-20, 0.05, -20),
+                    end: new THREE.Vector3(-20, 0.05, 20)
+                };
+            }
+
+            function getRandomValidPoint() {
+                const half = 26;
+                for (let i = 0; i < 30; i++) {
+                    const x = (Math.random() - 0.5) * half * 2;
+                    const z = (Math.random() - 0.5) * half * 2;
+                    if (isPointBlocked(x, z)) continue;
+                    return new THREE.Vector3(x, 0.05, z);
+                }
+                return null;
+            }
+
+            function isPointBlocked(x, z) {
+                // 只检查河流，无视楼房
+                if (isNearRiver(x, z, RIVER_THRESHOLD)) return true;
+                return false;
+            }
+
+            function isPathClear(start, end) {
+                const steps = 20;
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const x = start.x + (end.x - start.x) * t;
+                    const z = start.z + (end.z - start.z) * t;
+                    if (isPointBlocked(x, z)) return false;
+                }
+                return true;
+            }
+
+            function initCars() {
+                for (const car of cars) {
+                    scene.remove(car.mesh);
+                    car.mesh.material.dispose();
+                }
+                cars = [];
+
+                for (let i = 0; i < CAR_COUNT; i++) {
+                    const path = generateCarPath();
+                    const speed = CAR_SPEED_MIN + Math.random() * (CAR_SPEED_MAX - CAR_SPEED_MIN);
+                    const progress = Math.random();
+                    const pos = new THREE.Vector3().lerpVectors(path.start, path.end, progress);
+
+                    const material = new THREE.SpriteMaterial({
+                        map: carTexture,
+                        color: new THREE.Color().setHSL(Math.random() * 1.0, 0.7 + Math.random() * 0.3, 0.5 + Math.random() * 0.3),
+                        transparent: true,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                    });
+                    const sprite = new THREE.Sprite(material);
+                    sprite.scale.set(CAR_SIZE, CAR_SIZE, 1);
+                    sprite.position.copy(pos);
+                    scene.add(sprite);
+
+                    cars.push({
+                        mesh: sprite,
+                        start: path.start.clone(),
+                        end: path.end.clone(),
+                        speed: speed,
+                        progress: progress,
+                        direction: 1,
+                    });
+                }
+            }
+
+            function generateNewPathForCar(car) {
+                const currentPos = car.mesh.position.clone();
+                currentPos.y = 0.05;
+                const newEnd = getRandomValidPoint();
+                if (newEnd && isPathClear(currentPos, newEnd)) {
+                    car.start.copy(currentPos);
+                    car.end.copy(newEnd);
+                    car.progress = 0;
+                    car.direction = 1;
+                } else {
+                    const path = generateCarPath();
+                    car.start.copy(path.start);
+                    car.end.copy(path.end);
+                    car.progress = Math.random();
+                    car.direction = 1;
+                }
+            }
+
+            function updateCars(delta) {
+                // 地面车流
+                for (const car of cars) {
+                    const distance = car.start.distanceTo(car.end);
+                    if (distance < 0.01) {
+                        generateNewPathForCar(car);
+                        continue;
+                    }
+                    car.progress += car.direction * car.speed * delta / distance;
+                    if (car.progress >= 1.0) {
+                        const newStart = car.end.clone();
+                        newStart.y = 0.05;
+                        const newEnd = getRandomValidPoint();
+                        if (newEnd && isPathClear(newStart, newEnd)) {
+                            car.start.copy(newStart);
+                            car.end.copy(newEnd);
+                            car.progress = 0;
+                            car.direction = 1;
+                        } else {
+                            car.direction = -1;
+                            car.progress = 1.0;
+                        }
+                    } else if (car.progress <= 0.0) {
+                        const newStart = car.start.clone();
+                        newStart.y = 0.05;
+                        const newEnd = getRandomValidPoint();
+                        if (newEnd && isPathClear(newStart, newEnd)) {
+                            car.start.copy(newStart);
+                            car.end.copy(newEnd);
+                            car.progress = 0;
+                            car.direction = 1;
+                        } else {
+                            car.direction = 1;
+                            car.progress = 0;
+                        }
+                    }
+                    const pos = new THREE.Vector3().lerpVectors(car.start, car.end, Math.max(0, Math.min(1, car.progress)));
+                    car.mesh.position.copy(pos);
+                    const scale = CAR_SIZE * (0.8 + 0.4 * (car.speed / CAR_SPEED_MAX));
+                    car.mesh.scale.set(scale, scale, 1);
+                }
+
+                // 桥上车流
+                for (const car of bridgeCars) {
+                    car.progress += car.direction * car.speed * delta / car.bridgeLength;
+                    if (car.progress > 1.0) {
+                        car.progress = 1.0;
+                        car.direction = -1;
+                    } else if (car.progress < 0.0) {
+                        car.progress = 0.0;
+                        car.direction = 1;
+                    }
+                    const offset = (car.progress - 0.5) * car.bridgeLength;
+                    const pos = car.center.clone().add(car.dir.clone().multiplyScalar(offset));
+                    pos.y = car.deckHeight + 0.1;
+                    car.mesh.position.copy(pos);
+                }
+            }
+
+            function resetCars() {
+                // 清除地面车流
+                for (const car of cars) {
+                    scene.remove(car.mesh);
+                    car.mesh.material.dispose();
+                }
+                cars = [];
+                // 清除桥上车流
+                for (const car of bridgeCars) {
+                    scene.remove(car.mesh);
+                    car.mesh.material.dispose();
+                }
+                bridgeCars = [];
+                // 重新创建桥和桥上车流
+                createBridge();
+                // 重新初始化地面车流
+                initCars();
+            }
+
+            console.log('🚗 车流系统已就绪，车辆将无视楼房自由穿梭，仅避开河流，桥上也有车流。');
+
+            // ============================================================
+            //  6. 动画状态
+            // ============================================================
+            let isAnimating = true;
+            let animTime = 0;
+            let overallProgress = 0;
+            let allFinished = false;
+
+            function easeOutCubic(t) {
+                return 1 - Math.pow(1 - t, 3);
+            }
+
+            // ============================================================
+            //  7. 重置 / 重启生长（去除 UI 行）
+            // ============================================================
+            function restartCityGrowth() {
+                for (const b of buildings) {
+                    const startY = -b.height / 2 - 0.5;
+                    b.mesh.position.y = startY;
+                    b.wireframe.position.y = startY;
+                    b.currentY = startY;
+                    b.progress = 0;
+                    b.finished = false;
+                    b.windowLit = false;
+                    b.windowProgress = 0;
+                    b.windowMaterial.emissiveIntensity = 0;
+                    // 清除残留的鼠标悬停临时窗户
+                    for (const hw of b.hoverWindows) {
+                        b.mesh.remove(hw.mesh);
+                        hw.material.dispose();
+                    }
+                    b.hoverWindows = [];
+                }
+                // 清除地面装饰
+                if (window._decorationGroup) {
+                    scene.remove(window._decorationGroup);
+                    window._decorationGroup.traverse(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) child.material.dispose();
+                    });
+                    window._decorationGroup = null;
+                }
+                animTime = 0;
+                overallProgress = 0;
+                allFinished = false;
+                isAnimating = true;
+                lastRiverProgress = -1;
+                buildRiver(0);
+                resetCars();  // 内部会调用 createBridge()，填充 _bridgeTowerPositions
+                // 重新创建地面装饰
+                createGroundDecorations();
+                // 选定卡片目标建筑（需在 createBridge 之后，桥塔位置才可用）
+                selectCardTargetBuildings();
+                // 重置相机到阶段0（初始位置），并准备过渡到阶段1
+                camera.position.copy(camInitPos);
+                controls.target.copy(camInitTarget);
+                camCurrentPhase = 0;
+                camTargetPhase = 0;
+                camTransitionProgress = 1;
+            }
+
+            // ============================================================
+            //  8. 动画循环（clock 已在 5.2.6 节提前声明）
+            // ============================================================
+
+            function animate() {
+                if (!cityRunning) return;
+                cityRAF = requestAnimationFrame(animate);
+
+                // 性能优化：城市已长完且 #value 不可见（用户滚到 tech 区）时跳过渲染
+                // 仍保留 rAF 循环以处理相机过渡，但避免后台全速渲染浪费 GPU
+                if (allFinished && !_cityVisible && !window._cityActive) {
+                    const delta = Math.min(clock.getDelta(), 0.05);
+                    const elapsed = clock.elapsedTime;
+                    // 仅推进相机过渡，不渲染场景
+                    if (camTransitionProgress < 1) {
+                        camTransitionProgress = Math.min(camTransitionProgress + delta / camTransitionDuration, 1);
+                        const t = camTransitionProgress < 0.5
+                            ? 4 * camTransitionProgress * camTransitionProgress * camTransitionProgress
+                            : 1 - Math.pow(-2 * camTransitionProgress + 2, 3) / 2;
+                        const to = camPhases[camTargetPhase];
+                        camera.position.lerpVectors(camTransitionStartPos, to.pos, t);
+                        controls.target.lerpVectors(camTransitionStartTarget, to.target, t);
+                        if (camTransitionProgress >= 1) camCurrentPhase = camTargetPhase;
+                    }
+                    return;
+                }
+
+                const delta = Math.min(clock.getDelta(), 0.05);
+                const elapsed = clock.elapsedTime;
+
+                // 河流颜色动态变化
+                const hue = 0.55 + Math.sin(elapsed * 0.1) * 0.01;
+                riverMat.color.setHSL(hue, 0.7, 0.4);
+
+                if (isAnimating) {
+                    animTime += delta;
+                    let totalProgress = 0;
+
+                    for (const b of buildings) {
+                        const localTime = animTime - b.delay;
+                        if (localTime <= 0) {
+                            b.progress = 0;
+                        } else {
+                            const raw = localTime / b.duration;
+                            b.progress = Math.min(raw, 1);
+                            const eased = easeOutCubic(b.progress);
+                            const startY = -b.height / 2 - 0.5;
+                            const currentY = startY + (b.targetY - startY) * eased;
+                            b.mesh.position.y = currentY;
+                            b.wireframe.position.y = currentY;
+                            b.currentY = currentY;
+                            if (b.progress >= 1) {
+                                b.finished = true;
+                            }
+                        }
+
+                        if (b.finished && !b.windowLit) {
+                            const elapsedSinceFinish = animTime - (b.delay + b.duration);
+                            if (elapsedSinceFinish >= b.windowDelay) {
+                                b.windowLit = true;
+                                b.windowProgress = 0;
+                            }
+                        }
+
+                        if (b.windowLit) {
+                            b.windowProgress = Math.min(b.windowProgress + delta * 0.7, 1);
+                            const intensity = b.windowProgress * 1.0;
+                            b.windowMaterial.emissiveIntensity = intensity;
+                        }
+
+                        totalProgress += b.progress;
+                    }
+
+                    overallProgress = totalProgress / totalBuildings;
+
+                    // 河流生长速度加速（比建筑进度更快延伸）
+                    const riverProgress = Math.min(overallProgress * 1.5, 1);
+                    buildRiver(riverProgress);
+
+                    if (overallProgress >= 0.999) {
+                        allFinished = true;
+                        isAnimating = false;
+                        buildRiver(1);
+                    }
+                }
+
+                // 建筑微呼吸（临时窗户渐变消失循环保留为空操作）
+                const breathe = Math.sin(elapsed * 0.3) * 0.012;
+                for (const b of buildings) {
+                    if (b.finished) {
+                        const offset = Math.sin(elapsed * 0.5 + b.x * 0.3 + b.z * 0.2) * 0.008;
+                        b.mesh.position.y = b.targetY + offset + breathe * 0.3;
+                        b.wireframe.position.y = b.targetY + offset + breathe * 0.3;
+
+                        // 处理鼠标悬停临时窗户的渐变消失
+                        for (let i = b.hoverWindows.length - 1; i >= 0; i--) {
+                            const hw = b.hoverWindows[i];
+                            const age = elapsed - hw.startTime;
+
+                            if (age < HOVER_WINDOW_DURATION) {
+                                // MeshBasicMaterial 用 opacity 淡出（color 已含 HDR 倍数）
+                                hw.material.opacity = 1 - age / HOVER_WINDOW_DURATION;
+                            } else {
+                                b.mesh.remove(hw.mesh);
+                                hw.material.dispose();
+                                b.hoverWindows.splice(i, 1);
+                            }
+                        }
+                    }
+                }
+
+                // 更新车流（地面 + 桥上）
+                updateCars(delta);
+
+                // 鼠标光标附近楼群窗户随机变亮检测
+                checkMouseHover(elapsed);
+
+                // ===== 相机阶段过渡（双向：0↔1↔2） =====
+                // 城市开始生长时自动触发 阶段0→阶段1
+                if (isAnimating && camCurrentPhase === 0 && camTargetPhase === 0 && camTransitionProgress >= 1) {
+                    transitionCameraTo(1, 3.0);
+                }
+                // 执行阶段过渡 lerp
+                if (camTransitionProgress < 1) {
+                    camTransitionProgress = Math.min(camTransitionProgress + delta / camTransitionDuration, 1);
+                    const t = camTransitionProgress < 0.5
+                        ? 4 * camTransitionProgress * camTransitionProgress * camTransitionProgress
+                        : 1 - Math.pow(-2 * camTransitionProgress + 2, 3) / 2;
+                    const to = camPhases[camTargetPhase];
+                    camera.position.lerpVectors(camTransitionStartPos, to.pos, t);
+                    controls.target.lerpVectors(camTransitionStartTarget, to.target, t);
+                    if (camTransitionProgress >= 1) {
+                        camCurrentPhase = camTargetPhase;
+                    }
+                }
+                // 过渡回阶段0且完成时，停止城市动画（此时城市已淡出，星空已恢复）
+                if (camTargetPhase === 0 && camTransitionProgress >= 1 && !cityLayer.classList.contains('active')) {
+                    stopCity();
+                }
+                // 阶段3（向上退出）过渡到 25% 时开始渐变淡出城市层（2.5s 淡出）
+                if (camTargetPhase === 3 && camTransitionProgress >= 0.25 && cityLayer.classList.contains('active')) {
+                    // 延长 CSS 淡出过渡时间，与相机上移动画重叠形成平滑渐变
+                    // 关键：visibility 也必须加入 transition，否则 remove('active') 时
+                    // visibility:visible→hidden 瞬间生效，opacity 渐变不可见 → 背景突然出现
+                    cityLayer.style.transition = 'opacity 2.5s ease, visibility 2.5s ease';
+                    cityLayer.classList.remove('active');
+                    if (vcOverlay) {
+                        vcOverlay.style.transition = 'opacity 1.2s ease, visibility 1.2s ease';
+                        vcOverlay.classList.remove('active');
+                    }
+                    window._cityActive = false;
+                    // 启动星空，直接处于核心功能稳定状态（地球近景），城市渐隐时露出稳定画面
+                    if (window._resumeStarfieldAtFeatures) window._resumeStarfieldAtFeatures();
+                }
+                // 阶段3过渡完成时，停止城市动画
+                if (camTargetPhase === 3 && camTransitionProgress >= 1) {
+                    stopCity();
+                    // 恢复 CSS 默认过渡时间
+                    cityLayer.style.transition = '';
+                    if (vcOverlay) vcOverlay.style.transition = '';
+                }
+
+                controls.update();
+                renderer.render(scene, camera);
+
+                // 更新价值卡片 3D→2D 投影位置
+                updateValueCardPositions();
+            }
+
+            // ============================================================
+            //  9. 窗口自适应
+            // ============================================================
+            window.addEventListener('resize', () => {
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+
+            // HOVER_WINDOW_DURATION 已在鼠标交互模块中声明（5.2.6 节）
+
+            console.log('🌃 科技城市生长动画已就绪（价值与意义区段），等待滚动激活。');
+            console.log(`📐 共 ${totalBuildings} 栋建筑，河道将随城市同步蜿蜒延伸。`);
+            console.log('💡 楼房升起后，密集的正方形窗户会逐渐点亮。');
+            console.log(`🌊 河道宽度 ${riverWidth} 单位，从起点向终点延伸。`);
+            console.log('🚗 地面车流无视楼房，桥上也有车流穿梭。');
+
+            // 暴露控制接口（含阶段过渡方法）
+            _cityAPI = { animate, restart: restartCityGrowth, transitionCameraTo };
+
+            // 「技术实现」区段 IntersectionObserver — 双向门控
+            // 进入→阶段2（靠近桥梁）；离开时只有 #value 仍可见（向上滚）才退回阶段1
+            // 向下滚到 CTA 时 #value 不可见，不退回（城市保持阶段2）
+            const techSection = document.getElementById('tech');
+            if (techSection) {
+                const _techObserver = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        const ratio = entry.intersectionRatio;
+                        if (ratio >= 0.2 && !_techVisible) {
+                            _techVisible = true;
+                            _cityAPI.transitionCameraTo(2, 2.5);  // 靠近桥梁
+                        } else if (ratio <= 0.1 && _techVisible) {
+                            _techVisible = false;
+                            // 只有 #value 仍可见（向上滚回 #value）才退回阶段1
+                            // 向下滚到 CTA 时 _cityVisible=false，不退回
+                            if (_cityVisible) {
+                                _cityAPI.transitionCameraTo(1, 2.5);
+                            }
+                        }
+                    });
+                }, { threshold: [0, 0.1, 0.2, 0.3] });
+                _techObserver.observe(techSection);
+            }
+        }
+
+        // ============================================================
+        //  10. 滚动门控 — 双向（用 #value/#tech 交叉可见性判断滚动方向）
+        //  进入#value→城市生长+阶段1
+        //  离开#value 时：#tech 可见=向下滚到技术实现(城市保持)；#tech 不可见=向上滚回核心功能(切回星空)
+        // ============================================================
+        if (valueSection && cityLayer) {
+            const _cityObserver = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    const ratio = entry.intersectionRatio;
+                    if (ratio >= 0.3 && !_cityVisible) {
+                        // 进入「价值与意义」
+                        _cityVisible = true;
+                        cityLayer.classList.add('active');
+                        if (vcOverlay) vcOverlay.classList.add('active');
+                        window._cityActive = true;
+                        // 中止可能正在进行的星空动画
+                        if (window._pauseStarfield) window._pauseStarfield();
+                        if (!cityInited) {
+                            // 首次进入：初始化 + 从头生长
+                            initCityScene();
+                            cityInited = true;
+                            _cityAPI.restart();
+                            startCity();
+                        } else if (!cityRunning) {
+                            // 城市已停止（从上方重新进入）：重新生长
+                            _cityAPI.restart();
+                            startCity();
+                        } else {
+                            // 城市在运行（可能正在阶段3过渡，或从下方回退）
+                            // 如果正在阶段3过渡（向上退出），取消它，回到阶段1
+                            _cityAPI.transitionCameraTo(1, 2.5);
+                        }
+                    } else if (ratio <= 0.1 && _cityVisible) {
+                        // 离开「价值与意义」
+                        _cityVisible = false;
+                        // #tech 可见 = 向下滚动到技术实现，城市保持不变
+                        // #tech 不可见 = 向上滚动回到核心功能，平滑过渡到星空
+                        if (!_techVisible) {
+                            // 相机上移 + 城市渐隐 + 星空直接显示核心功能稳定画面
+                            // 时序：阶段3持续3.5s，25%(0.875s)时开始2.5s CSS淡出，
+                            //       淡出在3.375s完成，stopCity在3.5s触发（留有缓冲）
+                            _cityAPI.transitionCameraTo(3, 3.5);
+                        }
+                    }
+                });
+            }, { threshold: [0, 0.1, 0.2, 0.3, 0.5] });
+            _cityObserver.observe(valueSection);
+        }
     </script>
 
 </body>

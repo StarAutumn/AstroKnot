@@ -45,5 +45,6 @@ export {
   _makeTabKey,
   _findTabIndex,
   _getTabName,
-  _renderEditorTabs
+  _renderEditorTabs,
+  _renderBreadcrumb
 } from './editor-tabs.js';

@@ -560,16 +560,38 @@ export function bindProjectListEvents() {
 }
 
 /**
- * 项目列表点击处理函数
+ * 慢双击重命名状态
+ */
+let _lastProjectClickId = null;
+let _lastProjectClickTime = 0;
+let _projectRenameActive = false;
+
+/**
+ * 项目列表点击处理函数 + 慢双击重命名
  */
 function projectListClickHandler(e) {
   const target = e.target;
-  
   const projectItem = target.closest('.project-item');
-  if (projectItem && !target.closest('.project-name-input')) {
-    const id = projectItem.dataset.projectId;
-    if (id) loadProject(id);
+  if (!projectItem || target.closest('.project-name-input')) return;
+
+  const id = projectItem.dataset.projectId;
+  if (!id) return;
+  if (_projectRenameActive) return;
+
+  // 慢双击检测：同一选中项目在 300-1500ms 内再次单击 → 进入重命名
+  const now = Date.now();
+  if (appState.currentProjectId === id && _lastProjectClickId === id
+      && now - _lastProjectClickTime > 300 && now - _lastProjectClickTime < 1500) {
+    startRename(projectItem);
+    _lastProjectClickId = null;
+    _lastProjectClickTime = 0;
+    return;
   }
+
+  // 普通单击 → 加载项目
+  loadProject(id);
+  _lastProjectClickId = id;
+  _lastProjectClickTime = now;
 }
 
 /**
@@ -594,10 +616,10 @@ function projectListKeydownHandler(e) {
 function startRename(projectItem) {
   const nameSpan = projectItem.querySelector('.project-name');
   if (!nameSpan) return;
-  
+
+  _projectRenameActive = true;
   const currentName = nameSpan.textContent;
-  const id = projectItem.dataset.projectId;
-  
+
   const input = document.createElement('input');
   input.type = 'text';
   input.value = currentName;
@@ -612,19 +634,19 @@ function startRename(projectItem) {
     font-size: 12px;
     outline: none;
   `;
-  
+
   nameSpan.parentNode.replaceChild(input, nameSpan);
-  
+
   setTimeout(() => {
     input.focus();
     input.select();
   }, 0);
-  
-  document.addEventListener('click', function cancelRename(e) {
-    if (!projectItem.contains(e.target)) {
-      finishRename(input, false);
-      document.removeEventListener('click', cancelRename);
-    }
+
+  const finishRenameFromBlur = () => finishRename(input, true);
+  input.addEventListener('blur', finishRenameFromBlur);
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+    if (ev.key === 'Escape') { ev.preventDefault(); input.value = currentName; finishRename(input, false); }
   });
 }
 
@@ -632,12 +654,13 @@ function startRename(projectItem) {
  * 完成重命名编辑
  */
 function finishRename(input, save) {
+  _projectRenameActive = false;
   const projectItem = input.closest('.project-item');
-  
+
   if (save) {
     const newName = input.value.trim();
     const id = projectItem?.dataset.projectId;
-    
+
     if (newName && id) {
       const p = appState.projects.find(proj => proj.id === id);
       if (p && p.name !== newName) {

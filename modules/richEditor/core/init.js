@@ -11,7 +11,7 @@ import { stripLineNumbersFromHTML } from './code-blocks.js';
 import { stripOverlayBlocksFromHTML } from './overlay/index.js';
 import { bindFormulaEditor } from './formula.js';
 import { saveCurrentContentCK, openRichEditorCK, closeModalCK, initSplitScreenDrag } from '../content-io/index.js';
-import { refreshTreePanel, bindTreeSidebar } from '../tree-panel.js';
+import { refreshTreePanel, bindTreeSidebar, centerOnNode } from '../tree-panel.js';
 
 import { injectToolbarGridCSS } from './toolbar-layout.js';
 import { registerToolbarButtons } from './toolbar-buttons.js';
@@ -414,7 +414,10 @@ export function initCKEditor() {
         }
         if (!targetId) return;
         const node = appState.nodeMap.get(targetId);
-        if (!node) return;
+        if (!node) {
+          console.warn('[实时同步] 未找到节点:', targetId);
+          return;
+        }
         // 代码模式由 sandbox 自身同步，跳过
         if (node.activeMode === 'code') return;
 
@@ -432,7 +435,7 @@ export function initCKEditor() {
 
         if (!window.api?.writeNodeContent) return;
         try {
-          await window.api.writeNodeContent(folderPath, targetId, htmlContent);
+          await window.api.writeNodeContent(folderPath, node, htmlContent);
         } catch (err) {
           console.warn('[实时同步] content.html 写入失败:', targetId, err);
         }
@@ -576,6 +579,7 @@ export function initRichEditor() {
 }
 
 window.refreshTreePanel = refreshTreePanel;
+window.centerOnNode = centerOnNode;
 
 window.forceRefreshTreePanel = function() {
   const treeSidebar = document.getElementById('treeSidebar');

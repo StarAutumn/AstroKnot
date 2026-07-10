@@ -21,7 +21,7 @@ function _getProjectFolderPath() {
 }
 
 /**
- * 处理节点创建事件：在磁盘上创建 nodes/{nodeId} 文件夹
+ * 处理节点创建事件：在磁盘上创建 nodes/{节点名称_[nodeId前8位]} 文件夹
  * 若节点携带 richContent（粘贴场景），顺带写入 content.html
  */
 async function handleNodeCreated(e) {
@@ -36,7 +36,7 @@ async function handleNodeCreated(e) {
 
   if (!window.api?.createNodeFolder) return;
   try {
-    const result = await window.api.createNodeFolder(folderPath, nodeId);
+    const result = await window.api.createNodeFolder(folderPath, targetNode);
     if (!result.success && !result.skipped) {
       console.warn('[节点磁盘同步] 创建文件夹失败:', nodeId, result.error);
       return;
@@ -44,7 +44,7 @@ async function handleNodeCreated(e) {
     // 粘贴场景：节点携带 richContent 时顺带写入 content.html
     if (targetNode.richContent && window.api?.writeNodeContent) {
       try {
-        await window.api.writeNodeContent(folderPath, nodeId, targetNode.richContent);
+        await window.api.writeNodeContent(folderPath, targetNode, targetNode.richContent);
       } catch (err) {
         console.warn('[节点磁盘同步] 写入 content.html 失败:', nodeId, err);
       }

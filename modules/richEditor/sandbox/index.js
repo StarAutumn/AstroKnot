@@ -40,6 +40,7 @@ import { SandboxSplitEditor } from './panels/split-editor.js';
 import { SandboxTemplateHistory } from './features/template-history.js';
 import { SandboxResize } from './layout/resize.js';
 import { SandboxFileOps } from './features/file-ops.js';
+import { SandboxGithubImport } from './panels/github-import.js';
 
 // ════════════════════════════════════════════════════════════
 //  DOM 元素引用
@@ -71,6 +72,7 @@ let _splitEditorModule = null; // SandboxSplitEditor
 let _templateHistoryModule = null; // SandboxTemplateHistory
 let _resizeModule = null; // SandboxResize
 let _fileOpsModule = null; // SandboxFileOps
+let _githubImportModule = null; // SandboxGithubImport
 
 let _currentNodeId = null;
 let _openTimestamp = 0;
@@ -286,19 +288,29 @@ function initHtmlSandboxWindow() {
     const sidePanel = document.getElementById('sandboxSidePanel');
     const searchPanel = document.getElementById('sandboxSearchPanel');
     const fileTreePanel = document.getElementById('sandboxFileTreeContainer');
+    const githubPanel = document.getElementById('sandboxGithubPanel');
     if (panel) {
       _ctx.activePanel = panel;
       if (sidePanel) sidePanel.classList.remove('collapsed');
-      // 根据面板类型切换显示搜索面板/文件树
+      // 根据面板类型切换显示搜索面板/文件树/GitHub 导入
       if (panel === 'search') {
         if (searchPanel) searchPanel.style.display = 'flex';
         if (fileTreePanel) fileTreePanel.style.display = 'none';
+        if (githubPanel) githubPanel.style.display = 'none';
         // 聚焦搜索输入框
         const searchInput = document.getElementById('sandboxSearchInput');
         if (searchInput) searchInput.focus();
       } else if (panel === 'explorer') {
         if (searchPanel) searchPanel.style.display = 'none';
         if (fileTreePanel) fileTreePanel.style.display = 'flex';
+        if (githubPanel) githubPanel.style.display = 'none';
+      } else if (panel === 'github') {
+        if (searchPanel) searchPanel.style.display = 'none';
+        if (fileTreePanel) fileTreePanel.style.display = 'none';
+        if (githubPanel) githubPanel.style.display = 'flex';
+        // 聚焦 URL 输入框
+        const urlInput = document.getElementById('githubUrlInput');
+        if (urlInput) urlInput.focus();
       }
     } else {
       _ctx.activePanel = null;
@@ -355,6 +367,12 @@ function _initFeatureModules() {
     _ctx.registerModule('activityBar', _activityBarModule);
   }
   _activityBarModule.init();
+  // GitHub 导入模块
+  if (!_githubImportModule) {
+    _githubImportModule = new SandboxGithubImport(_ctx);
+    _ctx.registerModule('githubImport', _githubImportModule);
+  }
+  _githubImportModule.init();
 }
 
 function _initDragOpen() {
@@ -870,6 +888,7 @@ function _destroyIDEComponents() {
   if (_templateHistoryModule) { _templateHistoryModule.destroy(); _templateHistoryModule = null; }
   if (_resizeModule) { _resizeModule.destroy(); _resizeModule = null; }
   if (_fileOpsModule) { _fileOpsModule.destroy(); _fileOpsModule = null; }
+  if (_githubImportModule) { _githubImportModule.destroy(); _githubImportModule = null; }
   // 兼容旧变量引用
   _lastPreviewFiles.clear();
   _lastPreviewHtml = '';
@@ -1007,10 +1026,13 @@ export async function openHtmlSandboxEditor(nodeId) {
       icon: '💻',
       active: true,
       activate: () => {
-        if (_windowInstance && _windowInstance.getState() === WindowState.MINIMIZED) {
+        if (!_windowInstance) return;
+        // 设置模态框标准：可见时最小化，最小化时恢复
+        if (_windowInstance.getState() === WindowState.MINIMIZED) {
           _windowInstance.restore();
-        } else {
           WindowManager.bringToFront(_windowInstance);
+        } else {
+          _windowInstance.minimize();
         }
       },
       close: () => closeHtmlSandboxEditor()

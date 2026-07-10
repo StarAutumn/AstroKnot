@@ -38,9 +38,15 @@
     border: none;
     box-shadow: none;
     max-width: none;
+    /* 最大化时禁用 transition，避免动画结束时卡顿 */
+    transition: none !important;
 }
 
 /* 全屏时标题栏隐藏，模态框撑满整个屏幕 */
+body.is-fullscreen .rich-modal.maximized {
+    top: 0;
+    height: calc(100% - 44px);
+}
 body.is-fullscreen .rich-modal.maximized .rich-modal-content {
     top: 0;
     height: calc(100vh - 44px);
@@ -244,6 +250,85 @@ body.light-mode .rich-modal-content::after {
     font-size: 0.9rem;
     color: var(--text-secondary);
     font-weight: 400;
+}
+
+/* ── 面包屑导航 ── */
+.editor-breadcrumb {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 16px;
+    background: rgba(10, 26, 36, 0.6);
+    border-bottom: 1px solid var(--panel-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--panel-border) transparent;
+    gap: 2px;
+}
+
+.editor-breadcrumb::-webkit-scrollbar {
+    height: 3px;
+}
+
+.editor-breadcrumb::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.25);
+    border-radius: 2px;
+}
+
+.breadcrumb-item {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    font-size: 0.78rem;
+    color: var(--text-muted, #7a9aaa);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s;
+    text-decoration: none;
+    user-select: none;
+}
+
+.breadcrumb-item:hover {
+    color: var(--text-primary, #e0f0ff);
+    background: rgba(0, 255, 255, 0.08);
+}
+
+.breadcrumb-item.active {
+    color: var(--text-primary, #e0f0ff);
+    font-weight: 500;
+    cursor: default;
+}
+
+.breadcrumb-item.active:hover {
+    background: none;
+}
+
+.breadcrumb-separator {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-muted, #5a7a8a);
+    font-size: 0.7rem;
+    margin: 0 1px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+/* 浅色模式面包屑（已被 base.css 二次反转 + 浅蓝背景，这里补充交互状态） */
+body.light-mode .breadcrumb-item:hover {
+    color: #0a2a42 !important;
+    background: rgba(0, 100, 160, 0.12) !important;
+}
+
+body.light-mode .breadcrumb-item.active {
+    color: #0a2a42 !important;
+}
+
+body.light-mode .breadcrumb-separator {
+    color: #8aa0b0 !important;
 }
 
 /* ── 编辑器标签栏 ── */

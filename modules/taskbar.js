@@ -14,9 +14,6 @@ function _ensureCtxMenu() {
     _tabCtxMenu = document.createElement('div');
     _tabCtxMenu.className = 'taskbar-ctx-menu';
     _tabCtxMenu.innerHTML = `
-        <button data-action="maximize">🗖 最大化</button>
-        <button data-action="minimize">─ 最小化</button>
-        <div class="taskbar-ctx-sep"></div>
         <button data-action="close" class="taskbar-ctx-close">✕ 关闭</button>
     `;
     _tabCtxMenu.style.display = 'none';
@@ -36,11 +33,7 @@ function _ensureCtxMenu() {
         var t = _tabCtxMenuTarget;
         _hideCtxMenu();
 
-        if (action === 'maximize') {
-            if (typeof t.maximize === 'function') t.maximize();
-        } else if (action === 'minimize') {
-            if (typeof t.minimize === 'function') t.minimize();
-        } else if (action === 'close') {
+        if (action === 'close') {
             if (typeof t.close === 'function') t.close();
         }
     });

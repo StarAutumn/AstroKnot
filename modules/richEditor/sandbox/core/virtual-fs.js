@@ -3,6 +3,8 @@
 //  管理节点内的多文件目录结构，支持扁平Map运行时 + 树形序列化
 // ============================================================
 
+import { appState } from '../../../module0_AppState.js';
+
 // ════════════════════════════════════════════════════════════
 //  文件扩展名 → Monaco 语言 ID 映射
 // ════════════════════════════════════════════════════════════
@@ -91,38 +93,7 @@ function _defaultFileSystem() {
   return {
     type: 'directory',
     name: '/',
-    children: [
-      {
-        type: 'file',
-        name: 'index.html',
-        content: '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>App</title>\n  <link rel="stylesheet" href="styles/main.css">\n</head>\n<body>\n  <div id="app">\n    <h1>Hello World</h1>\n  </div>\n  <script src="scripts/app.js"></script>\n</body>\n</html>',
-        language: 'html'
-      },
-      {
-        type: 'directory',
-        name: 'styles',
-        children: [
-          {
-            type: 'file',
-            name: 'main.css',
-            content: '#app {\n  font-family: sans-serif;\n  padding: 20px;\n}\n\nh1 {\n  color: #0ff;\n}',
-            language: 'css'
-          }
-        ]
-      },
-      {
-        type: 'directory',
-        name: 'scripts',
-        children: [
-          {
-            type: 'file',
-            name: 'app.js',
-            content: 'console.log("Hello from app.js!");',
-            language: 'javascript'
-          }
-        ]
-      }
-    ]
+    children: []
   };
 }
 
@@ -155,6 +126,7 @@ export class VirtualFileSystem {
         name: node.name,
         content: node.content || '',
         language: node.language || extensionToLanguage(node.name),
+        isBinary: !!node.isBinary,
         isDirty: false
       });
       return;
@@ -198,7 +170,8 @@ export class VirtualFileSystem {
             type: 'file',
             name: file.name,
             content: file.content,
-            language: file.language
+            language: file.language,
+            isBinary: !!file.isBinary
           });
         }
       }
@@ -273,6 +246,23 @@ export class VirtualFileSystem {
     return false;
   }
 
+  /**
+   * 设置二进制文件内容（base64 编码）
+   * @param {string} path - 文件路径
+   * @param {string} base64Content - base64 编码的内容
+   * @returns {boolean}
+   */
+  setBinaryFile(path, base64Content) {
+    const f = this._files.get(path);
+    if (f) {
+      f.content = base64Content;
+      f.isBinary = true;
+      f.isDirty = true;
+      return true;
+    }
+    return false;
+  }
+
   createFile(dirPath, name, language) {
     const filePath = dirPath ? dirPath + '/' + name : name;
     if (this._files.has(filePath)) return null; // 已存在
@@ -283,6 +273,7 @@ export class VirtualFileSystem {
       name: name,
       content: '',
       language: language || extensionToLanguage(name),
+      isBinary: false,
       isDirty: true
     };
     this._files.set(filePath, entry);
@@ -527,12 +518,20 @@ export class VirtualFileSystem {
     if (!file) return false;
     if (!window.api || !window.api.writeSandboxFile) return false;
 
+    // 获取节点对象
+    const node = appState.nodeMap.get(nodeId);
+    if (!node) {
+      console.warn('[VFS] 未找到节点:', nodeId);
+      return false;
+    }
+
     try {
       const result = await window.api.writeSandboxFile(
         projectFolderPath,
-        nodeId,
+        node,
         file.path,
-        file.content
+        file.content,
+        !!file.isBinary
       );
 
       if (result.success) {
@@ -557,10 +556,17 @@ export class VirtualFileSystem {
   async deleteSingleFileFromDisk(projectFolderPath, nodeId, filePath) {
     if (!window.api || !window.api.deleteSandboxFile) return false;
 
+    // 获取节点对象
+    const node = appState.nodeMap.get(nodeId);
+    if (!node) {
+      console.warn('[VFS] 未找到节点:', nodeId);
+      return false;
+    }
+
     try {
       const result = await window.api.deleteSandboxFile(
         projectFolderPath,
-        nodeId,
+        node,
         filePath
       );
       return result.success;
@@ -581,10 +587,17 @@ export class VirtualFileSystem {
   async renameSingleFileOnDisk(projectFolderPath, nodeId, oldPath, newPath) {
     if (!window.api || !window.api.renameSandboxFile) return false;
 
+    // 获取节点对象
+    const node = appState.nodeMap.get(nodeId);
+    if (!node) {
+      console.warn('[VFS] 未找到节点:', nodeId);
+      return false;
+    }
+
     try {
       const result = await window.api.renameSandboxFile(
         projectFolderPath,
-        nodeId,
+        node,
         oldPath,
         newPath
       );
@@ -604,11 +617,18 @@ export class VirtualFileSystem {
   async syncAllToDisk(projectFolderPath, nodeId) {
     if (!window.api || !window.api.syncSandboxDirectory) return false;
 
+    // 获取节点对象
+    const node = appState.nodeMap.get(nodeId);
+    if (!node) {
+      console.warn('[VFS] 未找到节点:', nodeId);
+      return false;
+    }
+
     try {
       const fileSystem = this.toJSON();
       const result = await window.api.syncSandboxDirectory(
         projectFolderPath,
-        nodeId,
+        node,
         fileSystem
       );
 
@@ -629,45 +649,97 @@ export class VirtualFileSystem {
   // ── 构建可运行的 HTML（简单模式，无 esbuild） ──
 
   buildSimpleHtml() {
-    // 查找入口 HTML 文件
-    let entryHtml = this.getFileContent('index.html') || '';
+    // 查找入口 HTML 文件（支持根目录和子目录）
+    const entry = _findEntryHtml(this);
+    let entryHtml = entry ? (entry.content || '') : '';
+    let entryHtmlPath = entry ? entry.path : '';
+    let basePath = entry ? entry.basePath : ''; // 入口文件所在目录，如 'dist/' 或 ''
+
     const vfs = this; // 闭包捕获 VFS 实例，供内联回调使用
     const inlinedPaths = new Set(); // 记录已被内联替换的文件路径，避免重复注入
+    if (entryHtmlPath) inlinedPaths.add(entryHtmlPath); // 入口 HTML 本身不再被兜底注入
 
     // 如果入口 HTML 有 <link> 和 <script> 标签，用内联替换
     if (entryHtml) {
-      // 替换 <link rel="stylesheet" href="..."> 为 <style>
-      entryHtml = entryHtml.replace(/<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi, function (match, href) {
-        const cssContent = _resolveAndRead(vfs, href);
-        if (cssContent) {
-          inlinedPaths.add(href.replace(/^\.\//, '').replace(/^\//, ''));
-          return '<style>\n' + cssContent + '\n</style>';
+      // 替换 <link rel="stylesheet" href="..."> 为 <style>（兼容 rel/href 任意顺序）
+      entryHtml = entryHtml.replace(/<link\s+[^>]*href=["']([^"']+)["'][^>]*>/gi, function (match, href) {
+        // 仅处理 stylesheet 和 icon 类型的 link
+        if (!/rel=["'](?:stylesheet|icon|shortcut icon|apple-touch-icon)["']/i.test(match)) {
+          // 非 CSS/icon 的 link 标签（如 preconnect、manifest），移除避免 404
+          if (/rel=["'](?:preconnect|manifest|preload|prefetch|dns-prefetch)["']/i.test(match)) {
+            return ''; // 移除外部资源引用
+          }
+          return match; // 其他 link 保留
         }
-        return match;
+        // 跳过外部 URL（http://, https://, //）
+        if (/^(https?:)?\/\//i.test(href)) return match;
+        const resolved = _resolveAndRead(vfs, href, basePath);
+        if (resolved) {
+          inlinedPaths.add(resolved.path);
+          // icon 类型且有 isBinary → 替换为 data URI
+          if (/rel=["'](?:icon|shortcut icon|apple-touch-icon)["']/i.test(match)) {
+            const file = vfs._files.get(resolved.path);
+            if (file && file.isBinary) {
+              const ext = resolved.path.split('.').pop().toLowerCase();
+              const mimeMap = { 'ico': 'image/x-icon', 'png': 'image/png', 'jpg': 'image/jpeg', 'gif': 'image/gif', 'svg': 'image/svg+xml' };
+              const mime = mimeMap[ext];
+              if (mime) return match.replace(href, `data:${mime};base64,${file.content}`);
+            }
+          }
+          return '<style>\n' + _escapeInlineContent(_cleanCssUrls(resolved.content, vfs, basePath), 'style') + '\n</style>';
+        }
+        return ''; // 无法解析的 link 标签移除，避免 404
       });
 
       // 替换 <script src="..."></script> 为 <script> 内联
       entryHtml = entryHtml.replace(/<script\s+[^>]*src=["']([^"']+)["'][^>]*><\/script>/gi, function (match, src) {
-        const jsContent = _resolveAndRead(vfs, src);
-        if (jsContent) {
-          inlinedPaths.add(src.replace(/^\.\//, '').replace(/^\//, ''));
-          return '<script>\n' + jsContent + '\n</script>';
+        // 跳过外部 URL
+        if (/^(https?:)?\/\//i.test(src)) return match;
+        const resolved = _resolveAndRead(vfs, src, basePath);
+        if (resolved) {
+          inlinedPaths.add(resolved.path);
+          // 仅跳过纯 Node.js 文件（构建工具配置、顶层 require() 等）
+          // 注意：不跳过 webpack/UMD 构建产物！HTML 显式引用的 <script src> 是浏览器代码，
+          // 跳过 webpack 运行时会导致其他 chunk 报 "block is not defined"
+          if (_isNodeJsOnly(resolved.content, resolved.path)) return '';
+          // 跳过 ES6 模块文件（import/export 在普通 <script> 中无法运行）
+          if (_isEsModule(resolved.content)) return '';
+          // 转义 </script> 避免浏览器提前关闭 <script> 标签导致内容截断
+          return '<script>\n' + _escapeInlineContent(resolved.content, 'script') + '\n</script>';
         }
-        return match;
+        return ''; // 无法解析的 script 标签移除，避免 404
       });
     }
 
-    // 收集未被内联的 CSS 和 JS 文件内容（作为兜底注入）
+    // 收集未被内联的 CSS（作为兜底注入）
+    // 注意：跳过二进制文件和 SCSS/LESS/SASS（它们不是有效的 CSS）
     let css = '';
-    let js = '';
     for (const [path, file] of this._files) {
-      if (path === 'index.html') continue;
-      if (inlinedPaths.has(path)) continue; // 已被内联替换的文件不再收集
+      if (path === entryHtmlPath) continue;
+      if (inlinedPaths.has(path)) continue;
+      if (file.isBinary) continue; // 跳过二进制文件
+      if (path.endsWith('.scss') || path.endsWith('.sass') || path.endsWith('.less')) continue;
       if (file.language === 'css' || path.endsWith('.css')) {
-        css += '/* ' + path + ' */\n' + file.content + '\n\n';
+        css += '/* ' + path + ' */\n' + _cleanCssUrls(file.content, vfs, basePath) + '\n\n';
       }
-      if (file.language === 'javascript' || path.endsWith('.js')) {
-        js += '// ' + path + '\n' + file.content + '\n\n';
+    }
+
+    // 收集未被内联的 JS（仅当没有入口 HTML 时才收集）
+    // 关键修复：入口 HTML 存在时，不再注入兜底 JS。
+    // 任意项目的 .js 文件可能包含 webpack bundles / UMD 模块 / 跨文件变量引用，
+    // 内联到单个 <script> 会触发 "block is not defined"、"SyntaxError"、
+    // "'+it+' ERR_FILE_NOT_FOUND" 等错误。JS 仅通过 <script src> 显式引用内联（更安全）。
+    let js = '';
+    if (!entryHtml) {
+      for (const [path, file] of this._files) {
+        if (path === entryHtmlPath) continue;
+        if (inlinedPaths.has(path)) continue;
+        if (file.isBinary) continue;
+        if (file.language === 'javascript' || path.endsWith('.js')) {
+          if (_isNodeJsOnly(file.content, path)) continue;
+          if (_isEsModule(file.content)) continue;
+          js += '// ' + path + '\n' + file.content + '\n\n';
+        }
       }
     }
 
@@ -677,21 +749,59 @@ export class VirtualFileSystem {
 <html>
 <head>
   <meta charset="UTF-8">
-  <style>${css}</style>
+  <style>${_escapeInlineContent(css, 'style')}</style>
 </head>
 <body>
-  <script>${js}</script>
+  <script>${_escapeInlineContent(js, 'script')}</script>
 </body>
 </html>`;
     } else {
-      // 在 </head> 前注入未被内联的 CSS，在 </body> 前注入未被内联的 JS
-      if (css && !entryHtml.includes('<style>')) {
-        entryHtml = entryHtml.replace('</head>', '<style>\n' + css + '\n</style>\n</head>');
-      }
-      if (js && !entryHtml.includes('<script>')) {
-        entryHtml = entryHtml.replace('</body>', '<script>\n' + js + '\n</script>\n</body>');
+      // 入口 HTML 存在时，仅注入兜底 CSS（CSS 重复不会报致命错误）
+      // 不注入兜底 JS（js 为空）—— 避免内联不兼容的 JS 导致页面崩溃
+      if (css) {
+        if (/<\/head>/i.test(entryHtml)) {
+          entryHtml = entryHtml.replace(/<\/head>/i, '<style>\n' + _escapeInlineContent(css, 'style') + '\n</style>\n</head>');
+        } else if (/<head>/i.test(entryHtml)) {
+          entryHtml = entryHtml.replace(/<head>/i, '<head>\n<style>\n' + _escapeInlineContent(css, 'style') + '\n</style>');
+        }
       }
     }
+    for (const [path, file] of this._files) {
+      if (!file.isBinary) continue;
+      const ext = file.name.split('.').pop().toLowerCase();
+      const mimeMap = {
+        'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+        'gif': 'image/gif', 'bmp': 'image/bmp', 'ico': 'image/x-icon',
+        'webp': 'image/webp', 'svg': 'image/svg+xml',
+        'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg',
+        'mp4': 'video/mp4', 'webm': 'video/webm',
+        'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf', 'eot': 'application/vnd.ms-fontobject',
+      };
+      const mime = mimeMap[ext];
+      if (!mime) continue;
+      const dataUri = `data:${mime};base64,${file.content}`;
+
+      // 计算从入口 HTML 视角的相对路径（去掉 basePath 前缀）
+      let relPath = path;
+      if (basePath && path.startsWith(basePath)) {
+        relPath = path.substring(basePath.length);
+      }
+
+      // 生成多种路径形式进行匹配：path, ./path, /path
+      const variants = _getPathVariants(relPath);
+      for (const variant of variants) {
+        const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // 替换 HTML 中的 src/href 引用
+        const srcRegex = new RegExp(`(src|href)=["']${escaped}["']`, 'gi');
+        entryHtml = entryHtml.replace(srcRegex, `$1="${dataUri}"`);
+        // 替换 CSS url() 引用
+        const urlRegex = new RegExp(`url\\(["']?${escaped}["']?\\)`, 'gi');
+        entryHtml = entryHtml.replace(urlRegex, `url("${dataUri}")`);
+      }
+    }
+
+    // 清理无法解析的 <img src="..."> 引用，替换为透明占位图避免 404
+    entryHtml = _cleanUnresolvableImgSrc(entryHtml, vfs, basePath);
 
     return entryHtml;
   }
@@ -728,18 +838,309 @@ export class VirtualFileSystem {
 }
 
 // ════════════════════════════════════════════════════════════
-//  辅助函数：从虚拟 FS 解析相对路径并读取文件
+//  辅助函数：入口 HTML 查找、相对路径解析、路径变体生成
 // ════════════════════════════════════════════════════════════
 
-function _resolveAndRead(vfs, href) {
-  // 简单路径解析：去掉 styles/ 或 scripts/ 前缀
-  let path = href.replace(/^\.\//, '').replace(/^\//, '');
-  // 尝试直接匹配
-  if (vfs && vfs._files) {
-    const file = vfs._files.get(path);
-    if (file) return file.content;
+/**
+ * 查找入口 HTML 文件（支持根目录和子目录）
+ * 优先级：根级 index.html → 根级常见入口 → 根级任意 .html → 子目录 index.html（浅优先）→ 子目录任意 .html
+ * @param {VirtualFileSystem} vfs
+ * @returns {{path:string, content:string, basePath:string} | null}
+ */
+function _findEntryHtml(vfs) {
+  if (!vfs || !vfs._files) return null;
+
+  // 优先级 1: 根级 index.html / index.htm
+  for (const name of ['index.html', 'index.htm']) {
+    const f = vfs._files.get(name);
+    if (f) return { path: name, content: f.content || '', basePath: '' };
   }
+
+  // 优先级 2: 根级其他常见入口名
+  const commonNames = ['default.html', 'main.html', 'home.html', 'examples.html', 'demo.html', 'app.html'];
+  for (const name of commonNames) {
+    const f = vfs._files.get(name);
+    if (f) return { path: name, content: f.content || '', basePath: '' };
+  }
+
+  // 优先级 3: 根级任意 .html / .htm（不含 /）
+  for (const [p, f] of vfs._files) {
+    if ((p.endsWith('.html') || p.endsWith('.htm')) && !p.includes('/')) {
+      return { path: p, content: f.content || '', basePath: '' };
+    }
+  }
+
+  // 收集子目录中的 HTML 文件
+  const subHtmls = [];
+  for (const [p, f] of vfs._files) {
+    if ((p.endsWith('.html') || p.endsWith('.htm')) && p.includes('/')) {
+      const baseName = p.split('/').pop().toLowerCase();
+      const isIndex = (baseName === 'index.html' || baseName === 'index.htm');
+      subHtmls.push({
+        path: p,
+        content: f.content || '',
+        depth: (p.match(/\//g) || []).length,
+        isIndex: isIndex
+      });
+    }
+  }
+
+  // 优先级 4: 子目录中的 index.html（按深度排序，浅的优先）
+  const subIndexes = subHtmls.filter(h => h.isIndex).sort((a, b) => a.depth - b.depth);
+  if (subIndexes.length > 0) {
+    const e = subIndexes[0];
+    const lastSlash = e.path.lastIndexOf('/');
+    return { path: e.path, content: e.content, basePath: e.path.substring(0, lastSlash + 1) };
+  }
+
+  // 优先级 5: 子目录中的任意 .html（按深度排序，浅的优先）
+  const subOthers = subHtmls.filter(h => !h.isIndex).sort((a, b) => a.depth - b.depth);
+  if (subOthers.length > 0) {
+    const e = subOthers[0];
+    const lastSlash = e.path.lastIndexOf('/');
+    return { path: e.path, content: e.content, basePath: e.path.substring(0, lastSlash + 1) };
+  }
+
   return null;
+}
+
+/**
+ * 从虚拟 FS 解析相对路径并读取文件（考虑入口 HTML 所在目录）
+ * @param {VirtualFileSystem} vfs
+ * @param {string} href - HTML 中的引用路径
+ * @param {string} basePath - 入口 HTML 所在目录，如 'dist/'
+ * @returns {{path:string, content:string} | null}
+ */
+function _resolveAndRead(vfs, href, basePath) {
+  if (!vfs || !vfs._files) return null;
+
+  // 规范化路径：去掉 ./ 和开头的 /，处理 ../
+  let cleanHref = href.replace(/^\.\//, '').replace(/^\//, '');
+  // 简单处理 ../：向上跳（去掉 basePath 最后一层）
+  while (cleanHref.startsWith('../') && basePath) {
+    cleanHref = cleanHref.substring(3);
+    // basePath 去掉最后一层目录
+    const parts = basePath.split('/').filter(Boolean);
+    parts.pop();
+    basePath = parts.length > 0 ? parts.join('/') + '/' : '';
+  }
+
+  // 尝试 1: basePath + href
+  if (basePath) {
+    const fullPath = basePath + cleanHref;
+    const file = vfs._files.get(fullPath);
+    if (file) return { path: fullPath, content: file.content };
+  }
+
+  // 尝试 2: 直接匹配
+  const file = vfs._files.get(cleanHref);
+  if (file) return { path: cleanHref, content: file.content };
+
+  // 尝试 3: 按 basename 模糊匹配（兜底，处理路径前缀差异）
+  const baseName = cleanHref.split('/').pop();
+  for (const [p, f] of vfs._files) {
+    if (p.split('/').pop() === baseName) {
+      return { path: p, content: f.content };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 生成路径的多种形式用于正则匹配
+ * 输入 'css/style.css' → 返回 ['css/style.css', './css/style.css', '/css/style.css']
+ * @param {string} relPath
+ * @returns {string[]}
+ */
+function _getPathVariants(relPath) {
+  const variants = [relPath];
+  if (!relPath.startsWith('./')) variants.push('./' + relPath);
+  if (!relPath.startsWith('/')) variants.push('/' + relPath);
+  return [...new Set(variants)];
+}
+
+// 透明 1x1 GIF 占位图（用于替换无法解析的 url() 和 img src）
+const _TRANSPARENT_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+/**
+ * 转义内联到 HTML <script> 或 <style> 标签中的内容
+ * 防止内容中的 </script> / </style> 被浏览器当作标签结束符，导致内容截断
+ * 这是最常见的 JS 内联 bug：var s = "</script>"; 会提前关闭 <script>
+ * @param {string} content - 要内联的内容
+ * @param {'script'|'style'} tagType - 标签类型
+ * @returns {string} 转义后的内容
+ */
+function _escapeInlineContent(content, tagType) {
+  if (!content) return content;
+  if (tagType === 'script') {
+    // 将 </script> 替换为 <\/script>（JS 中 \/ 等同于 /，不影响执行）
+    // 同时处理大小写变体 </SCRIPT>、</Script> 等
+    return content.replace(/<\/script/gi, '<\\/script');
+  }
+  if (tagType === 'style') {
+    // 将 </style> 替换为 <\/style>（CSS 中 \/ 无效但不会触发标签闭合）
+    return content.replace(/<\/style/gi, '<\\/style');
+  }
+  return content;
+}
+
+/**
+ * 清理 CSS 中无法解析的 url() 引用，避免 net::ERR_FILE_NOT_FOUND
+ * - 保留 data: URI 和外部 URL（http://, https://, //）
+ * - 可在 VFS 中解析的二进制文件 → 替换为 data URI
+ * - 无法解析的本地引用 → 替换为透明占位图
+ * @param {string} cssContent - CSS 内容
+ * @param {VirtualFileSystem} vfs - 虚拟文件系统
+ * @param {string} basePath - 入口 HTML 所在目录
+ * @returns {string} 清理后的 CSS
+ */
+function _cleanCssUrls(cssContent, vfs, basePath) {
+  if (!cssContent) return cssContent;
+  return cssContent.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, function (match, quote, url) {
+    // 保留 data URI
+    if (/^data:/i.test(url)) return match;
+    // 保留外部 URL
+    if (/^(https?:)?\/\//i.test(url)) return match;
+    // 尝试在 VFS 中解析
+    const resolved = _resolveAndRead(vfs, url, basePath);
+    if (resolved) {
+      // 如果是二进制文件，替换为 data URI
+      const file = vfs._files.get(resolved.path);
+      if (file && file.isBinary) {
+        const ext = resolved.path.split('.').pop().toLowerCase();
+        const mimeMap = {
+          'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+          'gif': 'image/gif', 'svg': 'image/svg+xml', 'webp': 'image/webp',
+          'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
+        };
+        const mime = mimeMap[ext];
+        if (mime) return `url("data:${mime};base64,${file.content}")`;
+      }
+      return match; // 文件存在但不是二进制，保留原引用
+    }
+    // 无法解析 → 替换为透明占位图
+    return `url("${_TRANSPARENT_PIXEL}")`;
+  });
+}
+
+/**
+ * 清理 HTML 中无法解析的 <img src="..."> 引用，避免 net::ERR_FILE_NOT_FOUND
+ * - 保留外部 URL 和 data: URI
+ * - 可在 VFS 中解析的 → 保留
+ * - 无法解析的 → 替换 src 为透明占位图
+ * @param {string} html - HTML 内容
+ * @param {VirtualFileSystem} vfs - 虚拟文件系统
+ * @param {string} basePath - 入口 HTML 所在目录
+ * @returns {string} 清理后的 HTML
+ */
+function _cleanUnresolvableImgSrc(html, vfs, basePath) {
+  if (!html) return html;
+  return html.replace(/<img\s+[^>]*src=["']([^"']+)["'][^>]*>/gi, function (match, src) {
+    // 保留外部 URL
+    if (/^(https?:)?\/\//i.test(src)) return match;
+    // 保留 data: URI
+    if (/^data:/i.test(src)) return match;
+    // 尝试在 VFS 中解析
+    const resolved = _resolveAndRead(vfs, src, basePath);
+    if (resolved) return match; // 能解析，保留
+    // 无法解析 → 替换 src 为透明占位图
+    return match.replace(src, _TRANSPARENT_PIXEL);
+  });
+}
+
+/**
+ * 检测 JS 文件是否为纯 Node.js 文件（不能在浏览器 <script> 中运行）
+ * 仅检查 Node.js 专用 API，不检查 webpack/UMD 模式。
+ * 用途：<script src> 内联替换 — HTML 显式引用的脚本是浏览器代码，不应跳过 webpack/UMD
+ * @param {string} content - 文件内容
+ * @param {string} filePath - 文件路径
+ * @returns {boolean}
+ */
+function _isNodeJsOnly(content, filePath) {
+  // 1. 文件名模式匹配（构建工具配置文件，绝不是浏览器代码）
+  const baseName = filePath.split('/').pop().toLowerCase();
+  if (baseName.endsWith('.config.js')) return true;       // webpack/vite/rollup/babel/jest.config.js
+  if (baseName === 'gruntfile.js' || baseName === 'gulpfile.js') return true;
+  if (baseName === 'karma.conf.js') return true;
+  if (baseName.startsWith('.eslintrc') || baseName.startsWith('.babelrc')) return true;
+  if (baseName === 'package.json') return true;
+  // Server-side 文件
+  if (baseName === 'server.js' || baseName === 'app.js') {
+    // 仅当内容包含 Node.js 专用 API 时
+    if (content && (/^require\s*\(/m.test(content.substring(0, 1000)) || /process\.env\./.test(content.substring(0, 2000)))) {
+      return true;
+    }
+  }
+
+  // 2. 内容模式匹配（纯 Node.js 专用 API，有 typeof 守卫的 UMD 不算）
+  if (content) {
+    const head = content.substring(0, 3000);
+    // 顶层 require() 调用（不是 __webpack_require__）
+    if (/^require\s*\(/m.test(head)) return true;
+    // process.env 无 typeof 守卫
+    if (/process\.env\./.test(head) && !/typeof\s+process/.test(head)) return true;
+    // __dirname / __filename 无 typeof 守卫
+    if (/__dirname/.test(head) && !/typeof\s+__dirname/.test(head)) return true;
+    if (/__filename/.test(head) && !/typeof\s+__filename/.test(head)) return true;
+    // 裸 module.exports 无 typeof 守卫（UMD 有 typeof module 守卫）
+    if (/module\.exports\s*=/.test(head) && !/typeof\s+module/.test(head)) return true;
+    // 裸 exports.xxx 无 typeof 守卫
+    if (/exports\.\w+\s*=/.test(head) && !/typeof\s+exports/.test(head)) return true;
+  }
+  return false;
+}
+
+/**
+ * 检测 JS 文件是否为 Node.js / 构建工具文件（CommonJS 模块）
+ * 这类文件在浏览器 <script> 中会报 "module is not defined"
+ * @param {string} content - 文件内容
+ * @param {string} filePath - 文件路径
+ * @returns {boolean}
+ */
+function _looksLikeNodeJs(content, filePath) {
+  // 1. 文件名模式匹配（明确的构建工具配置文件）
+  const baseName = filePath.split('/').pop().toLowerCase();
+  if (baseName.endsWith('.config.js')) return true;       // webpack/vite/rollup/babel/jest.config.js
+  if (baseName === 'gruntfile.js' || baseName === 'gulpfile.js') return true;
+  if (baseName === 'karma.conf.js') return true;
+  if (baseName.startsWith('.eslintrc') || baseName.startsWith('.babelrc')) return true;
+
+  // 2. 内容模式匹配（CommonJS / Node.js 专用 API / UMD / webpack 构建产物）
+  if (content) {
+    const head = content.substring(0, 3000); // 扩大检查范围到前 3000 字符
+    // CommonJS
+    if (/module\.exports\s*=/.test(head)) return true;
+    if (/^require\s*\(/m.test(head)) return true;
+    if (/process\.env\./.test(head)) return true;
+    if (/__dirname/.test(head)) return true;
+    if (/__filename/.test(head)) return true;
+    if (/exports\.\w+\s*=/.test(head)) return true;
+    // UMD / webpack 构建产物（在浏览器 <script> 中可能因代码分割报 "block is not defined"）
+    if (/__webpack_require__/.test(head)) return true;
+    if (/webpackChunk/.test(head)) return true;
+    if (/webpackUniversalModuleDefinition/.test(head)) return true;
+    if (/\bdefine\s*\(\s*\[/.test(head)) return true;  // AMD: define([...], factory)
+    if (/\bdefine\s*\(\s*function/.test(head)) return true; // AMD: define(function)
+  }
+  return false;
+}
+
+/**
+ * 检测 JS 文件是否使用 ES6 模块语法（import/export）
+ * 这类文件在普通 <script> 标签中无法运行，需要 type="module"
+ * @param {string} content - 文件内容
+ * @returns {boolean}
+ */
+function _isEsModule(content) {
+  if (!content) return false;
+  const head = content.substring(0, 3000);
+  // 检测 import 语句（import xxx from, import { xxx }, import "xxx"）
+  if (/^\s*import\s+[\w{"]/m.test(head)) return true;
+  if (/^\s*import\s*[\w{]/m.test(head)) return true;
+  // 检测 export 语句（export default, export const, export function, export {）
+  if (/^\s*export\s+(default|const|let|var|function|class|\{)/m.test(head)) return true;
+  return false;
 }
 
 console.log('[sandbox-virtual-fs] 模块已加载');

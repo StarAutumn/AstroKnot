@@ -9,6 +9,17 @@ const fs = require('fs');
 const { bindTerminalIPC, killSessionsForWebContents, killAllSessions } = require('./main-terminal');
 const dataSettings = require('./data-settings');
 
+// ── 二进制文件扩展名集合（用于应用库读取时区分文本/二进制）──
+const BINARY_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tiff', 'tif', 'svg',
+  'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma',
+  'mp4', 'webm', 'avi', 'mov', 'mkv', 'wmv', 'flv',
+  'zip', 'gz', 'tar', 'rar', '7z', 'bz2',
+  'woff', 'woff2', 'ttf', 'otf', 'eot',
+  'pdf', 'exe', 'dll', 'so', 'dylib', 'bin', 'dat',
+  'psd', 'ai', 'sketch', 'xd',
+]);
+
 // ── GPU 兼容性：允许在不支持的 GPU 上使用 WebGL ──
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
@@ -158,6 +169,29 @@ function startHMR() {
       });
     } catch (e) {
       console.warn('[HMR] 无法监听文件:', fullPath, e.message);
+    }
+  }
+
+  // ── 监听主进程文件变更：自动重启 Electron ──
+  // main.js / preload.js 修改后需要重启主进程才能生效
+  const mainProcessFiles = ['main.js', 'preload.js', 'data-settings.js'];
+  let _restarting = false;
+  for (const file of mainProcessFiles) {
+    const fullPath = path.join(rootDir, file);
+    if (!fs.existsSync(fullPath)) continue;
+    try {
+      fs.watch(fullPath, () => {
+        if (_restarting) return;
+        _restarting = true;
+        console.log(`[HMR] 主进程文件变更: ${file}，正在重启...`);
+        // 延迟 300ms 避免连续多次触发（如编辑器保存）
+        setTimeout(() => {
+          app.relaunch();
+          app.exit(0);
+        }, 300);
+      });
+    } catch (e) {
+      console.warn('[HMR] 无法监听主进程文件:', fullPath, e.message);
     }
   }
 
@@ -382,7 +416,12 @@ function _writeFileSystemToDisk(node, dirPath) {
   for (const child of node.children) {
     if (child.type === 'file') {
       fs.mkdirSync(dirPath, { recursive: true });
-      fs.writeFileSync(path.join(dirPath, child.name), child.content || '', 'utf-8');
+      // 二进制文件：base64 解码后写入；文本文件：UTF-8 写入
+      if (child.isBinary && child.content) {
+        fs.writeFileSync(path.join(dirPath, child.name), Buffer.from(child.content, 'base64'));
+      } else {
+        fs.writeFileSync(path.join(dirPath, child.name), child.content || '', 'utf-8');
+      }
     } else if (child.type === 'directory') {
       const subDir = path.join(dirPath, child.name);
       fs.mkdirSync(subDir, { recursive: true });
@@ -444,6 +483,92 @@ function _readFileSystemFromDisk(dirPath) {
 }
 
 /**
+ * 从磁盘目录读取虚拟文件系统（递归，支持二进制文件 base64 编码）
+ * 用于全局应用库读取 sandbox 目录
+ * @param {string} dirPath - sandbox 目录绝对路径
+ * @returns {Object} 文件树根节点
+ */
+function _readFileSystemFromDiskBinary(dirPath) {
+  if (!fs.existsSync(dirPath)) return null;
+
+  const children = [];
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const subTree = _readFileSystemFromDiskBinary(path.join(dirPath, entry.name));
+      if (subTree) children.push(subTree);
+    } else if (entry.isFile()) {
+      const filePath = path.join(dirPath, entry.name);
+      const ext = entry.name.split('.').pop().toLowerCase();
+      const langMap = {
+        'html': 'html', 'htm': 'html',
+        'css': 'css', 'scss': 'scss', 'less': 'less',
+        'js': 'javascript', 'mjs': 'javascript',
+        'ts': 'typescript', 'tsx': 'typescript', 'jsx': 'javascript',
+        'json': 'json', 'md': 'markdown', 'py': 'python',
+        'xml': 'xml', 'svg': 'xml', 'yaml': 'yaml', 'yml': 'yaml',
+        'txt': 'plaintext', 'sql': 'sql',
+      };
+
+      // 二进制文件：读取为 base64
+      if (BINARY_EXTENSIONS.has(ext)) {
+        const buffer = fs.readFileSync(filePath);
+        const base64Content = buffer.toString('base64');
+        children.push({
+          type: 'file',
+          name: entry.name,
+          content: base64Content,
+          language: langMap[ext] || 'plaintext',
+          isBinary: true
+        });
+      } else {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        children.push({
+          type: 'file',
+          name: entry.name,
+          content: content,
+          language: langMap[ext] || 'plaintext',
+          isBinary: false
+        });
+      }
+    }
+  }
+
+  // 排序：目录在前，文件在后
+  children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const dirName = path.basename(dirPath);
+  return {
+    type: 'directory',
+    name: dirName,
+    children: children
+  };
+}
+
+/**
+ * 递归复制目录
+ * @param {string} src - 源目录
+ * @param {string} dest - 目标目录
+ */
+function _copyDirSync(src, dest) {
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      fs.mkdirSync(destPath, { recursive: true });
+      _copyDirSync(srcPath, destPath);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+/**
  * 生成 project.md（人类可读摘要）
  */
 function generateProjectMd(savePath, projectCore, nodeRichContents, overlayImages) {
@@ -500,16 +625,32 @@ function generateProjectMd(savePath, projectCore, nodeRichContents, overlayImage
 }
 
 /**
- * 收集树中所有节点 ID
+ * 收集树中所有节点（返回节点数组而非仅 ID）
  */
 function collectTreeNodeIds(tree) {
-  const ids = new Set();
+  const nodes = [];
   function walk(node) {
-    if (node.id !== '__VIRTUAL_ROOT__') ids.add(node.id);
+    if (node.id !== '__VIRTUAL_ROOT__') nodes.push(node);
     if (node.children) node.children.forEach(walk);
   }
   if (tree) walk(tree);
-  return ids;
+  return nodes;
+}
+
+/**
+ * 将节点名称转换为安全的文件夹名（去除非法字符）
+ */
+function sanitizeNodeFolderName(name) {
+  return String(name || '未命名').replace(/[<>:"\\/|?*]/g, '_').slice(0, 50) || '未命名';
+}
+
+/**
+ * 生成节点文件夹名：节点名称_[nodeId前8位]
+ */
+function getNodeFolderName(node) {
+  const safeName = sanitizeNodeFolderName(node.name);
+  const shortId = node.id.slice(0, 8);
+  return `${safeName}_${shortId}`;
 }
 
 // ── 应急备份目录（使用自定义数据目录）──
@@ -878,15 +1019,27 @@ function bindFileIPC() {
         'utf-8'
       );
 
-      // 收集当前存在的节点 ID，清理已删除节点的文件夹
-      const currentNodeIds = collectTreeNodeIds(projectCore.methodsTree);
-      if (nodeRichContents) for (const id of Object.keys(nodeRichContents)) currentNodeIds.add(id);
-      if (overlayImages) for (const id of Object.keys(overlayImages)) currentNodeIds.add(id);
-      if (nodeFileSystems) for (const id of Object.keys(nodeFileSystems)) currentNodeIds.add(id);
+      // 收集当前存在的节点，建立 nodeId -> node 映射
+      const currentNodes = collectTreeNodeIds(projectCore.methodsTree);
+      const nodeMap = new Map(currentNodes.map(n => [n.id, n]));
+      
+      // 补充来自 nodeRichContents/overlayImages/nodeFileSystems 的 nodeId（这些可能有数据但不在树中）
+      if (nodeRichContents) for (const id of Object.keys(nodeRichContents)) {
+        if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
+      }
+      if (overlayImages) for (const id of Object.keys(overlayImages)) {
+        if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
+      }
+      if (nodeFileSystems) for (const id of Object.keys(nodeFileSystems)) {
+        if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
+      }
+      
+      // 建立文件夹名集合（用于清理检测）
+      const currentFolderNames = new Set([...nodeMap.values()].map(n => getNodeFolderName(n)));
 
       if (fs.existsSync(nodesDir)) {
         for (const folder of fs.readdirSync(nodesDir, { withFileTypes: true })) {
-          if (folder.isDirectory() && !currentNodeIds.has(folder.name)) {
+          if (folder.isDirectory() && !currentFolderNames.has(folder.name)) {
             fs.rmSync(path.join(nodesDir, folder.name), { recursive: true, force: true });
           }
         }
@@ -902,7 +1055,9 @@ function bindFileIPC() {
       // 写入每个节点的 overlay 数据
       for (const [nodeId, overlays] of Object.entries(overlayImages || {})) {
         if (!overlays || overlays.length === 0) continue;
-        const nodeDir = path.join(nodesDir, nodeId);
+        const node = nodeMap.get(nodeId);
+        const folderName = node ? getNodeFolderName(node) : sanitizeNodeFolderName('未知节点') + '_' + nodeId.slice(0, 8);
+        const nodeDir = path.join(nodesDir, folderName);
         const overlaysDir = path.join(nodeDir, 'overlays');
         saveOverlays(overlaysDir, overlays);
       }
@@ -910,7 +1065,9 @@ function bindFileIPC() {
       // 写入每个节点的沙盒代码文件（虚拟文件系统 → 真实磁盘文件）
       for (const [nodeId, fileSystem] of Object.entries(nodeFileSystems || {})) {
         if (!fileSystem) continue;
-        const sandboxDir = path.join(nodesDir, nodeId, 'sandbox');
+        const node = nodeMap.get(nodeId);
+        const folderName = node ? getNodeFolderName(node) : sanitizeNodeFolderName('未知节点') + '_' + nodeId.slice(0, 8);
+        const sandboxDir = path.join(nodesDir, folderName, 'sandbox');
         // 先清空旧的 sandbox 目录，避免残留已删除的文件
         if (fs.existsSync(sandboxDir)) {
           fs.rmSync(sandboxDir, { recursive: true, force: true });
@@ -973,8 +1130,13 @@ function bindFileIPC() {
       if (fs.existsSync(nodesDir)) {
         for (const entry of fs.readdirSync(nodesDir, { withFileTypes: true })) {
           if (!entry.isDirectory()) continue;
-          const nodeId = entry.name;
-          const nodeDir = path.join(nodesDir, nodeId);
+          const folderName = entry.name;
+          const nodeDir = path.join(nodesDir, folderName);
+          
+          // 从文件夹名解析 nodeId（格式：节点名称_[nodeId前8位]）
+          // 回退：如果是旧格式（纯 nodeId），直接用 folderName 作为 nodeId
+          const nodeIdMatch = folderName.match(/_(.+)$/);
+          const nodeId = nodeIdMatch ? nodeIdMatch[1] : folderName;
 
           // 读取 content.html
           const contentPath = path.join(nodeDir, 'content.html');
@@ -1087,12 +1249,12 @@ function bindFileIPC() {
   // ── Sandbox 文件实时同步处理器（增量写入磁盘）──
 
   // 写入单个 sandbox 文件
-  ipcMain.handle('write-sandbox-file', async (event, projectFolderPath, nodeId, vfsPath, content) => {
+  ipcMain.handle('write-sandbox-file', async (event, projectFolderPath, node, vfsPath, content, isBinary) => {
     try {
       // 如果项目未保存，写入临时目录
       const sandboxDir = projectFolderPath
-        ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
-        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox')); // fallback
+        ? path.join(projectFolderPath, 'nodes', getNodeFolderName(node), 'sandbox')
+        : (dataSettings.getSandboxTmpDir(node.id) || path.join(app.getPath('userData'), 'sandbox-tmp', node.id, 'sandbox')); // fallback
 
       fs.mkdirSync(sandboxDir, { recursive: true });
 
@@ -1106,8 +1268,12 @@ function bindFileIPC() {
       const parentDir = path.dirname(diskPath);
       fs.mkdirSync(parentDir, { recursive: true });
 
-      // 写入文件
-      fs.writeFileSync(diskPath, content || '', 'utf-8');
+      // 写入文件：二进制用 base64 解码，文本用 UTF-8
+      if (isBinary && content) {
+        fs.writeFileSync(diskPath, Buffer.from(content, 'base64'));
+      } else {
+        fs.writeFileSync(diskPath, content || '', 'utf-8');
+      }
 
       return { success: true, diskPath };
     } catch (err) {
@@ -1117,11 +1283,11 @@ function bindFileIPC() {
   });
 
   // 删除单个 sandbox 文件
-  ipcMain.handle('delete-sandbox-file', async (event, projectFolderPath, nodeId, vfsPath) => {
+  ipcMain.handle('delete-sandbox-file', async (event, projectFolderPath, node, vfsPath) => {
     try {
       const sandboxDir = projectFolderPath
-        ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
-        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox')); // fallback
+        ? path.join(projectFolderPath, 'nodes', getNodeFolderName(node), 'sandbox')
+        : (dataSettings.getSandboxTmpDir(node.id) || path.join(app.getPath('userData'), 'sandbox-tmp', node.id, 'sandbox')); // fallback
 
       const relativePath = (vfsPath || '').replace(/^\//, '');
       if (!relativePath) return { success: false, error: '无效路径' };
@@ -1145,11 +1311,11 @@ function bindFileIPC() {
   });
 
   // 重命名 sandbox 文件/目录
-  ipcMain.handle('rename-sandbox-file', async (event, projectFolderPath, nodeId, oldPath, newPath) => {
+  ipcMain.handle('rename-sandbox-file', async (event, projectFolderPath, node, oldPath, newPath) => {
     try {
       const sandboxDir = projectFolderPath
-        ? path.join(projectFolderPath, 'nodes', nodeId, 'sandbox')
-        : (dataSettings.getSandboxTmpDir(nodeId) || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox')); // fallback
+        ? path.join(projectFolderPath, 'nodes', getNodeFolderName(node), 'sandbox')
+        : (dataSettings.getSandboxTmpDir(node.id) || path.join(app.getPath('userData'), 'sandbox-tmp', node.id, 'sandbox')); // fallback
 
       const oldRelativePath = (oldPath || '').replace(/^\//, '');
       const newRelativePath = (newPath || '').replace(/^\//, '');
@@ -1174,16 +1340,17 @@ function bindFileIPC() {
   });
 
   // 同步整个 sandbox 目录（用于项目保存时全量同步）
-  ipcMain.handle('sync-sandbox-directory', async (event, projectFolderPath, nodeId, fileSystem) => {
+  ipcMain.handle('sync-sandbox-directory', async (event, projectFolderPath, node, fileSystem) => {
     try {
       let sandboxDir;
       if (projectFolderPath) {
         // 已保存项目，写入项目目录
-        sandboxDir = path.join(projectFolderPath, 'nodes', nodeId, 'sandbox');
+        const folderName = getNodeFolderName(node);
+        sandboxDir = path.join(projectFolderPath, 'nodes', folderName, 'sandbox');
       } else {
         // 未保存项目，使用临时目录
-        const tmpDir = dataSettings.getSandboxTmpDir(nodeId);
-        sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', nodeId, 'sandbox'); // fallback
+        const tmpDir = dataSettings.getSandboxTmpDir(node.id);
+        sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', node.id, 'sandbox'); // fallback
       }
 
       // 先清空旧的 sandbox 目录，避免残留已删除的文件
@@ -1199,6 +1366,127 @@ function bindFileIPC() {
       return { success: true, diskPath: sandboxDir };
     } catch (err) {
       console.error('[sync-sandbox-directory] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════
+  //  全局应用库 IPC（GitHub 克隆应用）
+  // ════════════════════════════════════════════════════════════
+
+  // 读取应用清单 index.json
+  ipcMain.handle('read-app-list', async () => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      const indexPath = path.join(appsDir, 'index.json');
+      if (!fs.existsSync(indexPath)) return { apps: [] };
+      return JSON.parse(fs.readFileSync(indexPath, 'utf-8')) || { apps: [] };
+    } catch (err) {
+      console.error('[read-app-list] 错误:', err);
+      return { apps: [] };
+    }
+  });
+
+  // 写入应用清单 index.json
+  ipcMain.handle('write-app-list', async (event, appList) => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      if (!fs.existsSync(appsDir)) fs.mkdirSync(appsDir, { recursive: true });
+      const indexPath = path.join(appsDir, 'index.json');
+      fs.writeFileSync(indexPath, JSON.stringify(appList, null, 2), 'utf-8');
+      return { success: true };
+    } catch (err) {
+      console.error('[write-app-list] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 读取应用 sandbox 文件树（增强二进制支持）
+  ipcMain.handle('read-app-sandbox', async (event, appId) => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      const sandboxDir = path.join(appsDir, appId, 'sandbox');
+      if (!fs.existsSync(sandboxDir)) return null;
+      const tree = _readFileSystemFromDiskBinary(sandboxDir);
+      // 规范化根目录名：path.basename 返回 'sandbox'，但 VFS _flattenTree 只认 '/'
+      if (tree) tree.name = '/';
+      return tree;
+    } catch (err) {
+      console.error('[read-app-sandbox] 错误:', err);
+      return null;
+    }
+  });
+
+  // 写入应用 sandbox 到磁盘
+  ipcMain.handle('sync-app-directory', async (event, appId, fileSystem) => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      const sandboxDir = path.join(appsDir, appId, 'sandbox');
+
+      // 先清空旧目录
+      if (fs.existsSync(sandboxDir)) {
+        fs.rmSync(sandboxDir, { recursive: true, force: true });
+      }
+      if (fileSystem) {
+        fs.mkdirSync(sandboxDir, { recursive: true });
+        _writeFileSystemToDisk(fileSystem, sandboxDir);
+      }
+      return { success: true, diskPath: sandboxDir };
+    } catch (err) {
+      console.error('[sync-app-directory] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 删除应用（目录 + 清单记录）
+  ipcMain.handle('delete-app', async (event, appId) => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      const appDir = path.join(appsDir, appId);
+      if (fs.existsSync(appDir)) {
+        fs.rmSync(appDir, { recursive: true, force: true });
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('[delete-app] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 在资源管理器中打开应用所在文件夹
+  ipcMain.handle('open-app-in-explorer', async (event, appId) => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      const sandboxDir = path.join(appsDir, appId, 'sandbox');
+      if (fs.existsSync(sandboxDir)) {
+        shell.openPath(sandboxDir);
+        return { success: true };
+      }
+      return { success: false, error: '应用目录不存在' };
+    } catch (err) {
+      console.error('[open-app-in-explorer] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 克隆应用（复制 sandbox 目录 + 创建新清单记录）
+  ipcMain.handle('clone-app', async (event, srcAppId, destAppId) => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      const srcSandbox = path.join(appsDir, srcAppId, 'sandbox');
+      const destSandbox = path.join(appsDir, destAppId, 'sandbox');
+
+      if (!fs.existsSync(srcSandbox)) {
+        return { success: false, error: '源应用目录不存在' };
+      }
+
+      // 递归复制 sandbox 目录
+      fs.mkdirSync(destSandbox, { recursive: true });
+      _copyDirSync(srcSandbox, destSandbox);
+
+      return { success: true };
+    } catch (err) {
+      console.error('[clone-app] 错误:', err);
       return { success: false, error: err.message };
     }
   });
@@ -1301,11 +1589,12 @@ function bindFileIPC() {
     }
   });
 
-  // 创建节点文件夹（nodes/{nodeId}）
-  ipcMain.handle('create-node-folder', async (event, projectFolderPath, nodeId) => {
-    if (!projectFolderPath || !nodeId) return { success: false, skipped: true };
+  // 创建节点文件夹（nodes/{节点名称_[nodeId前8位]})
+  ipcMain.handle('create-node-folder', async (event, projectFolderPath, node) => {
+    if (!projectFolderPath || !node) return { success: false, skipped: true };
     try {
-      const nodeDir = path.join(projectFolderPath, 'nodes', nodeId);
+      const folderName = getNodeFolderName(node);
+      const nodeDir = path.join(projectFolderPath, 'nodes', folderName);
       fs.mkdirSync(nodeDir, { recursive: true });
       // 预创建 sandbox/ 和 overlays/ 子目录，确保终端等外部工具可立即访问
       fs.mkdirSync(path.join(nodeDir, 'sandbox'), { recursive: true });
@@ -1319,10 +1608,11 @@ function bindFileIPC() {
   });
 
   // 删除节点文件夹（递归）
-  ipcMain.handle('delete-node-folder', async (event, projectFolderPath, nodeId) => {
-    if (!projectFolderPath || !nodeId) return { success: false, skipped: true };
+  ipcMain.handle('delete-node-folder', async (event, projectFolderPath, node) => {
+    if (!projectFolderPath || !node) return { success: false, skipped: true };
     try {
-      const nodeDir = path.join(projectFolderPath, 'nodes', nodeId);
+      const folderName = getNodeFolderName(node);
+      const nodeDir = path.join(projectFolderPath, 'nodes', folderName);
       if (fs.existsSync(nodeDir)) {
         fs.rmSync(nodeDir, { recursive: true, force: true });
       }
@@ -1334,10 +1624,11 @@ function bindFileIPC() {
   });
 
   // 写入节点 content.html（自动创建文件夹，幂等）
-  ipcMain.handle('write-node-content', async (event, projectFolderPath, nodeId, content) => {
-    if (!projectFolderPath || !nodeId) return { success: false, skipped: true };
+  ipcMain.handle('write-node-content', async (event, projectFolderPath, node, content) => {
+    if (!projectFolderPath || !node) return { success: false, skipped: true };
     try {
-      const nodeDir = path.join(projectFolderPath, 'nodes', nodeId);
+      const folderName = getNodeFolderName(node);
+      const nodeDir = path.join(projectFolderPath, 'nodes', folderName);
       fs.mkdirSync(nodeDir, { recursive: true });  // 幂等，撤销重做后重建
       fs.writeFileSync(path.join(nodeDir, 'content.html'), content || '', 'utf-8');
       return { success: true };
@@ -1387,14 +1678,80 @@ function bindFileIPC() {
     }
   });
 
-  // ── 提取 exe 图标 ──
+  // ── 提取 exe 图标（使用 PowerShell 调用 System.Drawing 提取真实图标）──
   ipcMain.handle('extract-icon', async (event, filePath) => {
     try {
-      const icon = await app.getFileIcon(filePath, { size: 'normal' });
-      return icon.toDataURL();
+      if (!filePath || !fs.existsSync(filePath)) {
+        console.warn('[extract-icon] 文件不存在:', filePath);
+        return null;
+      }
+
+      // 对于 .lnk 快捷方式，先解析目标路径
+      let targetPath = filePath;
+      const fileExt = filePath.split('.').pop().toLowerCase();
+      if (fileExt === 'lnk') {
+        try {
+          // 写临时 ps1 脚本解析 .lnk（避免 $ 被转义问题）
+          const tmpLnk = path.join(app.getPath('temp'), 'astroknot-resolve-lnk.ps1');
+          fs.writeFileSync(tmpLnk, `$sh = New-Object -ComObject WScript.Shell; $lnk = $sh.CreateShortcut($args[0]); Write-Output $lnk.TargetPath`);
+          const resolveResult = require('child_process').execSync(
+            `powershell -NoProfile -NonInteractive -File "${tmpLnk}" "${targetPath}"`,
+            { encoding: 'utf8', timeout: 5000 }
+          ).trim();
+          if (resolveResult && fs.existsSync(resolveResult)) {
+            targetPath = resolveResult;
+          }
+        } catch (e) {
+          console.warn('[extract-icon] 解析 .lnk 失败:', e.message);
+        }
+      }
+
+      // 写临时 ps1 脚本（避免 PowerShell $ 变量被 cmd/shell 转义）
+      const tmpScript = path.join(app.getPath('temp'), 'astroknot-extract-icon.ps1');
+      fs.writeFileSync(tmpScript, [
+        'Add-Type -AssemblyName System.Drawing',
+        '$icon = [System.Drawing.Icon]::ExtractAssociatedIcon($args[0])',
+        'if ($icon -ne $null) {',
+        '  $bmp = New-Object System.Drawing.Bitmap(256, 256)',
+        '  $g = [System.Drawing.Graphics]::FromImage($bmp)',
+        '  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic',
+        '  $rect = New-Object System.Drawing.Rectangle(0, 0, 256, 256)',
+        '  $g.DrawIcon($icon, $rect)',
+        '  $g.Dispose()',
+        '  $ms = New-Object System.IO.MemoryStream',
+        '  $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)',
+        '  $bmp.Dispose()',
+        '  $icon.Dispose()',
+        '  [Convert]::ToBase64String($ms.ToArray())',
+        '} else { Write-Output "" }',
+      ].join('\r\n'));
+
+      const base64 = require('child_process').execSync(
+        `powershell -NoProfile -NonInteractive -File "${tmpScript}" "${targetPath}"`,
+        { encoding: 'utf8', timeout: 10000 }
+      ).trim();
+
+      if (base64 && base64.length > 100) {
+        const dataUri = 'data:image/png;base64,' + base64;
+        console.log('[extract-icon] 成功:', filePath, '→', targetPath, '大小:', dataUri.length);
+        return dataUri;
+      }
+
+      // 回退: Electron app.getFileIcon
+      console.warn('[extract-icon] PowerShell 返回空，回退 Electron API:', filePath);
+      const icon = await app.getFileIcon(filePath, { size: 'large' });
+      const dataUri = icon.toDataURL();
+      return dataUri.length > 100 ? dataUri : null;
     } catch (err) {
-      console.error('[extract-icon] 错误:', err);
-      return null;
+      console.error('[extract-icon] 错误:', err.message);
+      // 回退: Electron app.getFileIcon
+      try {
+        const icon = await app.getFileIcon(filePath, { size: 'large' });
+        const dataUri = icon.toDataURL();
+        return dataUri.length > 100 ? dataUri : null;
+      } catch (e2) {
+        return null;
+      }
     }
   });
 

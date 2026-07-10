@@ -253,6 +253,7 @@ function placeNodeIn2D(newId, parentId, offsetX, offsetY) {
  * 创建节点并添加到项目和场景
  */
 export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType, isStepFlow, parentId, offsetX, offsetY, asNextStep }) {
+  let createdNode = null;
   const doAdd = withHistory(function () {
     const parentNode = parentId ? appState.nodeMap.get(parentId) : appState.methodsTree;
     if (!parentNode) return;
@@ -308,12 +309,55 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
       if (appState.refreshTreePanel) appState.refreshTreePanel();
     }
     if (appState.is2DView && appState.refresh2DView) appState.refresh2DView();
+
+    createdNode = newNode;
   });
   doAdd();
+  return createdNode;
 }
 
 /**
- * 计算子节点的序号名称
+ * 计算全局根节点的序号名称（根节点1、根节点2...）
+ */
+export function getNextRootName() {
+  const roots = appState.methodsTree?.children || [];
+  let maxNum = 0;
+  roots.forEach(root => {
+    const match = root.name.match(/^根节点(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  });
+  return '根节点' + (maxNum + 1);
+}
+
+/**
+ * 计算全局子节点的序号名称（子节点1、子节点2...）
+ * 遍历整个树的所有节点，找到所有子节点（非根节点）的最大序号
+ */
+export function getNextGlobalChildName() {
+  let maxNum = 0;
+  const roots = appState.methodsTree?.children || [];
+  
+  function walkChildren(node) {
+    if (!node.children) return;
+    node.children.forEach(child => {
+      const match = child.name.match(/^子节点(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+      walkChildren(child);
+    });
+  }
+  
+  roots.forEach(root => walkChildren(root));
+  return '子节点' + (maxNum + 1);
+}
+
+/**
+ * 计算子节点的序号名称（仅用于特殊场景，如步骤节点）
  */
 export function getNextChildName(parentNode, pattern, prefix, startIndex) {
   const children = parentNode.children || [];
@@ -367,7 +411,7 @@ export function initMoveMode() {
   // ---- 空白处右键菜单：添加根节点按钮 ----
   const addRootBtn = document.getElementById('addRootNodeBtn');
   if (addRootBtn) {
-    addRootBtn.addEventListener('click', () => createNodeInProject({ name: '新根节点', desc: '📖 顶层节点', sizeScale: 1.5 }));
+    addRootBtn.addEventListener('click', () => createNodeInProject({ name: getNextRootName(), desc: '📖 顶层节点', sizeScale: 1.5 }));
   }
 
   const addStepRootBtn = document.getElementById('addStepRootNodeBtn');
@@ -445,7 +489,7 @@ export function initMoveMode() {
     const parentId = appState.contextTargetId;
     const parentNode = appState.nodeMap.get(parentId);
     if (!parentNode) return;
-    const childName = getNextChildName(parentNode, /^子节点(\d+)$/, '子节点');
+    const childName = getNextGlobalChildName();
     createNodeInProject({
       name: childName, desc: '📖 自定义节点', sizeScale: 1.0,
       parentId, offsetX: 160, offsetY: 10

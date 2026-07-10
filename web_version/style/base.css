@@ -147,6 +147,42 @@ body {
     user-select: none;
     border-bottom: 1px solid rgba(0, 255, 255, 0.1);
 }
+/* 标题栏七彩流光动画（与任务栏同步） */
+#appTitleBar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(90deg,
+        rgba(255, 0, 128, 0.12) 0%,
+        rgba(255, 165, 0, 0.12) 14.28%,
+        rgba(255, 255, 0, 0.08) 28.57%,
+        rgba(0, 255, 128, 0.12) 42.85%,
+        rgba(0, 200, 255, 0.12) 57.14%,
+        rgba(100, 100, 255, 0.12) 71.42%,
+        rgba(200, 0, 255, 0.12) 85.71%,
+        rgba(255, 0, 128, 0.12) 100%
+    );
+    background-size: 200% 100%;
+    animation: titlebarRainbowFlow 8s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+@keyframes titlebarRainbowFlow {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+}
+/* 确保标题栏内容在流光底纹之上 */
+#appTitleBar > * {
+    position: relative;
+    z-index: 1;
+}
+/* 关闭流光时隐藏标题栏伪元素 */
+#appTitleBar.no-rainbow::before {
+    display: none;
+}
 /* 全屏时隐藏自定义标题栏 */
 #appTitleBar.fullscreen-hidden {
     display: none;

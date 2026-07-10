@@ -11,8 +11,8 @@
     border-right: 1px solid var(--panel-border);
     border-radius: 0 12px 12px 0;
     padding: 8px;
-    min-width: 180px;
-    max-width: 240px;
+    min-width: 380px;
+    max-width: 480px;
     z-index: 9998;
     box-shadow: 4px 0 24px rgba(0,0,0,0.25);
     opacity: 0;
@@ -328,6 +328,294 @@
     word-break: break-all;
 }
 
+/* ===== 双列布局（快捷启动 + 应用库） ===== */
+.dock-panel-body {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* 左列：快捷启动项 */
+.dock-panel-body > .dock-panel-items {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 右列：应用库 */
+.dock-app-column {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--panel-border);
+    padding-left: 6px;
+    min-width: 160px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.dock-app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 2px 8px 2px;
+    border-bottom: 1px solid var(--panel-border);
+    margin-bottom: 4px;
+}
+
+.dock-app-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.3px;
+}
+
+.dock-app-add-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    transition: all 0.15s;
+}
+.dock-app-add-btn:hover {
+    background: rgba(79,195,247,0.1);
+    border-color: var(--panel-border);
+    color: var(--text-primary);
+}
+
+.dock-app-items {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dock-app-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+    user-select: none;
+}
+.dock-app-item:hover {
+    background: rgba(255,255,255,0.06);
+}
+.dock-app-item.selected {
+    background: rgba(79,195,247,0.12);
+}
+
+.dock-app-item .dock-app-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.dock-app-item .dock-app-label {
+    font-size: 12px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.dock-app-rename-input {
+    background: var(--input-bg, rgba(255,255,255,0.1));
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    padding: 1px 4px;
+    outline: none;
+    flex: 1;
+    min-width: 40px;
+}
+
+.dock-app-empty {
+    padding: 12px 6px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+/* ===== 应用运行模态框 ===== */
+.app-runner-content {
+    width: 80vw;
+    height: 85vh;
+    max-width: none;
+}
+.app-runner-body {
+    flex: 1;
+    overflow: hidden;
+    background: #0d1b23;
+    display: flex;
+}
+.app-runner-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #fff;
+    flex: 1;
+}
+
+/* ===== 应用导入进度弹窗 ===== */
+.app-import-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.app-import-dialog {
+    background: #0d1b23;
+    border: 1px solid #1a3a4a;
+    border-radius: 12px;
+    width: 460px;
+    max-width: 90vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.app-import-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1a3a4a;
+    font-size: 14px;
+    color: #eef;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.app-import-body {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+.app-import-input-group {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+.app-import-input-group input {
+    flex: 1;
+    background: #0a151d;
+    border: 1px solid #1a3a4a;
+    color: #eef;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+}
+.app-import-input-group input:focus { border-color: #00e5ff; }
+.app-import-input-group button {
+    background: #0a3a4a;
+    border: none;
+    color: #aef;
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s;
+}
+.app-import-input-group button:hover { background: #1a5a6a; }
+.app-import-input-group button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.app-import-repo-info {
+    background: #0a151d;
+    border: 1px solid #1a3a4a;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    display: none;
+}
+.app-import-repo-info.visible { display: block; }
+.app-import-repo-info .repo-name { font-size: 14px; color: #eef; font-weight: 600; margin-bottom: 4px; }
+.app-import-repo-info .repo-meta { font-size: 11px; color: #8aa; line-height: 1.6; }
+.app-import-repo-info .repo-error { font-size: 12px; color: #ff6666; line-height: 1.6; }
+
+.app-import-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.app-import-actions button {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+}
+.app-import-btn-primary {
+    background: #00b8d4;
+    color: #fff;
+}
+.app-import-btn-primary:hover { background: #00e5ff; }
+.app-import-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.app-import-btn-secondary {
+    background: #1a3a4a;
+    color: #aef;
+}
+.app-import-btn-secondary:hover { background: #2a5a6a; }
+
+.app-import-progress {
+    margin-bottom: 8px;
+    display: none;
+}
+.app-import-progress.visible { display: block; }
+.app-import-progress-bar {
+    height: 6px;
+    background: #0a151d;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.app-import-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00b8d4, #00e5ff);
+    width: 0%;
+    transition: width 0.2s ease;
+    border-radius: 3px;
+}
+.app-import-progress-text {
+    font-size: 11px;
+    color: #8aa;
+    text-align: center;
+}
+
+.app-import-log {
+    background: #050a0e;
+    border: 1px solid #1a3a4a;
+    border-radius: 6px;
+    padding: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    display: none;
+}
+.app-import-log.visible { display: block; }
+.app-import-log-line { padding: 1px 0; word-break: break-all; }
+.app-import-log-info { color: #8aa; }
+.app-import-log-ok { color: #6f6; }
+.app-import-log-warn { color: #ff6; }
+.app-import-log-error { color: #f88; }
+
 .dock-props-close {
     margin-top: 16px;
     width: 100%;
@@ -343,4 +631,117 @@
 
 .dock-props-close:hover {
     background: var(--btn-hover);
+}
+
+/* ── 禁用的菜单项 ── */
+.dock-context-item.disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+}
+
+/* ── 应用拖拽排序视觉反馈 ── */
+.dock-app-item.dragging {
+    opacity: 0.3;
+}
+.dock-app-item.drag-over-top {
+    border-top: 2px solid var(--accent, #0ff);
+    padding-top: 4px;
+}
+.dock-app-item.drag-over-bottom {
+    border-bottom: 2px solid var(--accent, #0ff);
+    padding-bottom: 4px;
+}
+
+/* ── 属性弹窗 ── */
+.app-props-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    z-index: 31000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.app-props-dialog {
+    background: var(--panel-bg, #0d1b23);
+    border: 1px solid var(--panel-border, #1a3a4a);
+    border-radius: 10px;
+    min-width: 400px;
+    max-width: 500px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 255, 0.1);
+}
+.app-props-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 0 16px;
+    height: 44px;
+    background: var(--header-bg, rgba(10, 26, 36, 0.8));
+    border-bottom: 1px solid var(--panel-border, #1a3a4a);
+    flex-shrink: 0;
+}
+.app-props-title {
+    font-size: 13px;
+    color: var(--text-primary, #e0f0ff);
+    font-weight: 500;
+}
+.app-props-close {
+    height: 100%;
+    min-width: 46px;
+}
+.app-props-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+.app-props-row {
+    display: flex;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    gap: 12px;
+}
+.app-props-row:last-child {
+    border-bottom: none;
+}
+.app-props-label {
+    flex-shrink: 0;
+    width: 70px;
+    color: var(--text-muted, #5a7a8a);
+    font-size: 12px;
+}
+.app-props-value {
+    color: var(--text-primary, #e0f0ff);
+    font-size: 12px;
+    word-break: break-all;
+    flex: 1;
+}
+.app-props-desc .app-props-value {
+    color: var(--text-secondary, #8aa);
+    line-height: 1.5;
+}
+.app-props-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--panel-border, #1a3a4a);
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+.app-props-btn-ok {
+    padding: 6px 24px;
+    background: rgba(0, 120, 160, 0.5);
+    color: #cff;
+    border: 1px solid rgba(0, 200, 255, 0.4);
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.app-props-btn-ok:hover {
+    background: rgba(0, 160, 200, 0.6);
 }

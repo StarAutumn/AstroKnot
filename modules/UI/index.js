@@ -9,4 +9,4 @@ export { bindSearch, bindGlobalSearch } from './Search.js';
 export { bindResize } from './Resize.js';
 export { bindToolbarButtons } from './Toolbar.js';
 export { initAIFloatingDialog } from './AiDialog.js';
-export { initTaskbarClock } from './calendar/index.js';
+export { initTaskbarClock } from '../calendar/index.js';

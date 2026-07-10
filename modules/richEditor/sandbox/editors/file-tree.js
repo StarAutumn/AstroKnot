@@ -609,6 +609,15 @@ export class FileTreeComponent {
       if (window.showToast) window.showToast('未找到当前节点');
       return;
     }
+
+    // 获取节点对象
+    const node = window.appState?.nodeMap?.get(nodeId);
+    if (!node) {
+      console.warn('[FileTree] 未找到节点:', nodeId);
+      if (window.showToast) window.showToast('未找到节点对象');
+      return;
+    }
+
     // 获取项目文件夹路径
     const proj = window.appState?.projects?.find(p => p.id === window.appState?.currentProjectId);
     const projectFolderPath = proj?.folderPath;
@@ -617,7 +626,7 @@ export class FileTreeComponent {
       return;
     }
     if (window.api && window.api.showSandboxFileInFolder) {
-      window.api.showSandboxFileInFolder(projectFolderPath, nodeId, path);
+      window.api.showSandboxFileInFolder(projectFolderPath, node, path);
     }
   }
 

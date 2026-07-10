@@ -8,6 +8,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { appState } from './module0_AppState.js';
+import { showToast } from './module5_SelectAndEdit.js';
 
 export function initScene() {
   appState.starGroups = [];
@@ -27,7 +28,34 @@ export function initScene() {
   appState.renderer.domElement.style.position = 'fixed';
   appState.renderer.domElement.style.top = '0px';
   appState.renderer.domElement.style.left = '0px';
+  appState.renderer.domElement.classList.add('three-scene-canvas');
   document.body.appendChild(appState.renderer.domElement);
+
+  // ── 应用拖拽支持：从应用库拖拽到 3D 场景生成节点 ──
+  const canvas = appState.renderer.domElement;
+  canvas.addEventListener('dragover', (e) => {
+    if (e.dataTransfer.types.includes('application/x-astroknot-app')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  });
+  canvas.addEventListener('drop', (e) => {
+    const appId = e.dataTransfer.getData('application/x-astroknot-app');
+    if (!appId) return;
+    e.preventDefault();
+
+    // 通过全局 AppManager 插入节点
+    if (window.AppManager) {
+      window.AppManager.insertAsNode(appId, null).then(node => {
+        if (node) {
+          showToast(`已从应用创建节点: ${node.name}`, 2000);
+        }
+      }).catch(err => {
+        console.error('[3D Scene] 从应用创建节点失败:', err);
+        showToast(`创建失败: ${err.message}`, 3000);
+      });
+    }
+  });
   appState.effectComposer = new EffectComposer(appState.renderer);
   appState.effectComposer.addPass(new RenderPass(appState.scene, appState.camera));
   appState.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.3, 0.4, 0.85);
@@ -43,6 +71,7 @@ export function initScene() {
   appState.labelRenderer.domElement.style.top = '0px';
   appState.labelRenderer.domElement.style.left = '0px';
   appState.labelRenderer.domElement.style.pointerEvents = 'none';
+  appState.labelRenderer.domElement.classList.add('three-scene-canvas');
   document.body.appendChild(appState.labelRenderer.domElement);
 
   appState.controls = new OrbitControls(appState.camera, appState.renderer.domElement);

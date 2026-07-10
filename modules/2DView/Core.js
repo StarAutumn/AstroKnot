@@ -6,6 +6,7 @@
 import { appState } from '../module0_AppState.js';
 import { updateLinesVis } from '../VisualComponents/index.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { showToast } from '../module5_SelectAndEdit.js';
 import {
   initCanvas, canvas, ctx, container, visible, setVisible,
   transform, setTransform, TRANSITION_DURATION,
@@ -30,6 +31,42 @@ export function init2DView() {
 
   // 注册交互事件（由 Interaction.js 负责）
   initInteractionEvents();
+
+  // ── 应用拖拽支持：从应用库拖拽到 2D 画布生成节点 ──
+  cv.addEventListener('dragover', (e) => {
+    if (e.dataTransfer.types.includes('application/x-astroknot-app')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  });
+  cv.addEventListener('drop', (e) => {
+    const appId = e.dataTransfer.getData('application/x-astroknot-app');
+    if (!appId) return;
+    e.preventDefault();
+
+    // 计算 2D 世界坐标（与 placeNodeIn2D 中的公式一致）
+    const rect = cv.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const tf = appState.view2DTransform;
+    const wx = (cx - cv.width / 2 - tf.offsetX) / tf.scale;
+    const wy = (cy - cv.height / 2 - tf.offsetY) / tf.scale;
+
+    // 设置侧边栏世界坐标，让 createNodeInProject → placeNodeIn2D 使用此位置
+    appState._isSidebarContextMenu = true;
+    appState._sidebarWorldPos = { x: wx, y: wy };
+
+    if (window.AppManager) {
+      window.AppManager.insertAsNode(appId, null).then(node => {
+        if (node) {
+          showToast(`已从应用创建节点: ${node.name}`, 2000);
+        }
+      }).catch(err => {
+        console.error('[2D View] 从应用创建节点失败:', err);
+        showToast(`创建失败: ${err.message}`, 3000);
+      });
+    }
+  });
 
   // 挂载 appState 回调
   appState.refresh2DView = refresh2DView;

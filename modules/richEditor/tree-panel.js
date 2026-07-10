@@ -2,6 +2,7 @@ import { appState } from '../module0_AppState.js';
 import { setSelectedNode, clearSelected } from '../module5_SelectAndEdit.js';
 import { openRichEditor } from './index.js';
 import { showContextMenu, hideContextMenu, showBlankContextMenu, hideBlankContextMenu } from '../module8_ContextMenu.js';
+import { showToast } from '../module5_SelectAndEdit.js';
 import {
   layoutTree, assignCoordinates, extractNodePositions,
   resolveNodeOverlaps, resolveNodeLineOverlaps,
@@ -144,7 +145,14 @@ export function initSidebar2DViewForTarget(containerId, canvasId) {
       worldPos.x >= area.x && worldPos.x <= area.x + area.width &&
       worldPos.y >= area.y && worldPos.y <= area.y + area.height
     );
-    if (hit?.id) openRichEditor(hit.id);
+    if (hit?.id) {
+      // 如果双击的是当前正在编辑的节点，弹出提示而非重新打开
+      if (hit.id === appState.currentEditNodeId) {
+        showToast('该节点已在编辑中');
+        return;
+      }
+      openRichEditor(hit.id);
+    }
   });
 
   canvas.addEventListener('contextmenu', (e) => {
@@ -229,7 +237,7 @@ function canvasToWorld(canvasX, canvasY, s) {
 }
 
 // ── 绘制基础元素 ──
-function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted = false, connected = false, connectedStep = false) {
+function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted = false, connected = false, connectedStep = false, isCurrentlyEditing = false) {
   const scale = node.sizeScale || 1;
   const w = BASE_NODE_WIDTH * scale;
   const h = BASE_NODE_HEIGHT * scale;
@@ -260,7 +268,15 @@ function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted
   ctx.globalAlpha = alpha;
   ctx.translate(x, y);
 
-  if (selected) {
+  if (isCurrentlyEditing) {
+    // 当前正在编辑的节点：绿色背景，持续高亮
+    const pulse = 0.6 + 0.4 * Math.sin(performance.now() * 0.003);
+    ctx.shadowColor = '#00cc66';
+    ctx.shadowBlur = 10 + pulse * 6;
+    ctx.fillStyle = '#0a3a1a';
+    ctx.strokeStyle = '#00cc66';
+    ctx.lineWidth = 2.5;
+  } else if (selected) {
     // 选中节点保持金色高亮，不被 connected 覆盖
     ctx.fillStyle = '#FFD700';
     ctx.strokeStyle = borderColor;
@@ -298,9 +314,9 @@ function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted
     const gap = 3 + breath * 4;
     const outerAlpha = 0.6 + breath * 0.4;
     ctx.globalAlpha = alpha * outerAlpha;
-    ctx.strokeStyle = borderColor;
+    ctx.strokeStyle = isCurrentlyEditing ? '#00cc66' : borderColor;
     ctx.lineWidth = 3;
-    ctx.shadowColor = borderColor;
+    ctx.shadowColor = isCurrentlyEditing ? '#00cc66' : borderColor;
     ctx.shadowBlur = 4 + breath * 6;
     drawSidebarNodeShape(ctx, -gap, -gap, w + gap * 2, h + gap * 2, shape, scale + gap / Math.max(w, h));
     ctx.stroke();
@@ -310,7 +326,7 @@ function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted
 
   ctx.shadowColor = 'transparent';
   ctx.shadowBlur = 0;
-  ctx.fillStyle = selected ? '#000' : highlighted ? '#00ffff' : connectedStep ? '#CCAAFF' : connected ? '#00ffff' : '#c0f0ff';
+  ctx.fillStyle = isCurrentlyEditing ? '#00ff88' : selected ? '#000' : highlighted ? '#00ffff' : connectedStep ? '#CCAAFF' : connected ? '#00ffff' : '#c0f0ff';
   ctx.font = `${fontSize}px system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -549,6 +565,7 @@ function drawSidebarTreeRecursive(layout, positionMap, s, parentCollapsedProgres
   const isHighlighted = nodeId === s.highlightedNodeId;
   const isConnected = nodeId && appState.connectedNodeIds && appState.connectedNodeIds.has(nodeId);
   const isConnectedStep = nodeId && appState.connectedStepNodeIds && appState.connectedStepNodeIds.has(nodeId);
+  const isCurrentlyEditing = nodeId === appState.currentEditNodeId;
   const pos = positionMap.get(nodeId);
 
   // 图层过滤：不在当前图层的节点降低透明度
@@ -557,7 +574,7 @@ function drawSidebarTreeRecursive(layout, positionMap, s, parentCollapsedProgres
   if (pos && !isRoot && inLayer) {
     let nodeAlpha = 1;
     if (parentCollapsedProgress !== null) nodeAlpha = parentCollapsedProgress;
-    drawSidebarNode(pos.x, pos.y, node, s, isSelected, nodeAlpha, isHighlighted, isConnected, isConnectedStep);
+    drawSidebarNode(pos.x, pos.y, node, s, isSelected, nodeAlpha, isHighlighted, isConnected, isConnectedStep, isCurrentlyEditing);
   }
 
   const isCurrentlyCollapsed = appState.collapsed2D.has(nodeId);
@@ -923,7 +940,10 @@ export function centerOnNode(nodeId) {
   const scale = node?.sizeScale || 1;
   const nodeCX = pos.x + BASE_NODE_WIDTH * scale / 2;
   const nodeCY = pos.y + BASE_NODE_HEIGHT * scale / 2;
-  s.highlightedNodeId = nodeId;
+  // 如果是当前正在编辑的节点，不设置 highlightedNodeId（已有绿色高亮）
+  if (nodeId !== appState.currentEditNodeId) {
+    s.highlightedNodeId = nodeId;
+  }
   s.transform.offsetX = -nodeCX * s.transform.scale;
   s.transform.offsetY = -nodeCY * s.transform.scale;
   drawSidebar2D(s);

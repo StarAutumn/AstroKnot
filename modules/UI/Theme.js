@@ -319,6 +319,8 @@ export function applyUIMode(mode) {
     document.body.classList.add('no-header-circuit', 'no-header-circuit-anim');
     const tb = document.getElementById('taskbar');
     if (tb) tb.classList.add('no-rainbow');
+    const ab = document.getElementById('appTitleBar');
+    if (ab) ab.classList.add('no-rainbow');
     // 农历/天气弹窗：反色滤镜会自动处理，清除内联样式让滤镜生效
     ['lunarPopup', 'weatherPopup'].forEach(id => {
       const p = document.getElementById(id);
@@ -335,6 +337,8 @@ export function applyUIMode(mode) {
     document.body.classList.toggle('no-header-circuit-anim', appState.headerCircuitAnim === false);
     const tb = document.getElementById('taskbar');
     if (tb) tb.classList.toggle('no-rainbow', appState.taskbarRainbow === false);
+    const ab = document.getElementById('appTitleBar');
+    if (ab) ab.classList.toggle('no-rainbow', appState.taskbarRainbow === false);
     // 恢复弹窗内联样式
     ['lunarPopup', 'weatherPopup'].forEach(id => {
       const p = document.getElementById(id);
