@@ -1,0 +1,205 @@
+/* ============================================================
+   trash/trash.css — 回收站应用样式
+   风格与文件管理器保持一致：深色背景 + 青色点缀
+   恢复按钮绿色调，永久删除/清空按钮红色调
+   ============================================================ */
+
+/* ── 整体容器 ── */
+.trash-app-content {
+  display: flex;
+  flex-direction: column;
+  width: 90vw;
+  height: 90vh;
+  max-width: none;
+  overflow: hidden;
+}
+
+/* ── 工具栏 ── */
+.trash-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(15, 25, 40, 0.95);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.trash-toolbar-left,
+.trash-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 计数标签 */
+.trash-count {
+  font-size: 12px;
+  color: #7ad;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0, 255, 255, 0.06);
+}
+
+/* ── 通用按钮（仿 .fm-btn）── */
+.trash-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  border-radius: 6px;
+  background: transparent;
+  color: #9cd;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.trash-btn:hover {
+  background: rgba(0, 255, 255, 0.1);
+  color: #eef;
+  border-color: rgba(0, 255, 255, 0.4);
+}
+.trash-btn:active {
+  background: rgba(0, 255, 255, 0.18);
+}
+
+/* 危险按钮（清空回收站）*/
+.trash-btn-danger {
+  border-color: rgba(255, 90, 90, 0.3);
+  color: #f9a;
+}
+.trash-btn-danger:hover {
+  background: rgba(255, 90, 90, 0.15);
+  color: #fcc;
+  border-color: rgba(255, 90, 90, 0.6);
+}
+
+/* 恢复按钮（绿色调）*/
+.trash-btn-restore {
+  border-color: rgba(90, 230, 140, 0.3);
+  color: #8e8;
+}
+.trash-btn-restore:hover {
+  background: rgba(90, 230, 140, 0.15);
+  color: #cfc;
+  border-color: rgba(90, 230, 140, 0.6);
+}
+
+/* 永久删除按钮（红色调）*/
+.trash-btn-delete {
+  border-color: rgba(255, 90, 90, 0.3);
+  color: #f9a;
+}
+.trash-btn-delete:hover {
+  background: rgba(255, 90, 90, 0.15);
+  color: #fcc;
+  border-color: rgba(255, 90, 90, 0.6);
+}
+
+/* ── 列表区 ── */
+.trash-list-wrap {
+  flex: 1;
+  overflow: hidden;
+  background: rgba(8, 14, 24, 0.6);
+}
+
+.trash-list {
+  height: 100%;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 滚动条样式 */
+.trash-list::-webkit-scrollbar {
+  width: 10px;
+}
+.trash-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+.trash-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 255, 0.2);
+  border-radius: 5px;
+}
+.trash-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 255, 0.35);
+}
+
+/* ── 单项卡片 ── */
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(15, 25, 40, 0.6);
+  transition: background 0.15s, border-color 0.15s;
+}
+.trash-item:hover {
+  background: rgba(20, 35, 55, 0.8);
+  border-color: rgba(0, 255, 255, 0.25);
+}
+
+/* 项目信息区 */
+.trash-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.trash-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #eef;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-item-meta {
+  font-size: 11px;
+  color: #789;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 操作按钮区 */
+.trash-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 单项按钮更紧凑 */
+.trash-item-actions .trash-btn {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+/* ── 空状态 ── */
+.trash-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  font-size: 16px;
+  color: #568;
+  text-align: center;
+  user-select: none;
+}
+
+.trash-empty-error {
+  color: #f9a;
+}

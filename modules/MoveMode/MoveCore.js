@@ -149,7 +149,7 @@ function generateNodeId() {
 }
 
 /**
- * 在 3D 场景中根据鼠标位置或随机位置放置节点
+ * 在 3D 场景中根据鼠标位置或径向位置放置节点
  */
 function placeNodeIn3D(newId, basePos) {
   if (appState.layer3DLayout) {
@@ -177,6 +177,7 @@ function placeNodeIn3D(newId, basePos) {
     return;
   }
 
+  // 有右键菜单位置 → 射线投射到场景
   if (lastBlankMenuMouse.x || lastBlankMenuMouse.y) {
     const mouse2 = new THREE.Vector2();
     mouse2.x = (lastBlankMenuMouse.x / window.innerWidth) * 2 - 1;
@@ -207,18 +208,139 @@ function placeNodeIn3D(newId, basePos) {
     }
     appState.positions.set(newId, newPos);
   } else {
-    let existing = Array.from(appState.positions.values());
-    let base = basePos || new THREE.Vector3(0, 0, 0);
-    let newPos = generateRandomPosition(existing, base);
+    // 无右键位置 → 径向放置在父节点周围
+    let newPos = _computeRadialPosition(newId);
     appState.positions.set(newId, newPos);
   }
+}
+
+/**
+ * 计算节点的球面径向位置（3D默认排列）
+ * 根节点在球心，子节点在球面上一级一级向外立体展开
+ */
+function _computeRadialPosition(newId) {
+  const SHELL_RADIUS_BASE = 3.0;
+  const SHELL_RADIUS_STEP = 2.5;
+  const SHELL_RADIUS_ROOT = 1.2;
+
+  const node = appState.nodeMap.get(newId);
+  if (!node) return new THREE.Vector3(0, 0, 0);
+
+  const rootNode = appState.methodsTree;
+  const realRoots = rootNode?.children || [];
+
+  // 判断是否为根节点
+  const isRoot = realRoots.some(r => r && r.id === newId);
+  if (isRoot) {
+    const rootIndex = realRoots.findIndex(r => r && r.id === newId);
+    const rootCount = realRoots.length;
+    if (rootCount === 1) {
+      return new THREE.Vector3(0, 0, 0);
+    }
+    // 多根：斐波那契球面采样
+    const golden = (1 + Math.sqrt(5)) / 2;
+    const i = rootIndex;
+    const theta = Math.acos(1 - 2 * (i + 0.5) / rootCount);
+    const phi = 2 * Math.PI * i / golden;
+    return new THREE.Vector3(
+      Math.sin(theta) * Math.cos(phi) * SHELL_RADIUS_ROOT,
+      Math.cos(theta) * SHELL_RADIUS_ROOT,
+      Math.sin(theta) * Math.sin(phi) * SHELL_RADIUS_ROOT
+    );
+  }
+
+  // 子节点：基于父节点方向在球面上展开
+  const parentNode = _findParentNode(newId);
+  if (parentNode) {
+    const parentPos = appState.positions.get(parentNode.id);
+    if (parentPos) {
+      // 计算父节点方向（避免零向量产生 NaN）
+      let parentDirNorm;
+      if (parentPos.length() > 0.01) {
+        parentDirNorm = parentPos.clone().normalize();
+      } else {
+        // 父在原点：按父节点在兄弟中的序号分配方向
+        const grandParent = _findParentNode(parentNode.id);
+        const parentSiblings = (grandParent?.children || []).filter(c => c && c.id);
+        const parentIdx = parentSiblings.findIndex(c => c.id === parentNode.id);
+        const angle = parentSiblings.length <= 1 ? 0 : (parentIdx / parentSiblings.length) * Math.PI * 2;
+        parentDirNorm = new THREE.Vector3(Math.cos(angle), 0.5, Math.sin(angle)).normalize();
+      }
+      const siblings = (parentNode.children || []).filter(c => c && c.id);
+      const siblingIndex = siblings.findIndex(c => c.id === newId);
+      const siblingCount = siblings.length;
+      const depth = _getNodeDepth(newId);
+      const shellRadius = SHELL_RADIUS_BASE + (depth - 1) * SHELL_RADIUS_STEP;
+
+      // 构建局部坐标系
+      const up = parentDirNorm;
+      let right = new THREE.Vector3(1, 0, 0);
+      if (Math.abs(up.dot(right)) > 0.9) right = new THREE.Vector3(0, 1, 0);
+      right = new THREE.Vector3().crossVectors(up, right).normalize();
+      const forward = new THREE.Vector3().crossVectors(right, up).normalize();
+
+      let childDir;
+      if (siblingCount <= 1) {
+        childDir = parentDirNorm.clone();
+      } else {
+        // 斐波那契螺旋分布在锥体内
+        const coneHalfAngle = Math.PI / 3;
+        const golden = (1 + Math.sqrt(5)) / 2;
+        const i = siblingIndex;
+        const theta = Math.acos(1 - (i + 0.5) / siblingCount * (1 - Math.cos(coneHalfAngle)));
+        const phi = 2 * Math.PI * i / golden;
+        const localX = Math.sin(theta) * Math.cos(phi);
+        const localY = Math.cos(theta);
+        const localZ = Math.sin(theta) * Math.sin(phi);
+        childDir = new THREE.Vector3()
+          .addScaledVector(right, localX)
+          .addScaledVector(up, localY)
+          .addScaledVector(forward, localZ)
+          .normalize();
+      }
+
+      return childDir.multiplyScalar(shellRadius);
+    }
+  }
+
+  // 回退：随机位置
+  return generateRandomPosition(Array.from(appState.positions.values()), new THREE.Vector3(0, 0, 0));
+}
+
+function _findParentNode(nodeId) {
+  const root = appState.methodsTree;
+  const stack = [root];
+  while (stack.length) {
+    const current = stack.pop();
+    if (current.children) {
+      for (const child of current.children) {
+        if (child.id === nodeId) return current;
+        stack.push(child);
+      }
+    }
+  }
+  return null;
+}
+
+function _getNodeDepth(nodeId) {
+  let depth = 0;
+  let currentId = nodeId;
+  const visited = new Set();
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const parent = _findParentNode(currentId);
+    if (!parent || parent.id === appState.methodsTree?.id) break;
+    depth++;
+    currentId = parent.id;
+  }
+  return Math.max(1, depth);
 }
 
 /**
  * 在 2D 场景中放置节点
  */
 function placeNodeIn2D(newId, parentId, offsetX, offsetY) {
-  // 子节点：放在父节点附近（固定偏移）
+  // 子节点：临时放在父节点附近（自动排列会重新计算最终位置）
   if (parentId) {
     let parentPos2d = appState.positions2D.get(parentId);
     if (parentPos2d) {
@@ -310,6 +432,12 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
       if (appState.refreshTreePanel) appState.refreshTreePanel();
     }
     if (appState.is2DView && appState.refresh2DView) appState.refresh2DView();
+
+    // 2D 模式下，创建子节点后自动重排子树，避免重叠
+    if (appState.is2DView && parentId && appState.arrangeSubtreeIncremental) {
+      appState.arrangeSubtreeIncremental(parentId);
+      if (appState.refresh2DView) appState.refresh2DView();
+    }
 
     createdNode = newNode;
   });
@@ -451,6 +579,23 @@ export function initMoveMode() {
       hideBlankContextMenu();
       const glowBtn = document.getElementById('toggleNodeGlowBtn');
       if (glowBtn) glowBtn.click();
+    });
+  }
+
+  // ---- 空白处右键菜单：应用库操作 ----
+  const blankAppImportBtn = document.getElementById('blankAppImportBtn');
+  if (blankAppImportBtn) {
+    blankAppImportBtn.addEventListener('click', () => {
+      hideBlankContextMenu();
+      if (window.AppPanel) window.AppPanel._showImportDialog();
+    });
+  }
+
+  const blankAppExternalBtn = document.getElementById('blankAppExternalBtn');
+  if (blankAppExternalBtn) {
+    blankAppExternalBtn.addEventListener('click', () => {
+      hideBlankContextMenu();
+      if (window.AppPanel) window.AppPanel._addExternalApp();
     });
   }
 

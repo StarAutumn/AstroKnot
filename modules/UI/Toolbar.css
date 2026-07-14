@@ -534,6 +534,11 @@ body.light-mode #taskbar {
     font-size: 14px;
     flex-shrink: 0;
 }
+.taskbar-tab .tab-icon img {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+}
 
 .taskbar-tab .tab-label {
     overflow: hidden;

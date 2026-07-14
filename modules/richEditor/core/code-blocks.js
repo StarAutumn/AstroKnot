@@ -226,6 +226,20 @@ function doLoadViaAMD(_require) {
   };
 
   _require(['vs/editor/editor.main'], function () {
+    // ── 全局捕获 Monaco Canceled 错误 ──
+    // Monaco 编辑器在 dispose() 时会取消正在执行的异步操作（语言服务请求、代码补全等），
+    // 内部 CancellationToken 抛出名为 "Canceled" 的错误。
+    // 这是正常行为，不应作为未处理拒绝抛出到控制台。
+    // 参考：https://github.com/microsoft/monaco-editor/issues/2237
+    if (!window.__monacoCanceledHandlerInstalled) {
+      window.addEventListener('unhandledrejection', function (e) {
+        if (e.reason && (e.reason.name === 'Canceled' || e.reason.message === 'Canceled')) {
+          e.preventDefault(); // 阻止控制台输出 "Uncaught (in promise) Canceled"
+        }
+      });
+      window.__monacoCanceledHandlerInstalled = true;
+    }
+
     // 注册自定义深色主题
     monaco.editor.defineTheme('astroknot-dark', {
       base: 'vs-dark',

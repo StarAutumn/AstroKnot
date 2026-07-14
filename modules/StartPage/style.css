@@ -15,6 +15,23 @@
     isolation: isolate;
 }
 
+/* 自定义背景图片/动图容器 */
+#startPageCustomBg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    pointer-events: none;
+}
+
+/* 自定义背景模式：隐藏渐变动画伪元素和飘带 */
+#startPage.custom-bg-mode::before,
+#startPage.custom-bg-mode::after {
+    display: none;
+}
+
 /* 向上滑动退出动画 */
 #startPage.slide-up-exit {
     transform: translateY(-100vh);

@@ -157,17 +157,132 @@ function compute3DDefaultTargets() {
   appState.layer3DLayout = false;
 
   const targetPositions = new Map();
-  const existing = [];
-  const base = new THREE.Vector3(0, 0, 0);
-  const nodeIds = Array.from(appState.positions.keys()).filter(id => id !== appState.VIRTUAL_ROOT_ID);
-  for (const id of nodeIds) {
-    const pos = generateRandomPosition(existing, base);
-    targetPositions.set(id, pos);
-    existing.push(pos);
+  const rootNode = appState.methodsTree;
+  if (!rootNode || !rootNode.children || rootNode.children.length === 0) {
+    return { targetPositions, deferredEffects: { type: 'default', layerBtnHidden: true } };
+  }
+
+  // ── 球面径向排列：根节点在球心，子节点在球面上一级一级向外立体展开 ──
+  const SHELL_RADIUS_BASE = 3.0;   // 第一层球面半径
+  const SHELL_RADIUS_STEP = 2.5;   // 每级递增半径
+
+  // 1. 计算每个节点的深度
+  const depthMap = new Map();
+  function calcDepth(node, depth) {
+    if (!node || !node.id) return;
+    depthMap.set(node.id, depth);
+    for (const child of (node.children || [])) {
+      calcDepth(child, depth + 1);
+    }
+  }
+  calcDepth(rootNode, 0);
+
+  // 2. 真实根节点（depth=1）：排在球心附近
+  const realRoots = (rootNode.children || []).filter(c => c && c.id);
+  if (realRoots.length === 1) {
+    targetPositions.set(realRoots[0].id, new THREE.Vector3(0, 0, 0));
+  } else if (realRoots.length > 1) {
+    // 多根：在球心附近的小球面上均匀分布（斐波那契球面采样）
+    _distributeOnSphere(realRoots, SHELL_RADIUS_BASE * 0.4, targetPositions);
+  }
+
+  // 3. 递归排列子节点：每个父节点的子节点在父方向外侧的球面上展开
+  function arrangeChildrenSpherical(parentNode, parentDir, availableAngleSpan) {
+    if (!parentNode || !parentNode.children) return;
+    const children = parentNode.children.filter(c => c && c.id);
+    if (children.length === 0) return;
+
+    const parentPos = targetPositions.get(parentNode.id);
+    if (!parentPos) return;
+
+    // 使用传入的父方向（已在外层处理了零向量情况）
+    const parentDirNorm = parentDir.clone().normalize();
+
+    // 子节点所在球面半径
+    const childDepth = depthMap.get(children[0].id) || 2;
+    const shellRadius = SHELL_RADIUS_BASE + (childDepth - 1) * SHELL_RADIUS_STEP;
+
+    // 在父方向周围的球面上分布子节点
+    // 构建局部坐标系：以父方向为"上"方向
+    const up = parentDirNorm;
+    let right = new THREE.Vector3(1, 0, 0);
+    if (Math.abs(up.dot(right)) > 0.9) right = new THREE.Vector3(0, 1, 0);
+    right = new THREE.Vector3().crossVectors(up, right).normalize();
+    const forward = new THREE.Vector3().crossVectors(right, up).normalize();
+
+    // 子节点在父方向锥体内分布
+    const coneHalfAngle = Math.min(availableAngleSpan / 2, Math.PI / 3); // 最大60度半锥角
+    const nChildren = children.length;
+
+    for (let i = 0; i < nChildren; i++) {
+      const child = children[i];
+
+      // 计算子节点在锥体内的方向
+      let childDir;
+      if (nChildren === 1) {
+        childDir = parentDirNorm.clone();
+      } else {
+        // 斐波那契螺旋分布在锥体内
+        const golden = (1 + Math.sqrt(5)) / 2;
+        const theta = Math.acos(1 - (i + 0.5) / nChildren * (1 - Math.cos(coneHalfAngle)));
+        const phi = 2 * Math.PI * i / golden;
+
+        // 球坐标转局部笛卡尔
+        const localX = Math.sin(theta) * Math.cos(phi);
+        const localY = Math.cos(theta);  // 沿父方向
+        const localZ = Math.sin(theta) * Math.sin(phi);
+
+        childDir = new THREE.Vector3()
+          .addScaledVector(right, localX)
+          .addScaledVector(up, localY)
+          .addScaledVector(forward, localZ)
+          .normalize();
+      }
+
+      // 子节点位置 = 方向 × 球面半径
+      targetPositions.set(child.id, childDir.multiplyScalar(shellRadius));
+
+      // 递归：子节点扇区缩小
+      const subSpan = availableAngleSpan / Math.max(nChildren, 1);
+      arrangeChildrenSpherical(child, childDir.clone().normalize(), subSpan);
+    }
+  }
+
+  // 每个真实根节点的子节点分配等分扇区
+  for (let ri = 0; ri < realRoots.length; ri++) {
+    const rootId = realRoots[ri].id;
+    const rootPos = targetPositions.get(rootId);
+    // 计算根节点的方向向量（避免原点归零产生 NaN）
+    let rootDir;
+    if (rootPos && rootPos.length() > 0.01) {
+      rootDir = rootPos.clone().normalize();
+    } else {
+      // 根在原点：按序号分配均匀方向
+      const angle = realRoots.length === 1 ? 0 : (ri / realRoots.length) * Math.PI * 2;
+      rootDir = new THREE.Vector3(Math.cos(angle), 0.5, Math.sin(angle)).normalize();
+    }
+    const rootSpan = (Math.PI * 2) / realRoots.length;
+    const rootNodeObj = appState.nodeMap.get(rootId);
+    arrangeChildrenSpherical(rootNodeObj, rootDir, rootSpan);
   }
 
   const deferredEffects = { type: 'default', layerBtnHidden: true };
   return { targetPositions, deferredEffects };
+}
+
+// 斐波那契球面均匀采样
+function _distributeOnSphere(nodes, radius, positionMap) {
+  const n = nodes.length;
+  const golden = (1 + Math.sqrt(5)) / 2;
+  for (let i = 0; i < n; i++) {
+    const theta = Math.acos(1 - 2 * (i + 0.5) / n);
+    const phi = 2 * Math.PI * i / golden;
+    positionMap.set(nodes[i].id, new THREE.Vector3(
+      Math.sin(theta) * Math.cos(phi) * radius,
+      Math.cos(theta) * radius,
+      Math.sin(theta) * Math.sin(phi) * radius
+    ));
+  }
 }
 
 // ============================================================

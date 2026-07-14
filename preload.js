@@ -39,6 +39,12 @@ contextBridge.exposeInMainWorld('api', {
   // 选择加载文件夹
   selectFolderForLoad: () => ipcRenderer.invoke('select-folder-for-load'),
 
+  // 选择背景图片文件（图片/动图）
+  selectImageFile: () => ipcRenderer.invoke('select-image-file'),
+
+  // 选择外部程序（exe/lnk 等）
+  selectExternalApp: () => ipcRenderer.invoke('select-external-app'),
+
   // 导入 Markdown 文件
   readMarkdownFile: () => ipcRenderer.invoke('read-markdown-file'),
   
@@ -93,6 +99,20 @@ contextBridge.exposeInMainWorld('api', {
   deleteProjectFolder: (projectFolderPath) => ipcRenderer.invoke('delete-project-folder', projectFolderPath),
   // 删除未保存项目的临时文件夹（sandbox-tmp/{projectId}）
   deleteSandboxTmpFolder: (projectId) => ipcRenderer.invoke('delete-sandbox-tmp-folder', projectId),
+
+  // ── 回收站 ──
+  // 移动项目到回收站（payload: { folderPath, projectId, projectName, projectData }）
+  moveProjectToTrash: (payload) => ipcRenderer.invoke('move-project-to-trash', payload),
+  // 列出回收站内容（返回 { items: [...] }）
+  listTrash: () => ipcRenderer.invoke('list-trash'),
+  // 从回收站恢复项目（payload: { trashPath } → { folderPath, projectName }）
+  restoreFromTrash: (payload) => ipcRenderer.invoke('restore-from-trash', payload),
+  // 无弹窗读取项目数据（供恢复后加载数据）
+  readProjectFromFolder: (folderPath) => ipcRenderer.invoke('read-project-from-folder', folderPath),
+  // 永久删除回收站中的单个项目（payload: { trashPath }）
+  permanentlyDeleteTrashItem: (payload) => ipcRenderer.invoke('permanently-delete-trash-item', payload),
+  // 清空回收站
+  emptyTrash: () => ipcRenderer.invoke('empty-trash'),
 
   // 另存为项目（复制项目文件夹到新位置）
   saveProjectAs: (sourcePath, projectName) => ipcRenderer.invoke('save-project-as', sourcePath, projectName),
@@ -176,11 +196,67 @@ contextBridge.exposeInMainWorld('api', {
   versionListGraphs: () => ipcRenderer.invoke('version-list-graphs'),
   versionDeleteGraph: (versionKey) => ipcRenderer.invoke('version-delete-graph', versionKey),
 
+  // ── 内置浏览器：主进程拦截弹出窗口后通知渲染进程新建标签页 ──
+  onBrowserOpenTab: (callback) => {
+    ipcRenderer.on('browser-open-tab', (_event, url) => callback(url));
+  },
+  // 内置浏览器：监听下载进度更新
+  onBrowserDownloadUpdate: (callback) => {
+    ipcRenderer.on('browser-download-update', (_event, data) => callback(data));
+  },
+  // 内置浏览器：清除隐私模式数据
+  browserClearPrivateData: () => ipcRenderer.invoke('browser-clear-private-data'),
+  // 内置浏览器：Cookies 管理
+  browserGetCookies: (partition) => ipcRenderer.invoke('browser-get-cookies', partition),
+  browserDeleteCookie: (partition, url, name) => ipcRenderer.invoke('browser-delete-cookie', { partition, url, name }),
+  browserClearCookies: (partition) => ipcRenderer.invoke('browser-clear-cookies', partition),
+  // 内置浏览器：网页截图保存
+  browserSaveScreenshot: (dataUrl, filename) => ipcRenderer.invoke('browser-save-screenshot', { dataUrl, filename }),
+  // 内置浏览器：DevTools 侧边栏
+  browserAttachDevTools: (targetId) => ipcRenderer.invoke('browser-attach-devtools', { targetId }),
+  browserUpdateDevToolsBounds: (left, top, width, height) => ipcRenderer.invoke('browser-update-devtools-bounds', { left, top, width, height }),
+  browserCloseDevTools: (targetId) => ipcRenderer.invoke('browser-close-devtools', { targetId }),
+  onBrowserDevToolsBoundsChanged: (callback) => {
+    ipcRenderer.on('browser-devtools-bounds-changed', () => callback());
+  },
+  removeBrowserDevToolsBoundsChanged: () => {
+    ipcRenderer.removeAllListeners('browser-devtools-bounds-changed');
+  },
+
   // ── 数据目录配置 ──
   getDataSettings: () => ipcRenderer.invoke('get-data-settings'),
   setDataRoot: (dataRoot) => ipcRenderer.invoke('set-data-root', dataRoot),
   getDefaultDataRoot: () => ipcRenderer.invoke('get-default-data-root'),
   selectDataFolder: () => ipcRenderer.invoke('select-data-folder'),
   getProjectsDir: () => ipcRenderer.invoke('get-projects-dir'),
-  getQuicknotesDir: () => ipcRenderer.invoke('get-quicknotes-dir')
+  getQuicknotesDir: () => ipcRenderer.invoke('get-quicknotes-dir'),
+
+  // ── 系统偏好设置文件化 ──
+  // 同步读取 preferences.json（启动引导用）
+  readPreferencesSync: () => ipcRenderer.sendSync('read-preferences-sync'),
+  // 异步写入 preferences.json（防抖落盘用）
+  writePreferences: (data) => ipcRenderer.invoke('write-preferences', data),
+  // 同步写入 preferences.json（退出落盘用）
+  flushPreferencesSync: (data) => ipcRenderer.sendSync('flush-preferences-sync', data),
+
+  // ── 文件管理器（仅限 AstroKnot-Data 目录）──
+  fmReadDirTree: () => ipcRenderer.invoke('fm-read-dir-tree'),
+  fmReadDir: (relPath) => ipcRenderer.invoke('fm-read-dir', relPath),
+  fmReadFile: (relPath) => ipcRenderer.invoke('fm-read-file', relPath),
+  fmCreateItem: (relDir, name, itemType) => ipcRenderer.invoke('fm-create-item', relDir, name, itemType),
+  fmDeleteItem: (relPath) => ipcRenderer.invoke('fm-delete-item', relPath),
+  fmRenameItem: (relPath, newName) => ipcRenderer.invoke('fm-rename-item', relPath, newName),
+  fmCopyItem: (srcRelPath, destRelDir, destName, isMove) => ipcRenderer.invoke('fm-copy-item', srcRelPath, destRelDir, destName, isMove),
+
+  // ── IDE 真实文件系统（无路径限制）──
+  ideSelectFolder: () => ipcRenderer.invoke('ide-select-folder'),
+  ideReadDirTree: (dirPath) => ipcRenderer.invoke('ide-read-dir-tree', dirPath),
+  ideReadDir: (dirPath) => ipcRenderer.invoke('ide-read-dir', dirPath),
+  ideReadFile: (filePath) => ipcRenderer.invoke('ide-read-file', filePath),
+  ideWriteFile: (filePath, content) => ipcRenderer.invoke('ide-write-file', filePath, content),
+  ideCreateItem: (dirPath, name, itemType) => ipcRenderer.invoke('ide-create-item', dirPath, name, itemType),
+  ideDeleteItem: (filePath) => ipcRenderer.invoke('ide-delete-item', filePath),
+  ideRenameItem: (filePath, newName) => ipcRenderer.invoke('ide-rename-item', filePath, newName),
+  ideGetNodeSandboxPath: (node, projectFolderPath) => ipcRenderer.invoke('ide-get-node-sandbox-path', node, projectFolderPath),
+  ideSyncSandboxToNode: (sandboxDir) => ipcRenderer.invoke('ide-sync-sandbox-to-node', sandboxDir),
 });

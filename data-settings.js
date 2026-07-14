@@ -31,7 +31,8 @@ const SUBDIR_NAMES = {
   system: 'system',           // 系统数据（替代 C:\Users\...\AppData\Roaming\astroknot）
   projects: 'projects',       // 用户项目（默认）
   quicknotes: 'quicknotes',   // 快速笔记（默认）
-  apps: 'apps'                // 全局应用库（GitHub 克隆的应用）
+  apps: 'apps',               // 全局应用库（GitHub 克隆的应用）
+  trash: 'trash'              // 回收站（已删除项目的暂存目录）
 };
 
 /**
@@ -57,6 +58,7 @@ const SYSTEM_SUBDIR_NAMES = {
  * @property {string} projectsDir         项目目录（可自定义，默认在 dataRoot/projects）
  * @property {string} quicknotesDir       快速笔记目录（可自定义，默认在 dataRoot/quicknotes）
  * @property {string} appsDir             全局应用库目录（可自定义，默认在 dataRoot/apps）
+ * @property {string} trashDir            回收站目录（可自定义，默认在 dataRoot/trash）
  * @property {boolean} initialized        是否已完成首次设置引导
  * @property {string|null} lastProjectPath 上次打开的项目路径
  */
@@ -121,6 +123,7 @@ function init(appRoot) {
     projectsDir: path.join(defaultDataRoot, SUBDIR_NAMES.projects),
     quicknotesDir: path.join(defaultDataRoot, SUBDIR_NAMES.quicknotes),
     appsDir: path.join(defaultDataRoot, SUBDIR_NAMES.apps),
+    trashDir: path.join(defaultDataRoot, SUBDIR_NAMES.trash),
     initialized: false,
     lastProjectPath: null
   };
@@ -152,7 +155,8 @@ function migrateSettings(oldSettings, appRoot) {
     systemDir: oldSettings.systemDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.system),
     projectsDir: oldSettings.projectsDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.projects),
     quicknotesDir: oldSettings.quicknotesDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.quicknotes),
-    appsDir: oldSettings.appsDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.apps)
+    appsDir: oldSettings.appsDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.apps),
+    trashDir: oldSettings.trashDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.trash)
   };
 }
 
@@ -185,7 +189,8 @@ function relocateIfNeeded(settings, currentAppRoot) {
           systemDir: path.join(newDataRoot, SUBDIR_NAMES.system),
           projectsDir: path.join(newDataRoot, SUBDIR_NAMES.projects),
           quicknotesDir: path.join(newDataRoot, SUBDIR_NAMES.quicknotes),
-          appsDir: path.join(newDataRoot, SUBDIR_NAMES.apps)
+          appsDir: path.join(newDataRoot, SUBDIR_NAMES.apps),
+          trashDir: path.join(newDataRoot, SUBDIR_NAMES.trash)
         };
         // 临时设置 _settings 以便 saveSettings 能工作
         _settings = relocated;
@@ -222,7 +227,8 @@ function relocateIfNeeded(settings, currentAppRoot) {
         systemDir: path.join(defaultPath, SUBDIR_NAMES.system),
         projectsDir: path.join(defaultPath, SUBDIR_NAMES.projects),
         quicknotesDir: path.join(defaultPath, SUBDIR_NAMES.quicknotes),
-        appsDir: path.join(defaultPath, SUBDIR_NAMES.apps)
+        appsDir: path.join(defaultPath, SUBDIR_NAMES.apps),
+        trashDir: path.join(defaultPath, SUBDIR_NAMES.trash)
       };
     }
     settings.initialized = false;
@@ -309,6 +315,14 @@ function getSystemDir() {
  */
 function getProjectsDir() {
   return _settings ? _settings.projectsDir : '';
+}
+
+/**
+ * 获取回收站目录（已删除项目的暂存目录）
+ */
+function getTrashDir() {
+  if (!_settings) return '';
+  return _settings.trashDir || path.join(_settings.dataRoot, SUBDIR_NAMES.trash);
 }
 
 /**
@@ -427,6 +441,7 @@ function setDataRoot(dataRoot) {
     projectsDir: path.join(dataRoot, SUBDIR_NAMES.projects),
     quicknotesDir: path.join(dataRoot, SUBDIR_NAMES.quicknotes),
     appsDir: path.join(dataRoot, SUBDIR_NAMES.apps),
+    trashDir: path.join(dataRoot, SUBDIR_NAMES.trash),
     initialized: true,
     lastProjectPath: null
   };
@@ -462,6 +477,7 @@ function setCustomPaths(paths) {
   if (paths.projectsDir) _settings.projectsDir = paths.projectsDir;
   if (paths.quicknotesDir) _settings.quicknotesDir = paths.quicknotesDir;
   if (paths.appsDir) _settings.appsDir = paths.appsDir;
+  if (paths.trashDir) _settings.trashDir = paths.trashDir;
 
   ensureDirectories();
   saveSettings();
@@ -482,7 +498,8 @@ function ensureDirectories() {
     path.join(_settings.systemDir, SYSTEM_SUBDIR_NAMES.emergencyBackups),
     _settings.projectsDir,
     _settings.quicknotesDir,
-    _settings.appsDir || path.join(_settings.dataRoot, SUBDIR_NAMES.apps)
+    _settings.appsDir || path.join(_settings.dataRoot, SUBDIR_NAMES.apps),
+    _settings.trashDir || path.join(_settings.dataRoot, SUBDIR_NAMES.trash)
   ];
 
   for (const dir of dirs) {
@@ -526,6 +543,7 @@ module.exports = {
   getSettings,
   getSystemDir,
   getProjectsDir,
+  getTrashDir,
   getQuicknotesDir,
   getAppsDir,
   getEmergencyBackupsDir,

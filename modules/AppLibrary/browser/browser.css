@@ -1,0 +1,1496 @@
+/* ============================================================
+   browser/browser.css — 内置浏览器所有样式
+   从 Dock.css 中拆出，按功能分区
+   ============================================================ */
+
+/* ── 标签栏 ── */
+.app-browser-tab-bar {
+    display: flex;
+    align-items: stretch;
+    background: rgba(8, 16, 28, 0.95);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.08);
+    padding: 4px 4px 0;
+    min-height: 34px;
+    gap: 2px;
+}
+.app-browser-tab-list {
+    display: flex;
+    align-items: stretch;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.app-browser-tab-list::-webkit-scrollbar {
+    display: none;
+}
+.app-browser-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px 5px 12px;
+    border-radius: 8px 8px 0 0;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    min-width: 100px;
+    max-width: 200px;
+    flex-shrink: 0;
+    transition: background 0.12s;
+    position: relative;
+}
+.app-browser-tab-favicon {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+.app-browser-tab:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+.app-browser-tab.active {
+    background: rgba(0, 255, 255, 0.08);
+    border-bottom: 2px solid #5ee8ff;
+}
+.app-browser-tab-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: #8ab;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-tab.active .app-browser-tab-title {
+    color: #dde;
+}
+.app-browser-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: #5a7a8a;
+    font-size: 9px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+    opacity: 0;
+}
+.app-browser-tab:hover .app-browser-tab-close,
+.app-browser-tab.active .app-browser-tab-close {
+    opacity: 1;
+}
+.app-browser-tab-close:hover {
+    background: rgba(255, 80, 80, 0.25);
+    color: #ff6666;
+}
+.app-browser-tab-new {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #5a7a8a;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-left: 2px;
+    margin-top: 4px;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-tab-new:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #5ee8ff;
+}
+
+/* ── 查找栏 ── */
+.app-browser-find-bar {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(10, 20, 35, 0.95);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+}
+.app-browser-find-input {
+    flex: 1;
+    max-width: 260px;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    color: #eef;
+    font-size: 12px;
+    outline: none;
+    box-sizing: border-box;
+}
+.app-browser-find-input:focus {
+    border-color: rgba(0, 255, 255, 0.5);
+}
+.app-browser-find-count {
+    font-size: 11px;
+    color: #5a7a8a;
+    min-width: 40px;
+    text-align: center;
+}
+.app-browser-find-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #8ab;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-find-btn:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+.app-browser-find-close:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+
+/* ── 缩放控制 ── */
+.app-browser-zoom-level {
+    font-size: 11px;
+    color: #8ab;
+    min-width: 36px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.12s;
+}
+.app-browser-zoom-level:hover {
+    color: #5ee8ff;
+}
+
+/* ── 浏览器右键菜单 ── */
+.app-browser-context-menu {
+    position: absolute;
+    z-index: 10002;
+    background: rgba(12, 22, 38, 0.97);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 4px 0;
+    min-width: 180px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ── 内容区 ── */
+.app-browser-content {
+    width: 90vw;
+    height: 90vh;
+    max-width: none;
+    position: relative;
+}
+
+/* ── 工具栏 ── */
+.app-browser-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: rgba(15, 25, 40, 0.95);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.12);
+}
+.app-browser-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #8ab;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+.app-browser-nav-btn:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+.app-browser-nav-btn:active {
+    background: rgba(0, 255, 255, 0.18);
+}
+
+/* ── 地址栏 ── */
+.app-browser-url-wrap {
+    flex: 1;
+    position: relative;
+    margin: 0 4px;
+}
+.app-browser-engine-btn {
+    position: absolute;
+    left: 1px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 26px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 13px 0 0 13px;
+    background: rgba(0, 255, 255, 0.08);
+    color: #8ab;
+    font-size: 11px;
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+}
+.app-browser-engine-btn:hover {
+    background: rgba(0, 255, 255, 0.15);
+    color: #5ee8ff;
+}
+.app-browser-url-favicon {
+    position: absolute;
+    left: 60px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    object-fit: contain;
+    z-index: 2;
+    pointer-events: none;
+}
+.app-browser-engine-dropdown {
+    position: absolute;
+    top: 32px;
+    left: 0;
+    background: rgba(10, 20, 35, 0.97);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 3px 0;
+    min-width: 120px;
+    z-index: 10003;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.app-browser-engine-option {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: #8ab;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-engine-option:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+.app-browser-engine-option.active {
+    color: #5ee8ff;
+    font-weight: 600;
+}
+.app-browser-url-input {
+    width: 100%;
+    height: 28px;
+    padding: 0 10px;
+    padding-left: 70px;
+    padding-right: 24px;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.4);
+    color: #eef;
+    font-size: 13px;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+.app-browser-url-input:focus {
+    border-color: rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.15);
+}
+.app-browser-url-input::placeholder {
+    color: #5a7a8a;
+}
+.app-browser-loading {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0, 255, 255, 0.2);
+    border-top-color: #5ee8ff;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+.app-browser-loading.active {
+    opacity: 1;
+    animation: browser-spin 0.6s linear infinite;
+}
+@keyframes browser-spin {
+    to { transform: translateY(-50%) rotate(360deg); }
+}
+.app-browser-go-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(0, 255, 255, 0.15);
+    color: #5ee8ff;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.app-browser-go-btn:hover {
+    background: rgba(0, 255, 255, 0.25);
+}
+
+/* ── 书签按钮 ── */
+.app-browser-bookmark-btn.bookmarked {
+    color: #5ee8ff;
+}
+.app-browser-bookmark-btn.bookmarked svg {
+    filter: drop-shadow(0 0 4px rgba(94, 232, 255, 0.4));
+}
+
+/* ── 书签列表面板 ── */
+.app-browser-bookmarks-panel {
+    position: absolute;
+    top: 68px;
+    right: 12px;
+    width: 340px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: rgba(10, 20, 35, 0.97);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    padding: 4px 0;
+}
+.app-browser-bookmarks-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    margin-bottom: 2px;
+}
+.app-browser-bookmarks-header span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5ee8ff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.app-browser-bookmarks-header-actions {
+    display: flex;
+    gap: 4px;
+}
+.app-browser-bookmark-add-folder-btn {
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #5a7a8a;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 2px 6px;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-bookmark-add-folder-btn:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #5ee8ff;
+}
+.app-browser-bookmarks-empty {
+    padding: 24px 14px;
+    text-align: center;
+    color: #5a7a8a;
+    font-size: 13px;
+}
+.app-browser-bookmark-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px 8px 14px;
+    cursor: pointer;
+    gap: 8px;
+    transition: background 0.12s;
+    position: relative;
+}
+.app-browser-bookmark-item:hover {
+    background: rgba(0, 255, 255, 0.07);
+}
+.app-browser-bookmark-item-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+.app-browser-bookmark-item-title {
+    font-size: 13px;
+    color: #dde;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-bookmark-item-url {
+    font-size: 11px;
+    color: #5a7a8a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-bookmark-item-move,
+.app-browser-bookmark-item-delete {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font-size: 11px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-bookmark-item:hover .app-browser-bookmark-item-move,
+.app-browser-bookmark-item:hover .app-browser-bookmark-item-delete {
+    display: flex;
+}
+.app-browser-bookmark-item-move:hover {
+    background: rgba(0, 255, 255, 0.15);
+    color: #5ee8ff;
+}
+.app-browser-bookmark-item-delete:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+/* ── 书签文件夹 ── */
+.app-browser-bookmark-folder {
+    position: relative;
+}
+.app-browser-bookmark-folder-header {
+    display: flex;
+    align-items: center;
+    padding: 7px 10px 7px 14px;
+    gap: 6px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.app-browser-bookmark-folder-header:hover {
+    background: rgba(0, 255, 255, 0.05);
+}
+.app-browser-bookmark-folder-header.selected {
+    background: rgba(0, 255, 255, 0.1);
+}
+.app-browser-bookmark-folder-toggle {
+    display: flex;
+    align-items: center;
+    color: #5ee8ff;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.app-browser-bookmark-folder-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #dde;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-bookmark-folder-count {
+    font-size: 10px;
+    color: #5a7a8a;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 6px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+.app-browser-bookmark-folder-rename,
+.app-browser-bookmark-folder-delete {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font-size: 11px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-bookmark-folder-header:hover .app-browser-bookmark-folder-rename,
+.app-browser-bookmark-folder-header:hover .app-browser-bookmark-folder-delete {
+    display: flex;
+}
+.app-browser-bookmark-folder-rename:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #5ee8ff;
+}
+.app-browser-bookmark-folder-delete:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+.app-browser-bookmark-folder-children {
+    border-left: 1px solid rgba(0, 255, 255, 0.08);
+    margin-left: 22px;
+}
+/* ── 书签移动菜单 ── */
+.app-browser-bookmark-move-menu {
+    background: rgba(10, 20, 35, 0.97);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 3px 0;
+    min-width: 140px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.app-browser-bookmark-move-option {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #8ab;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-bookmark-move-option:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+/* ── 书签对话框（替代 prompt/confirm） ── */
+.app-browser-bookmark-dialog {
+    padding: 10px 14px;
+    border-top: 1px solid rgba(0, 255, 255, 0.1);
+    background: rgba(10, 20, 35, 0.95);
+}
+.app-browser-bookmark-dialog-label {
+    font-size: 12px;
+    color: #8ab;
+    margin-bottom: 8px;
+}
+.app-browser-bookmark-dialog-input {
+    width: 100%;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    color: #eef;
+    font-size: 12px;
+    outline: none;
+    box-sizing: border-box;
+}
+.app-browser-bookmark-dialog-input:focus {
+    border-color: rgba(0, 255, 255, 0.5);
+}
+.app-browser-bookmark-dialog-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+.app-browser-bookmark-dialog-confirm,
+.app-browser-bookmark-dialog-cancel {
+    padding: 4px 14px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.app-browser-bookmark-dialog-confirm {
+    background: rgba(0, 255, 255, 0.15);
+    color: #5ee8ff;
+}
+.app-browser-bookmark-dialog-confirm:hover {
+    background: rgba(0, 255, 255, 0.25);
+}
+.app-browser-bookmark-dialog-cancel {
+    background: rgba(255, 255, 255, 0.06);
+    color: #8ab;
+}
+.app-browser-bookmark-dialog-cancel:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── 历史面板 ── */
+.app-browser-history-panel {
+    position: absolute;
+    top: 68px;
+    right: 12px;
+    width: 380px;
+    max-height: 460px;
+    overflow-y: auto;
+    background: rgba(10, 20, 35, 0.97);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    padding: 4px 0;
+}
+.app-browser-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    margin-bottom: 2px;
+}
+.app-browser-history-header span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5ee8ff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.app-browser-history-clear-btn {
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #5a7a8a;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 8px;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-history-clear-btn:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff6666;
+}
+.app-browser-history-search-wrap {
+    padding: 6px 10px;
+}
+.app-browser-history-search-input {
+    width: 100%;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    color: #eef;
+    font-size: 12px;
+    outline: none;
+    box-sizing: border-box;
+}
+.app-browser-history-search-input:focus {
+    border-color: rgba(0, 255, 255, 0.5);
+}
+.app-browser-history-search-input::placeholder {
+    color: #5a7a8a;
+}
+.app-browser-history-list {
+    max-height: 340px;
+    overflow-y: auto;
+}
+.app-browser-history-date {
+    padding: 6px 14px 3px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5ee8ff;
+    opacity: 0.7;
+}
+.app-browser-history-empty {
+    padding: 24px 14px;
+    text-align: center;
+    color: #5a7a8a;
+    font-size: 13px;
+}
+.app-browser-history-item {
+    display: flex;
+    align-items: center;
+    padding: 7px 10px 7px 14px;
+    cursor: pointer;
+    gap: 8px;
+    transition: background 0.12s;
+    position: relative;
+}
+.app-browser-history-item:hover {
+    background: rgba(0, 255, 255, 0.07);
+}
+.app-browser-history-item-info {
+    flex: 1;
+    min-width: 0;
+}
+.app-browser-history-item-title {
+    font-size: 13px;
+    color: #dde;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-history-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 1px;
+}
+.app-browser-history-item-url {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: #5a7a8a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-history-item-time {
+    font-size: 10px;
+    color: #4a6a7a;
+    flex-shrink: 0;
+}
+.app-browser-history-item-delete {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font-size: 11px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-history-item:hover .app-browser-history-item-delete {
+    display: flex;
+}
+.app-browser-history-item-delete:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+
+/* ── 下载面板 ── */
+.app-browser-download-panel {
+    position: absolute;
+    top: 68px;
+    right: 12px;
+    width: 340px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: rgba(10, 20, 35, 0.97);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    padding: 4px 0;
+}
+.app-browser-download-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    margin-bottom: 2px;
+}
+.app-browser-download-header span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5ee8ff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.app-browser-download-clear-btn {
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #5a7a8a;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 8px;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-download-clear-btn:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff6666;
+}
+.app-browser-download-empty {
+    padding: 24px 14px;
+    text-align: center;
+    color: #5a7a8a;
+    font-size: 13px;
+}
+.app-browser-download-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px 8px 14px;
+    gap: 8px;
+    transition: background 0.12s;
+}
+.app-browser-download-item:hover {
+    background: rgba(0, 255, 255, 0.07);
+}
+.app-browser-download-item-info {
+    flex: 1;
+    min-width: 0;
+}
+.app-browser-download-item-name {
+    font-size: 13px;
+    color: #dde;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-download-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+}
+.app-browser-download-item-size {
+    font-size: 11px;
+    color: #5a7a8a;
+}
+.app-browser-download-item-status {
+    font-size: 11px;
+}
+.app-browser-download-item-status.progressing {
+    color: #5ee8ff;
+}
+.app-browser-download-item-status.done {
+    color: #4ade80;
+}
+.app-browser-download-item-status.failed {
+    color: #ff6666;
+}
+.app-browser-download-progress-bar {
+    height: 3px;
+    margin-top: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.app-browser-download-progress-fill {
+    height: 100%;
+    background: #5ee8ff;
+    border-radius: 2px;
+    transition: width 0.2s;
+}
+.app-browser-download-item-open,
+.app-browser-download-item-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+    opacity: 0;
+}
+.app-browser-download-item:hover .app-browser-download-item-open,
+.app-browser-download-item:hover .app-browser-download-item-delete {
+    opacity: 1;
+}
+.app-browser-download-item-open:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #5ee8ff;
+}
+.app-browser-download-item-delete:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+
+/* ── 设置下拉菜单 ── */
+.app-browser-settings-dropdown {
+    position: absolute;
+    top: 68px;
+    right: 12px;
+    width: 220px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: rgba(10, 20, 35, 0.97);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    padding: 4px 0;
+    backdrop-filter: blur(12px);
+}
+.app-browser-settings-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: #cce;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-settings-item:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #eef;
+}
+.app-browser-settings-item .shortcut {
+    font-size: 10px;
+    color: #5a7a8a;
+}
+.app-browser-settings-toggle {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #8ab;
+}
+.app-browser-settings-divider {
+    height: 1px;
+    background: rgba(0, 255, 255, 0.1);
+    margin: 4px 0;
+}
+/* User-Agent 子菜单 */
+.app-browser-settings-ua-trigger .app-browser-settings-ua-current {
+    font-size: 11px;
+    color: #5ee8ff;
+    margin-left: auto;
+    margin-right: 6px;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.app-browser-settings-arrow {
+    font-size: 10px;
+    color: #5a7a8a;
+}
+.app-browser-ua-submenu {
+    margin: 2px 0 4px;
+    padding: 3px 0;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+}
+.app-browser-ua-submenu .app-browser-engine-option {
+    padding: 6px 22px;
+}
+
+/* ── 课表导入浮动按钮 ── */
+.app-browser-import-fab {
+    position: absolute;
+    right: 20px;
+    bottom: 50px;
+    z-index: 10010;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(200,168,255,0.9), rgba(122,240,168,0.9));
+    color: #1a1a2e;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(200,168,255,0.4);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.app-browser-import-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(200,168,255,0.6);
+}
+.app-browser-import-fab:active {
+    transform: translateY(0);
+}
+.app-browser-import-fab.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+.app-browser-import-fab.loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 4px;
+    border: 2px solid rgba(26,26,46,0.3);
+    border-top-color: #1a1a2e;
+    border-radius: 50%;
+    animation: browser-spin 0.6s linear infinite;
+}
+
+/* ── 密码管理面板 ── */
+.app-browser-passwords-panel {
+    position: absolute;
+    top: 68px;
+    right: 12px;
+    width: 320px;
+    max-height: 420px;
+    overflow-y: auto;
+    background: rgba(10, 20, 35, 0.97);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    backdrop-filter: blur(12px);
+}
+.app-browser-passwords-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    margin-bottom: 2px;
+}
+.app-browser-passwords-header span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5ee8ff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.app-browser-password-save-btn {
+    border: none;
+    border-radius: 4px;
+    background: rgba(0, 255, 255, 0.1);
+    color: #5ee8ff;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 3px 8px;
+    transition: background 0.12s;
+}
+.app-browser-password-save-btn:hover {
+    background: rgba(0, 255, 255, 0.2);
+}
+.app-browser-passwords-empty {
+    padding: 24px 14px;
+    text-align: center;
+    color: #5a7a8a;
+    font-size: 13px;
+}
+.app-browser-password-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px 8px 14px;
+    gap: 6px;
+    transition: background 0.12s;
+}
+.app-browser-password-item:hover {
+    background: rgba(0, 255, 255, 0.07);
+}
+.app-browser-password-item-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+.app-browser-password-item-domain {
+    font-size: 13px;
+    color: #dde;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-password-item-user {
+    font-size: 11px;
+    color: #5a7a8a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-browser-password-item-fill,
+.app-browser-password-item-delete {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-password-item:hover .app-browser-password-item-fill,
+.app-browser-password-item:hover .app-browser-password-item-delete {
+    display: flex;
+}
+.app-browser-password-item-fill:hover {
+    background: rgba(0, 255, 255, 0.15);
+    color: #5ee8ff;
+}
+.app-browser-password-item-delete:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+
+/* ── Cookies 管理面板 ── */
+.app-browser-cookies-panel {
+    position: absolute;
+    top: 68px;
+    right: 12px;
+    width: 380px;
+    max-height: 460px;
+    overflow-y: auto;
+    background: rgba(10, 20, 35, 0.97);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    backdrop-filter: blur(12px);
+}
+.app-browser-cookies-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    margin-bottom: 2px;
+}
+.app-browser-cookies-header span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5ee8ff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.app-browser-cookies-clear-btn {
+    border: none;
+    border-radius: 4px;
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff8888;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 3px 10px;
+    transition: background 0.12s;
+}
+.app-browser-cookies-clear-btn:hover {
+    background: rgba(255, 80, 80, 0.3);
+}
+.app-browser-cookies-empty {
+    padding: 24px 14px;
+    text-align: center;
+    color: #5a7a8a;
+    font-size: 13px;
+}
+.app-browser-cookies-group {
+    border-bottom: 1px solid rgba(0, 255, 255, 0.06);
+}
+.app-browser-cookies-domain {
+    padding: 6px 14px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8ab;
+}
+.app-browser-cookies-count {
+    font-size: 10px;
+    color: #5a7a8a;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.app-browser-cookie-item {
+    display: flex;
+    align-items: center;
+    padding: 5px 14px;
+    gap: 8px;
+    transition: background 0.12s;
+}
+.app-browser-cookie-item:hover {
+    background: rgba(0, 255, 255, 0.05);
+}
+.app-browser-cookie-name {
+    font-size: 12px;
+    color: #dde;
+    min-width: 80px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.app-browser-cookie-value {
+    flex: 1;
+    font-size: 11px;
+    color: #5a7a8a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.app-browser-cookie-delete {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font-size: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-cookie-item:hover .app-browser-cookie-delete {
+    display: flex;
+}
+.app-browser-cookie-delete:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+
+/* ── Toast 提示 ── */
+.app-browser-toast {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 18px;
+    background: rgba(10, 20, 35, 0.95);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #5ee8ff;
+    font-size: 13px;
+    z-index: 10002;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    display: none;
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+}
+.app-browser-download-btn.has-downloads {
+    color: #5ee8ff;
+}
+
+/* ── URL 输入栏内的书签按钮 ── */
+.app-browser-url-bookmark-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #5a7a8a;
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.12s, color 0.12s;
+    padding: 0;
+}
+.app-browser-url-bookmark-btn:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #5ee8ff;
+}
+.app-browser-url-bookmark-btn.bookmarked {
+    color: #5ee8ff;
+}
+/* URL 输入框右侧留出书签按钮空间 */
+.app-browser-url-wrap .app-browser-url-input {
+    padding-right: 32px;
+}
+
+/* ── 底部状态栏（渐变浮现） ── */
+.app-browser-status-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    background: linear-gradient(to top, rgba(10, 20, 35, 0.95) 0%, rgba(10, 20, 35, 0.7) 60%, rgba(10, 20, 35, 0) 100%);
+    border-top: 1px solid rgba(0, 255, 255, 0.08);
+    font-size: 11px;
+    color: #5a7a8a;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+/* 鼠标接近底部时浮现 */
+.app-browser-content:hover .app-browser-status-bar,
+.app-browser-status-bar:hover {
+    opacity: 1;
+    pointer-events: auto;
+}
+/* 状态栏内的缩放控件也需要 pointer-events */
+.app-browser-status-bar .app-browser-nav-btn {
+    pointer-events: auto;
+}
+.app-browser-status-info {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.8;
+}
+.app-browser-status-right {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+.app-browser-status-right .app-browser-nav-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: #5a7a8a;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-status-right .app-browser-nav-btn:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #5ee8ff;
+}
+.app-browser-status-right .app-browser-zoom-level {
+    font-size: 11px;
+    color: #8ab;
+    min-width: 36px;
+    text-align: center;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: background 0.12s;
+}
+.app-browser-status-right .app-browser-zoom-level:hover {
+    background: rgba(0, 255, 255, 0.1);
+}
+/* webview 容器底部留出状态栏空间 */
+.app-browser-body {
+    padding-bottom: 28px;
+}
+
+/* ── DevTools 侧边栏 ── */
+.app-browser-devtools-sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 400px;
+    background: #1a1a2e;
+    border-left: 1px solid rgba(0, 255, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.4);
+}
+.app-browser-devtools-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: rgba(10, 20, 35, 0.95);
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    font-size: 12px;
+    color: #5ee8ff;
+    flex-shrink: 0;
+    height: 32px;
+}
+.app-browser-devtools-header span {
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.app-browser-devtools-close {
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s;
+}
+.app-browser-devtools-close:hover {
+    background: rgba(255, 80, 80, 0.2);
+    color: #ff6666;
+}
+.app-browser-devtools-webview {
+    flex: 1;
+    border: none;
+    background: #fff;
+}
+.app-browser-devtools-content-area {
+    flex: 1;
+    background: #fff;
+    overflow: hidden;
+}
+/* 拖拽分隔条 */
+.app-browser-devtools-resizer {
+    position: absolute;
+    top: 0;
+    right: 400px;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 101;
+    transition: background 0.15s;
+}
+.app-browser-devtools-resizer:hover,
+.app-browser-devtools-resizer.dragging {
+    background: rgba(0, 255, 255, 0.3);
+}
+/* DevTools 打开时 webview 容器右缩 */
+.app-browser-content.devtools-open .app-browser-body {
+    margin-right: 400px;
+}
+
+/* ── 隐私模式 ── */
+.app-browser-private-btn.active {
+    color: #5ee8ff;
+    background: rgba(0, 255, 255, 0.1);
+}
+.private-mode .app-browser-toolbar {
+    background: rgba(25, 15, 40, 0.95);
+    border-bottom-color: rgba(160, 100, 255, 0.2);
+}
+.private-mode .app-browser-tab-bar {
+    background: rgba(20, 10, 35, 0.95);
+    border-bottom-color: rgba(160, 100, 255, 0.1);
+}
+
+/* ── Webview 容器 ── */
+.app-browser-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    position: relative;
+}
+.app-browser-webview {
+    width: 100%;
+    height: 100%;
+    border: none;
+    flex: 1;
+}

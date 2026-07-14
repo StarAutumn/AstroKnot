@@ -245,7 +245,7 @@ class WindowInstance {
     this.container.classList.add(this._state);
     this._applyLayout(this._state);
     
-    // 播放"由小变大"的打开动画（Windows 风格）
+    // 播放打开动画（Windows 原生风格：从 95% 展开，快速淡入）
     // 使用 animate() 直接动画 width/height/left/top，不用 transform:scale（避免 position:fixed 卡顿）
     if (this.content) {
       const targetRect = this.content.getBoundingClientRect();
@@ -254,9 +254,9 @@ class WindowInstance {
       const targetL = targetRect.left;
       const targetT = targetRect.top;
       
-      // 起始状态：从中心点开始，尺寸为目标的 50%
-      const startW = Math.max(targetW * 0.5, 200);
-      const startH = Math.max(targetH * 0.5, 150);
+      // 起始状态：从中心点开始，尺寸为目标的 95%（几乎不放大，Windows 原生风格）
+      const startW = targetW * 0.95;
+      const startH = targetH * 0.95;
       const startL = targetL + (targetW - startW) / 2;
       const startT = targetT + (targetH - startH) / 2;
       
@@ -269,12 +269,12 @@ class WindowInstance {
       this.content.style.opacity = '0';
       void this.content.offsetWidth;
       
-      // 播放动画
+      // 播放动画（200ms，Windows 原生打开速度）
       const anim = this.content.animate([
         { left: startL + 'px', top: startT + 'px', width: startW + 'px', height: startH + 'px', opacity: 0 },
         { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 }
       ], {
-        duration: 220,
+        duration: 200,
         easing: 'cubic-bezier(0.16, 1, 0.3, 1)'  // ease-out 曲线，类似 Windows
       });
       
@@ -305,35 +305,35 @@ class WindowInstance {
       this._state = null;
       if (this.onClose) this.onClose();
     } else if (this.content) {
-      // 播放"由大变小"的关闭动画（Windows 风格）
+      // 播放关闭动画（Windows 原生风格：几乎不缩小，快速淡出）
       const targetRect = this.content.getBoundingClientRect();
       const targetW = targetRect.width;
       const targetH = targetRect.height;
       const targetL = targetRect.left;
       const targetT = targetRect.top;
-      
-      // 结束状态：缩小到中心的 50%
-      const endW = Math.max(targetW * 0.5, 200);
-      const endH = Math.max(targetH * 0.5, 150);
+
+      // 结束状态：缩小到中心的 95%（几乎不缩小，Windows 原生风格）
+      const endW = targetW * 0.95;
+      const endH = targetH * 0.95;
       const endL = targetL + (targetW - endW) / 2;
       const endT = targetT + (targetH - endH) / 2;
-      
+
       // 移除可能残留的 window-open 类
       this.container.classList.remove('window-open');
       this.container.classList.add('closing');
-      
+
       // 设置起始状态
       this.content.style.transition = 'none';
-      
-      // 播放动画
+
+      // 播放动画（150ms，Windows 原生关闭速度）
       const anim = this.content.animate([
         { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 },
         { left: endL + 'px', top: endT + 'px', width: endW + 'px', height: endH + 'px', opacity: 0 }
       ], {
-        duration: 180,
-        easing: 'cubic-bezier(0.4, 0, 0.6, 1)'  // ease-in，比打开快一点
+        duration: 150,
+        easing: 'cubic-bezier(0.4, 0, 0.6, 1)'  // ease-in
       });
-      
+
       const finishClose = () => {
         this.container.classList.remove('closing', WindowState.MAXIMIZED, WindowState.WINDOWED);
         this.container.style.display = 'none';
@@ -341,10 +341,10 @@ class WindowInstance {
         this._state = null;
         if (this.onClose) this.onClose();
       };
-      
+
       anim.onfinish = finishClose;
       // 兜底
-      setTimeout(finishClose, 250);
+      setTimeout(finishClose, 200);
     } else {
       // 无 content 时直接关闭
       this.container.classList.remove(WindowState.MAXIMIZED, WindowState.WINDOWED);

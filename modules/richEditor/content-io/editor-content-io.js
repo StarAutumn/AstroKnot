@@ -13,7 +13,7 @@ import { showToast } from '../../module5_SelectAndEdit.js';
 import { getOverlayImagesData, setOverlayImagesData, clearOverlayImages, renderAll } from '../core/overlay/index.js';
 import { stripOverlayBlocksFromHTML } from '../core/overlay/index.js';
 import { getDrawData, setDrawData, clearDrawData } from '../core/toolbar/toolbar-draw.js';
-import { getSandboxHtml } from '../sandbox/index.js';
+import { getSandboxHtml } from '../../AppLibrary/ide/index.js';
 import {
   _makeTabKey, _findTabIndex, _getTabName, _renderEditorTabs, _addTab,
   _tabSwitchTo, _updateModalTitle, initModalTitleRename,
@@ -221,7 +221,7 @@ function _closeTab(tabKey) {
     deactivateSplitScreen();
     window._pause3DAnimation = false;
     
-    // 播放"由大变小"的关闭动画
+    // 播放关闭动画（Windows 原生风格：几乎不缩小，快速淡出）
     const content = modalRich.querySelector('.rich-modal-content');
     if (content) {
       const targetRect = content.getBoundingClientRect();
@@ -229,8 +229,8 @@ function _closeTab(tabKey) {
       const targetH = targetRect.height;
       const targetL = targetRect.left;
       const targetT = targetRect.top;
-      const endW = Math.max(targetW * 0.5, 200);
-      const endH = Math.max(targetH * 0.5, 150);
+      const endW = targetW * 0.95;
+      const endH = targetH * 0.95;
       const endL = targetL + (targetW - endW) / 2;
       const endT = targetT + (targetH - endH) / 2;
       
@@ -238,9 +238,9 @@ function _closeTab(tabKey) {
       const anim = content.animate([
         { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 },
         { left: endL + 'px', top: endT + 'px', width: endW + 'px', height: endH + 'px', opacity: 0 }
-      ], { duration: 180, easing: 'cubic-bezier(0.4, 0, 0.6, 1)' });
+      ], { duration: 150, easing: 'cubic-bezier(0.4, 0, 0.6, 1)' });
       anim.onfinish = _finishCloseTab;
-      setTimeout(_finishCloseTab, 250);
+      setTimeout(_finishCloseTab, 200);
     } else {
       _finishCloseTab();
     }
@@ -504,7 +504,7 @@ export function closeModalCK() {
     window._pause3DAnimation = false;
     _pauseSandboxIframe();
 
-    // 播放"由大变小"的关闭动画（Windows 风格）
+    // 播放关闭动画（Windows 原生风格：几乎不缩小，快速淡出）
     const content = modalRich.querySelector('.rich-modal-content');
     if (content) {
       const targetRect = content.getBoundingClientRect();
@@ -512,29 +512,30 @@ export function closeModalCK() {
       const targetH = targetRect.height;
       const targetL = targetRect.left;
       const targetT = targetRect.top;
-      
-      // 结束状态：缩小到中心的 50%
-      const endW = Math.max(targetW * 0.5, 200);
-      const endH = Math.max(targetH * 0.5, 150);
+
+      // 结束状态：缩小到中心的 95%（几乎不缩小，Windows 原生风格）
+      const endW = targetW * 0.95;
+      const endH = targetH * 0.95;
       const endL = targetL + (targetW - endW) / 2;
       const endT = targetT + (targetH - endH) / 2;
-      
+
       content.style.transition = 'none';
-      
+
+      // 播放动画（150ms，Windows 原生关闭速度）
       const anim = content.animate([
         { left: targetL + 'px', top: targetT + 'px', width: targetW + 'px', height: targetH + 'px', opacity: 1 },
         { left: endL + 'px', top: endT + 'px', width: endW + 'px', height: endH + 'px', opacity: 0 }
       ], {
-        duration: 180,
+        duration: 150,
         easing: 'cubic-bezier(0.4, 0, 0.6, 1)'
       });
-      
+
       const finishClose = () => {
         content.style.transition = '';
         _finishClose();
       };
       anim.onfinish = finishClose;
-      setTimeout(finishClose, 250);
+      setTimeout(finishClose, 200);
     } else {
       _finishClose();
     }
@@ -647,7 +648,7 @@ function _enterSourceMode() {
   import('../core/code-blocks.js').then(({ ensureMonaco }) => {
     ensureMonaco(() => {
       if (_sourceMonacoEditor) {
-        _sourceMonacoEditor.dispose();
+        try { _sourceMonacoEditor.dispose(); } catch (_) { /* Canceled error is expected */ }
       }
       _sourceMonacoEditor = monaco.editor.create(_sourceMonacoContainer, {
         value: rawHtml,
@@ -669,8 +670,8 @@ function _exitSourceMode() {
 
   const newHtml = _sourceMonacoEditor.getValue();
 
-  // 销毁 Monaco 实例
-  _sourceMonacoEditor.dispose();
+  // 销毁 Monaco 实例（try-catch 防止 Canceled 异常阻断后续清理）
+  try { _sourceMonacoEditor.dispose(); } catch (_) { /* Canceled error is expected */ }
   _sourceMonacoEditor = null;
 
   // 隐藏容器
@@ -736,7 +737,7 @@ window.switchNodeToCodeMode = async function(nodeId) {
 
   // 确保 fileSystem 存在
   if (!node.fileSystem) {
-    const { migrateHtmlSource } = await import('../sandbox/core/virtual-fs.js');
+    const { migrateHtmlSource } = await import('../../AppLibrary/ide/core/virtual-fs.js');
     node.fileSystem = migrateHtmlSource(null);
   }
 

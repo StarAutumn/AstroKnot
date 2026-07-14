@@ -1,6 +1,6 @@
 # ⚠️ 重要声明
 
-本项目为个人业余AI辅助开发项目，主要目的为探索和验证“2/3D数据同步的知识图谱与分布式IDE融合”的概念想法。
+本项目为个人业余AI辅助开发项目，主要目的为探索和验证"2/3D数据同步的知识图谱与分布式IDE融合"的概念想法。
 
 - 项目**可运行**，但可能存在未知问题或边界情况
 - **深度使用**或用于**商业生产环境**时，请自行评估风险
@@ -11,6 +11,8 @@
 # AstroKnot
 
 ## 产品定位
+
+AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历排班融合为一体的桌面知识管理平台**。核心概念是以 3D 星图或 2D 思维导图的形式组织知识，每个节点都是一个可独立运行的"知识单元"——可以是一篇富文本笔记、一个前端项目（含完整 IDE）、一组多媒体覆盖层，或一个网页剪藏副本。
 
 ### 🌟 普通用户：思维导图笔记工具
 
@@ -32,10 +34,27 @@
 - **版本控制系统** — 类 Git 的版本图，支持提交、分支、diff、回滚
 - **内置终端** — node-pty + xterm.js，多标签页，PowerShell/Zsh 自动适配
 - **节点级磁盘同步** — 创建/删除/内容自动保存到磁盘，增量同步
+- **内置浏览器** — 完整浏览器功能，网页内容一键抓取为知识节点，实现"浏览-采集-整理"闭环
 
 适合：前端开发者、项目原型设计、多项目并行开发、代码实验、技术学习笔记
 
 ---
+
+## 产品概述
+
+| 维度 | 说明 |
+|------|------|
+| **项目类型** | 个人 AI 辅助开发的知识管理桌面应用 |
+| **核心概念** | 将知识节点以 3D 星图/2D 思维导图呈现，每个节点是独立的知识单元 |
+| **技术栈** | Electron 29 + Three.js + TinyMCE 7 + Monaco Editor + esbuild-wasm |
+| **代码规模** | ~212 个源文件，~100,600 行代码（JS + CSS + HTML） |
+| **模块数量** | 30+ 功能模块，80+ IPC 通道 |
+| **部署方式** | Electron 桌面版（完整功能）+ Web 版（浏览器访问，部分受限） |
+| **数据存储** | 集中式 `AstroKnot-Data/` 目录，Markdown + JSON 混合格式 |
+| **版本控制** | 内置类 Git DAG 版本图，增量存储，内容寻址 blob |
+| **AI 集成** | Chat/Agent 双模式，项目上下文感知，多模型切换 |
+| **内置应用** | 代码沙盒 IDE、浏览器、文件管理器、回收站、日历排班 |
+| **开发状态** | 可运行，单人开发，持续迭代中 |
 
 ## 技术架构
 
@@ -46,6 +65,8 @@
 - 代码编辑：Monaco Editor（81 种语言）+ esbuild-wasm 打包
 - 版本控制：类 Git DAG 版本图，自动快照 + 手动提交
 - AI 集成：Chat/Agent 双模式，项目上下文感知，多模型切换
+- 内置浏览器：Electron `<webview>` 多进程隔离，独立 partition 会话，网页内容抓取
+- 系统偏好文件化：localStorage 镜像到 `preferences.json`，启动同步恢复 + 退出原子写入
 
 ## 特性
 
@@ -72,11 +93,14 @@
 - **代码沙盒 IDE** — VSCode 风格迷你 IDE，Monaco Editor + 文件树 + 标签页 + esbuild-wasm 打包，支持 HTML/CSS/JS 实时预览、分屏编辑、面包屑导航、Markdown 预览、Minimap、控制台、终端、全局搜索、本地历史、Emmet 缩写、代码片段模板
 - **GitHub 项目导入** — 从 GitHub 仓库导入前端项目到沙盒 IDE，自动解析文件结构
 - **全局应用库** — 从 GitHub 克隆应用到本地库，支持拖拽插入为节点、独立预览窗口、一键更新
+- **内置浏览器** — 基于 Electron `<webview>` 的完整浏览器，多标签页、书签、历史记录、下载管理、阅读模式、暗色模式、密码管理、搜索引擎切换、User-Agent 切换、隐私模式、开发者工具侧边栏、网页内容抓取为知识节点
+- **系统偏好文件化** — 所有应用设置持久化到 `AstroKnot-Data/system/preferences.json`（显式 JSON 文件），跨开发/打包环境一致，启动时同步恢复，退出时原子写入
 - **启动闪屏** — 应用图标 + 渐变文字 + 地面反光效果
 - **天气时钟** — 任务栏显示实时时钟、农历、节气、天气
 - **日历排班** — 月/周/日三视图，日程管理，四象限事项，排班（上班规律/手动倒班/规律倒班），法定节假日自动识别，纪念日管理，通知提醒
 - **内置终端** — node-pty + xterm.js，多标签页，支持 PowerShell/Zsh，沙盒目录自动作为工作目录
 - **双版本部署** — Electron 桌面版（完整功能）+ Web 版（浏览器访问，部分功能受限）
+- **自动化测试** — Vitest 单元测试套件，覆盖纯函数、VFS、版本控制、文件图标、GitHub API 等核心逻辑
 
 ## 快速开始
 
@@ -91,6 +115,9 @@ npm start
 
 # 打包为安装程序（Windows）
 npm run build
+
+# 运行测试
+npm test
 ```
 
 打包产物在 `dist/` 目录下。
@@ -123,251 +150,317 @@ npm run build
 
 ```
 AstroKnot/
-├── AstroKnot.js          # 应用入口，顺序导入所有模块并启动
-├── index.html            # 主页面（含启动闪屏、自定义标题栏、任务栏等）
-├── main.js               # Electron 主进程（窗口创建、菜单、IPC）
-├── main-terminal.js      # Electron 终端进程（node-pty 管理）
-├── preload.js            # Electron preload 安全桥接
-├── web-api-shim.js       # Web API 兼容层（Electron 环境补丁）
-├── data-settings.js      # 数据目录配置管理（首次设置引导、路径 API）
-├── package.json          # 项目配置 & electron-builder 打包配置
-├── package-lock.json     # npm 依赖锁定文件
-├── icon.ico              # Windows 应用图标
-├── LICENSE               # MIT 开源许可证
-├── README.md             # 项目文档
-├── .gitignore            # Git 忽略规则
-├── .npmrc                # npm 配置（镜像源等）
-├── build-with-mirror.ps1 # 国内镜像打包脚本（解决网络/Python 问题）
-├── AstroKnot-Windows.lnk # Windows 快捷方式
-├── AstroKnot-Linux.desktop # Linux 桌面入口文件
-├── AstroKnot-macOS.command # macOS 桌面入口
-├── startAstroKnot-Windows.vbs # Windows 启动脚本（隐藏终端窗口）
-├── startAstroKnot-Linux.sh   # Linux 启动脚本
-├── startAstroKnot-macOS.sh   # macOS 启动脚本
-├── assets/               # 静态资源
-│   └── icon.png          # 应用图标（PNG 格式）
-├── style/                # 全局样式
-│   └── base.css          # 基础变量、标题栏、闪屏、滚动条
-├── scripts/              # 构建脚本
-│   └── copy-xterm.js     # xterm 复制脚本（打包时使用）
-├── official_website/     # 官网演示页面
-│   ├── index.html        #   官网首页
-│   └── astroknot-icon.png #  官网图标
-├── lib/                  # 第三方库
-│   ├── monaco/           # Monaco Editor（含 81 种语言支持）
-│   ├── three/            # Three.js + 后处理 + OrbitControls + CSS2DRenderer
-│   ├── esbuild/          # esbuild-wasm 打包器（browser.js + esbuild.wasm）
-│   ├── xterm/            # xterm.js 终端 + addons（fit + web-links）
+├── AstroKnot.js              # 应用入口，顺序导入所有模块并启动
+├── index.html                # 主页面（含启动闪屏、自定义标题栏、任务栏等）
+├── main.js                   # Electron 主进程（窗口创建、菜单、IPC 80+ 通道）
+├── main-terminal.js          # Electron 终端进程（node-pty 管理）
+├── preload.js                # Electron preload 安全桥接
+├── web-api-shim.js           # Web API 兼容层（Electron 环境补丁）
+├── system-storage.js         # 系统偏好设置文件化引导（localStorage → preferences.json 镜像）
+├── data-settings.js          # 数据目录配置管理（首次设置引导、路径 API）
+├── package.json              # 项目配置 & electron-builder 打包配置
+├── package-lock.json         # npm 依赖锁定文件
+├── vitest.config.js          # Vitest 测试框架配置
+├── icon.ico                  # Windows 应用图标
+├── LICENSE                   # MIT 开源许可证
+├── README.md                 # 项目文档
+├── .gitignore                # Git 忽略规则
+├── .npmrc                    # npm 配置（镜像源等）
+├── build-with-mirror.ps1     # 国内镜像打包脚本（解决网络/Python 问题）
+├── AstroKnot-Windows.lnk     # Windows 快捷方式
+├── AstroKnot-Linux.desktop   # Linux 桌面入口文件
+├── AstroKnot-macOS.command   # macOS 桌面入口
+├── startAstroKnot-Windows.vbs  # Windows 启动脚本（隐藏终端窗口）
+├── startAstroKnot-Linux.sh     # Linux 启动脚本
+├── startAstroKnot-macOS.sh     # macOS 启动脚本
+│
+├── _icon_cache/              # 文件图标缓存（SVG 素材）
+│   ├── material-icons/       #   Material Design 风格图标
+│   └── vscode-icons/         #   VSCode 风格图标
+│
+├── assets/                   # 静态资源
+│   └── icon.png              #   应用图标（PNG 格式）
+│
+├── style/                    # 全局样式
+│   └── base.css              #   基础变量、标题栏、闪屏、滚动条
+│
+├── scripts/                  # 构建脚本
+│   └── copy-xterm.js         #   xterm 复制脚本（打包时使用）
+│
+├── official_website/         # 官网演示页面
+│   ├── index.html            #   官网首页
+│   └── astroknot-icon.png    #   官网图标
+│
+├── tests/                    # 自动化测试（Vitest）
+│   ├── setup.js              #   全局 mock（window/document/Three.js）
+│   ├── versionStore.test.js  #   哈希函数测试
+│   ├── virtual-fs.test.js    #   虚拟文件系统全量测试
+│   ├── file-icons.test.js    #   文件图标测试
+│   ├── github-api.test.js    #   GitHub API 纯函数测试
+│   ├── history.test.js       #   撤销/重做测试
+│   ├── bundler-pure.test.js  #   打包器纯函数测试
+│   └── tree-data-pure.test.js #   TreeData 纯函数测试
+│
+├── lib/                      # 第三方库
+│   ├── monaco/               #   Monaco Editor（含 81 种语言支持）
+│   ├── three/                #   Three.js + 后处理 + OrbitControls + CSS2DRenderer
+│   ├── esbuild/              #   esbuild-wasm 打包器（browser.js + esbuild.wasm）
+│   ├── xterm/                #   xterm.js 终端 + addons（fit + web-links）
 │   └── soundtouch-processor.js  # SoundTouch 音频处理
-└── modules/              # 核心模块
-    ├── module0_AppState.js         # 全局状态管理器（被所有模块依赖）
-    ├── module1_Textures.js         # 纹理生成（光晕纹理）
-    ├── module2_TreeData.js         # 节点树数据结构、项目持久化、项目配置保存
-    ├── module3_History.js          # 撤销/重做历史栈
-    ├── module4_Confirm.js          # 自定义确认弹窗
-    ├── module5_SelectAndEdit.js    # 节点选中/编辑/Toast
-    ├── module7_SceneInit.js        # 场景初始化（Bloom 辉光、后处理）
-    ├── module8_ContextMenu.js      # 右键菜单（节点/空白区域/叠加层）
-    ├── module9_FileIO.js           # 文件导入/导出
-    ├── module11_QuickNotes.js      # 快速笔记面板
-    ├── module14_Animation.js       # 动画循环（渲染、粒子、HSL 颜色轮转）
-    ├── nodeDiskSync.js             # 节点级磁盘同步（创建/删除/内容自动保存）
-    ├── emergencyBackup.js          # 应急备份（崩溃恢复、退出保存）
-    ├── StressTest.js               # 性能压力测试工具
-    ├── taskbar.js                  # 底部任务栏（窗口管理）
-    ├── hot-update.js               # 开发热更新（HMR）
-    ├── StartPage/                  # 开始首页
-    │   ├── index.js                #   入口 & 显示/隐藏逻辑（滑动动画）
-    │   └── style.css               #   飘带光效、磨砂玻璃、按钮样式
-    ├── versionGraph/               # 版本控制系统
-    │   ├── versionGraph.js         #   提交/分支/diff 核心逻辑
-    │   ├── versionStore.js         #   版本数据持久化（hash、blob 存储）
-    │   ├── versionAutoSave.js      #   自动保存 & 定时快照
-    │   ├── versionMap.js           #   版本图可视化（Canvas 渲染）
-    │   └── versionAtmosphere.js    #   版本图 3D 氛围效果
-    ├── VisualComponents/           # 3D 可视化组件（原 module6）
-    │   ├── index.js                #   入口 & 统一导出
-    │   ├── Nodes.js                #   节点网格创建/销毁/动画
-    │   ├── FlowLines.js            #   螺旋连线 & 折线
-    │   ├── LineManager.js          #   连线管理（增删改）
-    │   └── SceneBuilder.js         #   场景构建（从树数据批量生成）
-    ├── AIChat/                     # AI 对话模块（原 module15）
-    │   ├── index.js                #   入口 & 消息发送核心逻辑
-    │   ├── api.js                  #   API 调用、模型管理、密钥存储
-    │   ├── config.js               #   模式配置（Chat/Agent）
-    │   ├── tools.js                #   Agent 工具调用（项目上下文/导入等）
-    │   └── ui.js                   #   对话 UI、历史面板、Markdown 预览
-    ├── Guide/                      # 新手引导
-    │   ├── index.js                #   入口 & 引导生命周期
-    │   ├── GuideCore.js            #   状态机 & 步骤定义
-    │   ├── GuideOverlay.js         #   高亮遮罩 & 提示气泡
-    │   ├── Guide3D.js              #   3D 场景交互检测
-    │   ├── GuideTutorial.js        #   教程项目数据 & 空项目检测
-    │   └── style.css               #   引导样式
-    ├── DataSetup/                  # 数据目录首次设置
-    │   ├── index.js                #   引导用户选择数据存储位置
-    │   └── style.css               #   设置引导样式
-    ├── 2DView/                     # 2D 思维导图视图
-    │   ├── index.js                #   入口 & 布局算法
-    │   ├── Core.js                 #   核心绘制
-    │   ├── Interaction.js          #   交互（拖拽/缩放/双击）
-    │   ├── Layout.js               #   树形布局引擎
-    │   ├── Render.js               #   节点/连线渲染
-    │   ├── shared.js               #   共享常量
-    │   └── style.css               #   视图样式
-    ├── LayerManager/               # 图层管理
-    │   └── index.js                #   图层创建/切换/排序
-    ├── MoveMode/                   # 节点移动模式
-    │   ├── index.js                #   入口
-    │   ├── MoveCore.js             #   核心逻辑
-    │   ├── LineTooltip.js          #   连线提示
-    │   └── shared.js               #   共享状态
-    ├── AppLibrary/                 # 全局应用库（GitHub 克隆、应用管理）
-    │   ├── AppManager.js           #   应用管理器（增删改查、插入节点）
-    │   ├── AppPanel.js             #   应用列表面板（右键菜单、拖拽）
-    │   └── AppRunner.js            #   应用运行器（独立窗口、iframe 预览）
-    ├── UI/                         # UI 组件
-    │   ├── index.js                #   入口 & 绑定汇总
-    │   ├── ArrangeAnimation.js     #   布局动画
-    │   ├── AiDialog.js             #   AI 对话框 UI
-    │   ├── AiDialog.css            #   AI 对话框样式
-    │   ├── shared.js               #   共享工具函数
-    │   ├── shared.css              #   共享样式
-    │   ├── style.css               #   全局 UI 样式
-    │   ├── Window.js               #   窗口管理 & AstroKnot 菜单
-    │   ├── Window.css              #   窗口管理样式
-    │   ├── Toolbar.js              #   工具栏按钮
-    │   ├── Toolbar.css             #   工具栏样式
-    │   ├── Search.js               #   搜索（节点/项目）
-    │   ├── Search.css              #   搜索样式
-    │   ├── Keyboard.js             #   键盘快捷键 & 输入框防冲突
-    │   ├── Resize.js               #   面板缩放
-    │   ├── Theme.js                #   主题切换
-    │   ├── Theme.css               #   主题切换样式
-    │   ├── Dock.js                 #   快捷启动 Dock
-    │   ├── Dock.css                #   快捷启动 Dock 样式
-    │   ├── AiDialog.js             #   AI 对话框 UI
-    │   └── window-manager.js       #   窗口管理器（模态窗口、应用窗口）
+│
+└── modules/                  # 核心模块（~212 个源文件）
     │
-    ├── calendar/                   # 日历子系统（时钟/天气/农历/节气/排班）
-    │   ├── index.js                #   模块入口（initTaskbarClock）
-    │   ├── shared-state.js         #   跨模块共享状态
-    │   ├── lunar-utils.js          #   农历/节气/节日/时辰
-    │   ├── schedule-store.js       #   日程数据层 + 冲突检测
-    │   ├── schedule-forms.js       #   表单/右键菜单/对话框
-    │   ├── calendar-popup.js       #   三视图渲染 + 弹窗交互
-    │   ├── weather.js              #   天气组件
-    │   ├── shift-store.js          #   排班数据层（班表/班次类型/节假日）
-    │   ├── shift-form.js           #   排班编辑表单（规律/手动/倒班）
-    │   ├── shift-types-store.js    #   班次类型管理（白班/夜班/休息/自定义）
-    │   ├── holidays-store.js       #   法定节假日 & 调休数据（2024-2026）
-    │   ├── item-form.js            #   事项编辑表单（四象限分类）
-    │   ├── items-tabs-store.js     #   事项标签页管理
-    │   ├── add-tab-form.js         #   新增标签页表单
-    │   ├── anniversary-store.js    #   纪念日数据层
-    │   ├── anniversary-view.js     #   纪念日视图
-    │   ├── anniversary-form.js     #   纪念日编辑表单
-    │   ├── notification-store.js   #   通知提醒数据层
-    │   └── calendar.css            #   日历样式
-    └── richEditor/                 # 富文本编辑器
-        ├── index.js                #   模块入口
-        ├── shared-state.js         #   编辑器内部状态
-        ├── dom-refs.js             #   DOM 引用缓存
-        ├── utils.js                #   工具函数（Toast/颜色）
-        ├── word-count.js           #   字数统计（中英文混合）
-        ├── heading-templates.js    #   标题样式模板管理
-        ├── insert-toc.js           #   右键添加到目录
-        ├── lists.js                #   列表功能（项目符号/编号/多级）
-        ├── content-style.js        #   编辑器内容 CSS（含 sup/sub/分栏）
-        ├── images-files.js         #   图片/文件管理 & 右键菜单
-        ├── toc.js                  #   目录/大纲侧边栏
-        ├── tree-panel.js           #   节点树 2D 面板（Canvas 渲染）
-        ├── style.css               #   编辑器样式
-        ├── content-io/             #   内容读写子系统
-        │   ├── index.js            #     入口 & 聚合导出
-        │   ├── editor-content-io.js #    内容保存/加载、sandbox/普通UI切换、标签页管理
-        │   ├── editor-tabs.js      #     编辑器标签页（多节点切换、z-index 管理）
-        │   ├── split-screen.js     #     分屏预览（宽度拖拽、iframe 预览）
-        │   ├── modal-window.js     #     窗口三态控制（最大化/最小化/恢复、动画）
-        │   └── modal-window.css    #     窗口样式
-        ├── sandbox/                #   代码沙盒 IDE（已重构为子目录分组）
-        │   ├── index.js            #     IDE 入口 & 组件生命周期管理
-        │   ├── ide.css             #     IDE 样式（含菜单栏、标签页、预览、控制台、侧边栏等）
-        │   ├── core/               #     核心模块
-        │   │   ├── virtual-fs.js   #       虚拟文件系统（多文件管理、HTML 迁移、磁盘同步）
-        │   │   ├── context.js      #       共享上下文（DOM 引用、事件总线、动作注册、模块注册）
-        │   │   ├── bundler.js      #       esbuild-wasm 打包器（模块打包、CSS/JS 热注入）
-        │   │   └── github-api.js   #       GitHub API（仓库克隆、文件树解析）
-        │   ├── editors/            #     编辑器组件
-        │   │   ├── file-tree.js    #       文件树（右键菜单、新建/删除/重命名、拖拽）
-        │   │   ├── tabs.js         #       文件标签页（拖拽排序、关闭、预览标签保留）
-        │   │   ├── monaco-editor.js#       Monaco 编辑器集成（语法高亮、Emmet、热更新监听）
-        │   │   ├── search.js       #       全局文件搜索（Ctrl+Shift+F、结果列表）
-        │   │   └── terminal.js     #       内置终端（node-pty + xterm.js）
-        │   ├── layout/             #     布局组件
-        │   │   ├── menubar.js      #       菜单栏（文件/编辑/视图/帮助、事件委托点击）
-        │   │   ├── statusbar.js    #       状态栏（当前文件、行号、模式切换按钮）
-        │   │   ├── resize.js       #       分隔条拖拽（预览宽度、侧边栏宽度）
-        │   │   ├── breadcrumb.js   #       面包屑导航（路径层级、点击跳转）
-        │   │   └── activity-bar.js #       活动栏（侧边面板切换、预览标签管理）
-        │   ├── panels/             #     面板组件
-        │   │   ├── console.js      #       控制台（对象展开、过滤、错误徽标）
-        │   │   ├── preview.js      #       预览区域（iframe 运行、热注入、GPU 资源清理）
-        │   │   ├── markdown-preview.js #   Markdown 预览面板
-        │   │   ├── image-preview.js #      图片预览面板
-        │   │   ├── split-editor.js #       分屏编辑器（第二 Monaco 实例）
-        │   │   └── github-import.js #      GitHub 导入面板（仓库 URL 输入、进度显示）
-        │   └── features/           #     功能模块
-        │   │   ├── settings.js     #       设置面板（编辑器配置、主题）
-        │   │   ├── commands.js     #       命令面板（Ctrl+Shift+P、快捷键注册）
-        │   │   ├── auto-run.js     #       自动运行（内容变更触发预览、自动保存）
-        │   │   ├── file-ops.js     #       文件操作（保存、导出、磁盘同步、剪贴板）
-        │   │   ├── template-history.js #   模板/历史面板（模板选择、本地快照）
-        │   │   ├── history.js      #       本地历史记录（快照、diff、回滚）
-        │   │   └── templates.js    #       代码片段模板（HTML/CSS/JS 模板）
-        └── core/                   #   内核
-            ├── init.js             #     TinyMCE 7 初始化 & 事件绑定
-            ├── editor-events.js    #     编辑器事件（右键/拖放/搜索/缩放）
-            ├── code-blocks.js      #     代码块 & Monaco Editor
-            ├── formula.js          #     公式编辑器（LaTeX + MathLive）
-            ├── video-editor.js     #     视频编辑器
-            ├── ffmpeg-service.js   #     FFmpeg 服务（视频处理）
-            ├── toolbar-buttons.js  #     工具栏按钮注册
-            ├── toolbar-layout.js   #     工具栏布局
-            ├── tinymce-editor.css  #     TinyMCE 编辑器样式（深色/浅色主题）
-            ├── monaco-code-editor.css #   Monaco 代码块样式
-            ├── formula-editor.css  #     公式编辑器样式
-            ├── overlay.css         #     覆盖层通用样式
-            ├── univer-table.css    #     Univer 表格样式
-            ├── video-editor.css    #     视频编辑器样式
-            ├── toolbar/            #     工具栏子模块（按标签页拆分）
-            │   ├── toolbar-home.js          # 开始
-            │   ├── toolbar-home-font.js      # 字体/颜色/上标下标/渐变
-            │   ├── toolbar-home-edit.js      # 编辑
-            │   ├── toolbar-home-paragraph.js  # 段落
-            │   ├── toolbar-insert.js          # 插入（图片/文件/公式/图表/音视频）
-            │   ├── toolbar-shape-format.js    # 图形格式
-            │   ├── toolbar-draw.js            # 绘图工具
-            │   ├── toolbar-doc-layout.js      # 文档布局（分栏/纸张）
-            │   └── toolbar-view.js            # 视图（页面/网页/深色模式）
-            └── overlay/             #     覆盖层系统
-                ├── index.js          #       入口
-                ├── overlay-images.js #       覆盖层管理 & 右键菜单
-                ├── overlay-image.js  #       图片覆盖层
-                ├── overlay-image-editor.js  # 图片编辑器
-                ├── overlay-shapes.js #       形状覆盖层
-                ├── overlay-block.js  #       区块覆盖层（组合元素）
-                ├── overlay-document.js #     文档覆盖层（嵌入外部文档）
-                ├── overlay-textbox.js#       文本框覆盖层
-                ├── overlay-chart.js  #       图表覆盖层
-                ├── overlay-chart-editor.js   # 图表编辑器
-                ├── overlay-excel.js  #       电子表格覆盖层
-                ├── overlay-excel-editor.js   # 电子表格编辑器
-                ├── overlay-audio.js  #       音频覆盖层
-                ├── overlay-audio-editor.js   # 音频编辑器（EQ/压缩/混响）
-                ├── overlay-video.js  #       视频覆盖层
-                ├── overlay-slides.js #       幻灯片页
-                └── overlay-slideshow.js      # 幻灯片放映
+    ├── # 数据层
+    ├── module0_AppState.js        # 全局状态管理器（被所有模块依赖）
+    ├── module2_TreeData.js        # 节点树数据结构、项目持久化、项目配置保存
+    ├── module3_History.js         # 撤销/重做历史栈
+    ├── module9_FileIO.js          # 文件导入/导出
+    ├── nodeDiskSync.js            # 节点级磁盘同步（创建/删除/内容自动保存）
+    ├── emergencyBackup.js         # 应急备份（崩溃恢复、退出保存）
+    │
+    ├── # 3D 渲染层
+    ├── module1_Textures.js        # 纹理生成（光晕纹理）
+    ├── VisualComponents/          # 3D 可视化组件（原 module6）
+    │   ├── index.js               #   入口 & 统一导出
+    │   ├── Nodes.js               #   节点网格创建/销毁/动画
+    │   ├── FlowLines.js           #   螺旋连线 & 折线
+    │   ├── LineManager.js         #   连线管理（增删改）
+    │   └── SceneBuilder.js        #   场景构建（从树数据批量生成）
+    ├── module7_SceneInit.js       # 场景初始化（Bloom 辉光、后处理）
+    ├── module14_Animation.js      # 动画循环（渲染、粒子、HSL 颜色轮转）
+    │
+    ├── # 交互控制层
+    ├── module5_SelectAndEdit.js   # 节点选中/编辑/Toast
+    ├── MoveMode/                  # 节点移动模式
+    │   ├── index.js               #   入口
+    │   ├── MoveCore.js            #   核心逻辑
+    │   ├── LineTooltip.js         #   连线提示
+    │   └── shared.js              #   共享状态
+    │
+    ├── # UI 层
+    ├── module4_Confirm.js         # 自定义确认弹窗
+    ├── module8_ContextMenu.js     # 右键菜单（节点/空白区域/叠加层）
+    ├── module11_QuickNotes.js     # 快速笔记面板
+    ├── taskbar.js                 # 底部任务栏（窗口管理）
+    ├── StartPage/                 # 开始首页
+    │   ├── index.js               #   入口 & 显示/隐藏逻辑（滑动动画）
+    │   └── style.css              #   飘带光效、磨砂玻璃、按钮样式
+    ├── AIChat/                    # AI 对话模块（原 module15）
+    │   ├── index.js               #   入口 & 消息发送核心逻辑
+    │   ├── api.js                 #   API 调用、模型管理、密钥存储
+    │   ├── config.js              #   模式配置（Chat/Agent）
+    │   ├── tools.js               #   Agent 工具调用（项目上下文/导入等）
+    │   └── ui.js                  #   对话 UI、历史面板、Markdown 预览
+    ├── AppLibrary/                # 全局应用库（GitHub 克隆、应用管理、内置应用）
+    │   ├── AppManager.js          #   应用管理器（增删改查、注册内置应用）
+    │   ├── AppPanel.js            #   应用列表面板（右键菜单、拖拽、图标）
+    │   ├── AppRunner.js           #   应用运行器（独立窗口、iframe 预览、多窗口）
+    │   ├── browser/               #   内置浏览器（基于 Electron <webview>）
+    │   │   ├── index.js           #     浏览器主入口（工具栏、快捷键、子模块编排）
+    │   │   ├── browser.css        #     浏览器全部样式
+    │   │   ├── browser-tabs.js    #     多标签页管理（创建/销毁/切换/标题同步/favicon）
+    │   │   ├── browser-bookmarks.js #    书签系统（增删查改、文件夹、UI 面板）
+    │   │   ├── browser-history.js #     浏览历史（最多 2000 条、搜索、Ctrl+H）
+    │   │   ├── browser-download.js #     下载管理器（进度显示、IPC 通信）
+    │   │   ├── browser-find.js    #     页面查找（Ctrl+F、上/下一个导航）
+    │   │   ├── browser-zoom.js    #     缩放控制（每标签独立、0.3x–3.0x）
+    │   │   ├── browser-context-menu.js #  自定义右键菜单（文本/图片/链接/网页转节点）
+    │   │   ├── browser-reader.js  #     阅读模式 + 暗色模式强制（CSS 注入）
+    │   │   ├── browser-passwords.js #    简易密码管理器（保存/自动填充）
+    │   │   ├── browser-node-clip.js #    网页内容抓取为知识节点
+    │   │   └── utils.js           #     通用工具（搜索引擎配置、URL 转换、UA 列表）
+    │   ├── ide/                   # 代码沙盒 IDE（VSCode 风格，独立内置应用）
+    │   │   ├── app.js             #    IDE 应用类（生命周期、虚拟节点创建）
+    │   │   ├── ide.css            #    IDE 全部样式（菜单栏、标签页、预览等）
+    │   │   ├── index.js           #    IDE 入口 & 组件编排（欢迎页、文件操作、容器管理）
+    │   │   ├── core/              #    核心模块
+    │   │   │   ├── virtual-fs.js  #      虚拟文件系统（多文件管理、HTML 迁移、磁盘同步）
+    │   │   │   ├── context.js     #      共享上下文（DOM 引用、事件总线、动作注册）
+    │   │   │   ├── bundler.js     #      esbuild-wasm 打包器（模块打包、CSS/JS 热注入）
+    │   │   │   └── github-api.js  #      GitHub API（仓库克隆、文件树解析）
+    │   │   ├── editors/           #    编辑器组件
+    │   │   │   ├── file-tree.js   #      文件树（右键菜单、新建/删除/重命名、拖拽）
+    │   │   │   ├── tabs.js        #      文件标签页（拖拽排序、关闭、预览标签保留）
+    │   │   │   ├── monaco-editor.js #     Monaco 编辑器集成（语法高亮、Emmet、热更新监听）
+    │   │   │   ├── search.js      #      全局文件搜索（Ctrl+Shift+F、结果列表）
+    │   │   │   └── terminal.js    #      内置终端（node-pty + xterm.js）
+    │   │   ├── layout/            #    布局组件
+    │   │   │   ├── menubar.js     #      菜单栏（文件/编辑/视图/帮助、事件委托点击）
+    │   │   │   ├── statusbar.js   #      状态栏（当前文件、行号、模式切换按钮）
+    │   │   │   ├── resize.js      #      分隔条拖拽（预览宽度、侧边栏宽度）
+    │   │   │   ├── breadcrumb.js  #      面包屑导航（路径层级、点击跳转）
+    │   │   │   └── activity-bar.js #     活动栏（侧边面板切换、预览标签管理）
+    │   │   ├── panels/            #    面板组件
+    │   │   │   ├── console.js     #      控制台（对象展开、过滤、错误徽标）
+    │   │   │   ├── preview.js     #      预览区域（iframe 运行、热注入、GPU 资源清理）
+    │   │   │   ├── markdown-preview.js #  Markdown 预览面板
+    │   │   │   ├── image-preview.js #     图片预览面板
+    │   │   │   ├── split-editor.js #      分屏编辑器（第二 Monaco 实例）
+    │   │   │   └── github-import.js #     GitHub 导入面板（仓库 URL 输入、进度显示）
+    │   │   └── features/          #    功能模块
+    │   │       ├── settings.js    #      设置面板（编辑器配置、主题）
+    │   │       ├── commands.js    #      命令面板（Ctrl+Shift+P、快捷键注册）
+    │   │       ├── auto-run.js    #      自动运行（内容变更触发预览、自动保存）
+    │   │       ├── file-ops.js    #      文件操作（保存、导出、磁盘同步、剪贴板）
+    │   │       ├── template-history.js #  模板/历史面板
+    │   │       └── history.js     #      本地历史记录（快照、diff、回滚）
+    │   ├── trash/                 # 回收站
+    │   │   ├── index.js           #   回收站 UI（恢复、永久删除、清空）
+    │   │   └── trash.css          #   回收站样式
+    │   └── file-manager/          # 文件管理器
+    │       ├── index.js           #   文件浏览器（目录浏览、文件操作）
+    │       └── file-manager.css   #   文件管理器样式
+    │
+    ├── # 视图切换层
+    ├── 2DView/                    # 2D 思维导图视图
+    │   ├── index.js               #   入口 & 布局算法
+    │   ├── Core.js                #   核心绘制
+    │   ├── Interaction.js         #   交互（拖拽/缩放/双击）
+    │   ├── Layout.js              #   树形布局引擎（纯函数，可独立测试）
+    │   ├── Render.js              #   节点/连线渲染
+    │   ├── shared.js              #   共享常量
+    │   └── style.css              #   视图样式
+    ├── LayerManager/              # 图层管理
+    │   └── index.js               #   图层创建/切换/排序
+    │
+    ├── # 版本控制层
+    ├── versionGraph/              # 版本控制系统
+    │   ├── versionGraph.js        #   提交/分支/diff 核心逻辑
+    │   ├── versionStore.js        #   版本数据持久化（hash、blob 存储）
+    │   ├── versionAutoSave.js     #   自动保存 & 定时快照
+    │   ├── versionMap.js          #   版本图可视化（Canvas 渲染）
+    │   └── versionAtmosphere.js   #   版本图 3D 氛围效果
+    │
+    ├── # 引导层
+    ├── Guide/                     # 新手引导
+    │   ├── index.js               #   入口 & 引导生命周期
+    │   ├── GuideCore.js           #   状态机 & 步骤定义
+    │   ├── GuideOverlay.js        #   高亮遮罩 & 提示气泡
+    │   ├── Guide3D.js             #   3D 场景交互检测
+    │   ├── GuideTutorial.js       #   教程项目数据 & 空项目检测
+    │   └── style.css              #   引导样式
+    ├── DataSetup/                 # 数据目录首次设置
+    │   ├── index.js               #   引导用户选择数据存储位置
+    │   └── style.css              #   设置引导样式
+    │
+    ├── # 基础设施
+    ├── hot-update.js              # 开发热更新（HMR）
+    ├── StressTest.js              # 性能压力测试工具
+    │
+    ├── # UI 组件库
+    ├── UI/                        # UI 组件
+    │   ├── index.js               #   入口 & 绑定汇总
+    │   ├── shared.js              #   共享工具函数
+    │   ├── shared.css             #   共享样式
+    │   ├── style.css              #   全局 UI 样式
+    │   ├── Window.js              #   窗口管理 & AstroKnot 菜单
+    │   ├── Window.css             #   窗口管理样式
+    │   ├── Toolbar.js             #   工具栏按钮
+    │   ├── Toolbar.css            #   工具栏样式
+    │   ├── Search.js              #   搜索（节点/项目）
+    │   ├── Search.css             #   搜索样式
+    │   ├── Keyboard.js            #   键盘快捷键 & 输入框防冲突
+    │   ├── Resize.js              #   面板缩放
+    │   ├── Theme.js               #   主题切换
+    │   ├── Theme.css              #   主题切换样式
+    │   ├── Dock.js                #   快捷启动 Dock
+    │   ├── Dock.css               #   快捷启动 Dock 样式
+    │   ├── ArrangeAnimation.js    #   布局动画
+    │   ├── AiDialog.js            #   AI 对话框 UI
+    │   ├── AiDialog.css           #   AI 对话框样式
+    │   └── window-manager.js      #   窗口管理器（模态窗口、应用窗口）
+    │
+    ├── # 日历子系统
+    ├── calendar/                  # 日历子系统（时钟/天气/农历/节气/排班）
+    │   ├── index.js               #   模块入口（initTaskbarClock）
+    │   ├── calendar.css           #   日历样式
+    │   ├── shared-state.js        #   跨模块共享状态
+    │   ├── lunar-utils.js         #   农历/节气/节日/时辰
+    │   ├── schedule-store.js      #   日程数据层 + 冲突检测
+    │   ├── schedule-forms.js      #   表单/右键菜单/对话框
+    │   ├── schedule-import.js     #   日程导入
+    │   ├── calendar-popup.js      #   三视图渲染 + 弹窗交互
+    │   ├── weather.js             #   天气组件
+    │   ├── shift-store.js         #   排班数据层（班表/班次类型/节假日）
+    │   ├── shift-form.js          #   排班编辑表单（规律/手动/倒班）
+    │   ├── shift-types-store.js   #   班次类型管理（白班/夜班/休息/自定义）
+    │   ├── holidays-store.js      #   法定节假日 & 调休数据（2024-2026）
+    │   ├── items-tabs-store.js    #   事项标签页管理
+    │   ├── add-tab-form.js        #   新增标签页表单
+    │   ├── anniversary-store.js   #   纪念日数据层
+    │   ├── anniversary-view.js    #   纪念日视图
+    │   ├── anniversary-form.js    #   纪念日编辑表单
+    │   └── notification-store.js  #   通知提醒数据层
+    │
+    └── # 富文本编辑器
+    └── richEditor/                # 富文本编辑器（TinyMCE 7 + Univer + 覆盖层系统）
+        ├── index.js               #   模块入口
+        ├── style.css              #   编辑器样式
+        ├── shared-state.js        #   编辑器内部状态
+        ├── dom-refs.js            #   DOM 引用缓存
+        ├── utils.js               #   工具函数（Toast/颜色）
+        ├── word-count.js          #   字数统计（中英文混合）
+        ├── heading-templates.js   #   标题样式模板管理
+        ├── lists.js               #   列表功能（项目符号/编号/多级）
+        ├── content-style.js       #   编辑器内容 CSS（含 sup/sub/分栏）
+        ├── images-files.js        #   图片/文件管理 & 右键菜单
+        ├── insert-toc.js          #   右键添加到目录
+        ├── toc.js                 #   目录/大纲侧边栏
+        ├── tree-panel.js          #   节点树 2D 面板（Canvas 渲染）
+        │
+        ├── content-io/            # 内容读写子系统
+        │   ├── index.js           #   入口 & 聚合导出
+        │   ├── editor-content-io.js #  内容保存/加载、sandbox/普通UI切换、标签页管理
+        │   ├── editor-tabs.js     #   编辑器标签页（多节点切换、z-index 管理）
+        │   ├── split-screen.js    #   分屏预览（宽度拖拽、iframe 预览）
+        │   ├── modal-window.js    #   窗口三态控制（最大化/最小化/恢复、动画）
+        │   └── modal-window.css   #   窗口样式
+        │
+        ├── core/                  # 内核
+        │   ├── init.js            #   TinyMCE 7 初始化 & 事件绑定
+        │   ├── editor-events.js   #   编辑器事件（右键/拖放/搜索/缩放）
+        │   ├── code-blocks.js     #   代码块 & Monaco Editor
+        │   ├── formula.js         #   公式编辑器（LaTeX + MathLive）
+        │   ├── video-editor.js    #   视频编辑器
+        │   ├── ffmpeg-service.js  #   FFmpeg 服务（视频处理）
+        │   ├── toolbar-buttons.js #   工具栏按钮注册
+        │   ├── toolbar-layout.js  #   工具栏布局
+        │   ├── tinymce-editor.css #   TinyMCE 编辑器样式（深色/浅色主题）
+        │   ├── monaco-code-editor.css # Monaco 代码块样式
+        │   ├── formula-editor.css #   公式编辑器样式
+        │   ├── overlay.css        #   覆盖层通用样式
+        │   ├── univer-table.css   #   Univer 表格样式
+        │   ├── video-editor.css   #   视频编辑器样式
+        │   │
+        │   ├── toolbar/           # 工具栏子模块（按标签页拆分）
+        │   │   ├── toolbar-home.js          # 开始
+        │   │   ├── toolbar-home-font.js     # 字体/颜色/上标下标/渐变
+        │   │   ├── toolbar-home-edit.js     # 编辑
+        │   │   ├── toolbar-home-paragraph.js # 段落
+        │   │   ├── toolbar-insert.js        # 插入（图片/文件/公式/图表/音视频）
+        │   │   ├── toolbar-shape-format.js   # 图形格式
+        │   │   ├── toolbar-draw.js          # 绘图工具
+        │   │   ├── toolbar-doc-layout.js    # 文档布局（分栏/纸张）
+        │   │   └── toolbar-view.js          # 视图（页面/网页/深色模式）
+        │   │
+        │   └── overlay/           # 覆盖层系统
+        │       ├── index.js              #   入口
+        │       ├── overlay-images.js     #   覆盖层管理 & 右键菜单
+        │       ├── overlay-image.js      #   图片覆盖层
+        │       ├── overlay-image-editor.js #  图片编辑器
+        │       ├── overlay-shapes.js     #   形状覆盖层
+        │       ├── overlay-block.js      #   区块覆盖层（组合元素）
+        │       ├── overlay-document.js   #   文档覆盖层（嵌入外部文档）
+        │       ├── overlay-textbox.js    #   文本框覆盖层
+        │       ├── overlay-chart.js      #   图表覆盖层
+        │       ├── overlay-chart-editor.js #  图表编辑器
+        │       ├── overlay-excel.js      #   电子表格覆盖层
+        │       ├── overlay-excel-editor.js #  电子表格编辑器
+        │       ├── overlay-audio.js      #   音频覆盖层
+        │       ├── overlay-audio-editor.js #  音频编辑器（EQ/压缩/混响）
+        │       ├── overlay-video.js      #   视频覆盖层
+        │       ├── overlay-slides.js     #   幻灯片页
+        │       └── overlay-slideshow.js  #   幻灯片放映
 ```
 
 ## 架构分层
@@ -379,9 +472,10 @@ AstroKnot/
 | 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件、场景初始化、动画 |
 | 交互控制层 | `module5`, `MoveMode/` | 节点选中/编辑、拖拽移动 |
 | UI 层 | `module4`, `module8`, `module11`, `AIChat/`, `UI/`, `richEditor/`, `taskbar.js`, `StartPage/`, `AppLibrary/` | 弹窗、菜单、AI 对话、编辑器、窗口管理、开始首页、全局应用库 |
+| 浏览器层 | `AppLibrary/browser/` | 内置浏览器（多标签页、书签、历史、下载、阅读模式、密码管理、网页转节点） |
 | 引导层 | `Guide/` | 新手引导、教程项目 |
 | 视图切换 | `2DView/`, `LayerManager/` | 2D 思维导图、图层管理 |
-| 基础设施 | `hot-update.js`, `StressTest.js`, `DataSetup/` | 开发热更新、性能测试、数据目录设置 |
+| 基础设施 | `hot-update.js`, `StressTest.js`, `DataSetup/`, `system-storage.js`, `tests/` | 开发热更新、性能测试、数据目录设置、系统偏好文件化、自动化测试 |
 
 ## 模块依赖关系
 
@@ -413,6 +507,7 @@ AstroKnot/
 | `LayerManager/` | `module0` | 图层管理 |
 | `taskbar.js` | 无 | 独立任务栏 |
 | `hot-update.js` | `module0` | 热更新 |
+| `AppLibrary/` | `module0`, `module2`, `richEditor/` | 全局应用库、IDE、浏览器、回收站、文件管理器 |
 
 ### 典型依赖链
 
@@ -477,9 +572,24 @@ AstroKnot/
 - **日历排班**：月/周/日三视图，支持排班（上班规律自动识别法定节假日和调休、手动倒班、规律倒班循环），四象限事项管理，纪念日管理，通知提醒
 - **AI 对话**：支持 Chat 模式和 Agent 模式，Agent 模式可调用工具（读取项目上下文、导入 Markdown 等）
 - **版本控制**：工具栏版本图按钮，查看提交历史、创建分支、回滚到历史版本、查看 diff
-- **代码沙盒 IDE**：右键节点 → "💻 以 HTML 方式打开"，进入 VSCode 风格 IDE，支持实时预览、控制台、全局搜索
+- **代码沙盒 IDE**：右键节点 → "💻 以 HTML 方式打开"，进入 VSCode 风格 IDE，支持实时预览、控制台、全局搜索；也可双击应用栏 IDE 图标独立打开
 - **GitHub 项目导入**：IDE 菜单栏 → 文件 → 从 GitHub 导入，输入仓库 URL 自动克隆到沙盒
 - **全局应用库**：AstroKnot 菜单 → 应用栏，从 GitHub 克隆应用，拖拽插入为节点或独立预览
+- **内置浏览器**：AstroKnot 菜单 → 应用栏 → 双击"内置浏览器"打开
+  - **多标签页**：标签栏右侧"+"新建标签，支持拖拽排序、右键关闭
+  - **书签**：地址栏星标按钮添加书签，支持文件夹分组
+  - **历史记录**：Ctrl+H 打开历史面板，按日期分组，支持搜索
+  - **下载管理**：下载时自动弹出下载面板，显示进度
+  - **页面查找**：Ctrl+F 查找栏
+  - **缩放**：Ctrl+滚轮 或 Ctrl +/- 缩放页面（0.3x–3.0x）
+  - **阅读模式**：工具栏阅读模式按钮，隐藏广告/侧边栏，优化正文排版
+  - **暗色模式**：工具栏暗色模式按钮，强制网页暗色显示
+  - **搜索引擎**：地址栏下拉切换百度/Google/Bing/DuckDuckGo
+  - **隐私模式**：独立 partition，不记录历史，退出自动清理
+  - **开发者工具**：右键 → 检查元素，以右侧可调侧边栏形式打开
+  - **网页转节点**：右键 → "🌐 转为 Web 项目节点（整页）"或"📄 转为知识节点（文本）"，将网页内容抓取为 3D 场景中的知识节点
+- **文件管理器**：AstroKnot 菜单 → 应用栏 → 双击"文件管理器"打开，系统文件浏览
+- **回收站**：AstroKnot 菜单 → 应用栏 → 双击"回收站"打开，恢复或永久删除已删除项目
 - **节点命名规范**：新建根节点自动命名为"根节点1、根节点2..."，新建子节点自动命名为"子节点1、子节点2..."（全局序号）
 - **节点文件夹命名**：保存项目时节点文件夹以"节点名称_[nodeId前8位]"格式命名，直观易读
 - **新手引导**：首次打开空项目时自动启动，交互式引导完成基本操作
@@ -504,6 +614,44 @@ AstroKnot/
 | **node-pty** | 终端进程管理（PowerShell/Zsh） |
 | **xterm.js** | 终端 UI 渲染 |
 | **esbuild-wasm** | 浏览器端模块打包 |
+| **Vitest** | 自动化测试框架 |
+
+## 数据存储架构
+
+AstroKnot 将所有用户数据集中存储在 `AstroKnot-Data/` 目录下，支持自定义位置，应用移动后自动重新定位：
+
+```
+AstroKnot-Data/
+├── system/                      # 系统数据
+│   ├── settings.json            #   数据目录配置（路径、相对位置）
+│   ├── preferences.json         #   应用偏好设置（localStorage 镜像，36 个 key）
+│   ├── emergency-backups/       #   应急备份（崩溃恢复）
+│   ├── sandbox-tmp/             #   未保存项目的临时沙盒
+│   └── version-graphs-tmp/      #   未保存项目的版本图临时数据
+├── projects/                    # 用户项目（每个项目一个文件夹）
+├── quicknotes/                  # 快速笔记
+├── apps/                        # 全局应用库（GitHub 克隆的应用）
+│   ├── index.json               #   应用清单
+│   └── <app-id>/                #   每个应用一个子目录
+│       ├── meta.json            #     应用元数据
+│       └── sandbox/             #     应用文件
+└── trash/                       # 回收站（已删除项目，可恢复）
+    └── <project-name>/          #   每个已删除项目一个子目录
+        ├── .trash-meta.json     #     删除时间、来源等元数据
+        ├── project.json         #     项目配置
+        ├── project.md           #     项目描述
+        └── nodes/               #     节点数据
+```
+
+### 系统偏好文件化（preferences.json）
+
+所有应用自有 localStorage 设置（UI 主题、编辑器配置、日历、AIChat、浏览器、项目数据、新手引导等 36 个 key）通过 `system-storage.js` 镜像到 `system/preferences.json` 显式 JSON 文件：
+
+- **启动时**：同步读取文件覆盖 localStorage（文件为权威源）
+- **运行时**：Patch `Storage.prototype` 变更检测 → 1000ms 防抖异步落盘
+- **退出时**：同步原子写入（temp + rename），防止数据丢失
+- **白名单过滤**：仅持久化应用自有 key（`astroknot*`、`knowledge_graph*`、`ai*`、`richEditor*`、`calendar*` 等），第三方库 key（TinyMCE/Monaco）保留在原生 localStorage
+- **跨环境一致**：开发环境（C 盘 localStorage + 文件）和打包环境（`AstroKnot-Data/system/` localStorage + 文件）均生效
 
 ## 部署版本
 

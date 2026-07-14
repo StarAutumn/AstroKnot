@@ -3,7 +3,7 @@
 //  负责创建应用程序窗口，监听生命周期事件
 // ============================================================
 
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, session, webContents } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { bindTerminalIPC, killSessionsForWebContents, killAllSessions } = require('./main-terminal');
@@ -64,7 +64,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false            // 允许 preload 使用 Node.js 内置模块（path, fs 等）
+      sandbox: false,           // 允许 preload 使用 Node.js 内置模块（path, fs 等）
+      webviewTag: true          // 允许渲染进程使用 <webview> 标签（内置浏览器）
     }
   });
 
@@ -978,6 +979,203 @@ function bindFileIPC() {
     return { canceled: false, path: result.filePaths[0] };
   });
 
+  // 选择背景图片文件（图片/动图）
+  ipcMain.handle('select-image-file', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      title: '选择背景图片或动图',
+      filters: [
+        { name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'avif'] }
+      ]
+    });
+    if (result.canceled) return { canceled: true };
+    return { canceled: false, path: result.filePaths[0] };
+  });
+
+  // ── 选择外部程序（桌面模式添加快捷方式）──
+  ipcMain.handle('select-external-app', async () => {
+    const filters = process.platform === 'win32'
+      ? [
+          { name: '程序与快捷方式', extensions: ['exe', 'lnk', 'bat', 'cmd', 'url', 'com', 'msi'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      : process.platform === 'darwin'
+      ? [
+          { name: '应用程序', extensions: ['app', 'command', 'sh', 'workflow'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      : [
+          { name: '程序', extensions: ['desktop', 'sh', 'bin'] },
+          { name: '所有文件', extensions: ['*'] }
+        ];
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      title: '选择外部程序',
+      filters
+    });
+    if (result.canceled) return { canceled: true };
+    const filePath = result.filePaths[0];
+    const name = filePath.split(/[/\\]/).pop().replace(/\.[^.]+$/, '');
+    return { canceled: false, path: filePath, name };
+  });
+
+  // ════════════════════════════════════════════════════════════
+  //  项目磁盘读写辅助函数（供 save-project / load-project / 回收站共用）
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * 将项目数据写入指定目录（project.json + nodes/ + project.md）
+   * @param {string} savePath - 项目文件夹路径
+   * @param {Object} projectData - 项目数据（含 nodeRichContents/overlayImages/nodeFileSystems 等）
+   * @returns {{ success: boolean, path?: string, error?: string }}
+   */
+  function _writeProjectToDisk(savePath, projectData) {
+    fs.mkdirSync(savePath, { recursive: true });
+
+    const nodesDir = path.join(savePath, 'nodes');
+    fs.mkdirSync(nodesDir, { recursive: true });
+
+    // 分离节点级数据和项目核心数据
+    const { nodeRichContents, overlayImages, nodeFileSystems, savePath: _sp, ...projectCore } = projectData;
+
+    // 写入 project.json
+    fs.writeFileSync(
+      path.join(savePath, 'project.json'),
+      JSON.stringify(projectCore, null, 2),
+      'utf-8'
+    );
+
+    // 收集当前存在的节点，建立 nodeId -> node 映射
+    const currentNodes = collectTreeNodeIds(projectCore.methodsTree);
+    const nodeMap = new Map(currentNodes.map(n => [n.id, n]));
+
+    // 补充来自 nodeRichContents/overlayImages/nodeFileSystems 的 nodeId
+    if (nodeRichContents) for (const id of Object.keys(nodeRichContents)) {
+      if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
+    }
+    if (overlayImages) for (const id of Object.keys(overlayImages)) {
+      if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
+    }
+    if (nodeFileSystems) for (const id of Object.keys(nodeFileSystems)) {
+      if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
+    }
+
+    // 建立文件夹名集合（用于清理检测）
+    const currentFolderNames = new Set([...nodeMap.values()].map(n => getNodeFolderName(n)));
+
+    if (fs.existsSync(nodesDir)) {
+      for (const folder of fs.readdirSync(nodesDir, { withFileTypes: true })) {
+        if (folder.isDirectory() && !currentFolderNames.has(folder.name)) {
+          fs.rmSync(path.join(nodesDir, folder.name), { recursive: true, force: true });
+        }
+      }
+    }
+
+    // 写入每个节点的 content.html
+    for (const [nodeId, content] of Object.entries(nodeRichContents || {})) {
+      const nodeDir = path.join(nodesDir, nodeId);
+      fs.mkdirSync(nodeDir, { recursive: true });
+      fs.writeFileSync(path.join(nodeDir, 'content.html'), content, 'utf-8');
+    }
+
+    // 写入每个节点的 overlay 数据
+    for (const [nodeId, overlays] of Object.entries(overlayImages || {})) {
+      if (!overlays || overlays.length === 0) continue;
+      const node = nodeMap.get(nodeId);
+      const folderName = node ? getNodeFolderName(node) : sanitizeNodeFolderName('未知节点') + '_' + nodeId.slice(0, 8);
+      const nodeDir = path.join(nodesDir, folderName);
+      const overlaysDir = path.join(nodeDir, 'overlays');
+      saveOverlays(overlaysDir, overlays);
+    }
+
+    // 写入每个节点的沙盒代码文件（虚拟文件系统 → 真实磁盘文件）
+    for (const [nodeId, fileSystem] of Object.entries(nodeFileSystems || {})) {
+      if (!fileSystem) continue;
+      const node = nodeMap.get(nodeId);
+      const folderName = node ? getNodeFolderName(node) : sanitizeNodeFolderName('未知节点') + '_' + nodeId.slice(0, 8);
+      const sandboxDir = path.join(nodesDir, folderName, 'sandbox');
+      // 先清空旧的 sandbox 目录，避免残留已删除的文件
+      if (fs.existsSync(sandboxDir)) {
+        fs.rmSync(sandboxDir, { recursive: true, force: true });
+      }
+      // 递归写入文件树
+      _writeFileSystemToDisk(fileSystem, sandboxDir);
+    }
+
+    // 生成 project.md
+    generateProjectMd(savePath, projectCore, nodeRichContents, overlayImages);
+
+    return { success: true, path: savePath };
+  }
+
+  /**
+   * 从文件夹读取项目数据（project.json + nodes/）
+   * @param {string} folderPath - 项目文件夹路径
+   * @returns {{ success: boolean, data?: Object, folderName?: string, folderPath?: string, error?: string }}
+   */
+  function _readProjectData(folderPath) {
+    const projectJsonPath = path.join(folderPath, 'project.json');
+
+    if (!fs.existsSync(projectJsonPath)) {
+      return { success: false, error: '所选文件夹中没有 project.json，不是有效的 AstroKnot 项目' };
+    }
+
+    // 读取 project.json
+    const projectCore = JSON.parse(fs.readFileSync(projectJsonPath, 'utf-8'));
+
+    // 读取节点内容
+    const nodesDir = path.join(folderPath, 'nodes');
+    const nodeRichContents = {};
+    const overlayImages = {};
+    const nodeFileSystems = {};
+
+    if (fs.existsSync(nodesDir)) {
+      for (const entry of fs.readdirSync(nodesDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const folderName = entry.name;
+        const nodeDir = path.join(nodesDir, folderName);
+
+        // 从文件夹名解析 nodeId（格式：节点名称_[nodeId前8位]）
+        // 回退：如果是旧格式（纯 nodeId），直接用 folderName 作为 nodeId
+        const nodeIdMatch = folderName.match(/_(.+)$/);
+        const nodeId = nodeIdMatch ? nodeIdMatch[1] : folderName;
+
+        // 读取 content.html
+        const contentPath = path.join(nodeDir, 'content.html');
+        if (fs.existsSync(contentPath)) {
+          nodeRichContents[nodeId] = fs.readFileSync(contentPath, 'utf-8');
+        }
+
+        // 读取 overlays
+        const overlaysDir = path.join(nodeDir, 'overlays');
+        if (fs.existsSync(path.join(overlaysDir, 'manifest.json'))) {
+          const overlays = loadOverlays(overlaysDir);
+          if (overlays && overlays.length > 0) {
+            overlayImages[nodeId] = overlays;
+          }
+        }
+
+        // 读取沙盒代码文件（sandbox/ 目录 → 虚拟文件系统）
+        const sandboxDir = path.join(nodeDir, 'sandbox');
+        if (fs.existsSync(sandboxDir)) {
+          const fsTree = _readFileSystemFromDisk(sandboxDir);
+          if (fsTree && fsTree.children && fsTree.children.length > 0) {
+            // 将根目录名改为 '/' 以匹配 VirtualFileSystem 的约定
+            fsTree.name = '/';
+            nodeFileSystems[nodeId] = fsTree;
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: { ...projectCore, nodeRichContents, overlayImages, nodeFileSystems },
+      folderName: path.basename(folderPath),
+      folderPath
+    };
+  }
+
   // ── 保存项目到文件夹 ──
   ipcMain.handle('save-project', async (event, projectData) => {
     try {
@@ -1004,80 +1202,11 @@ function bindFileIPC() {
         savePath = path.join(savePath, projectName);
       }
 
-      fs.mkdirSync(savePath, { recursive: true });
-
-      const nodesDir = path.join(savePath, 'nodes');
-      fs.mkdirSync(nodesDir, { recursive: true });
-
-      // 分离节点级数据和项目核心数据
-      const { nodeRichContents, overlayImages, nodeFileSystems, savePath: _sp, ...projectCore } = projectData;
-
-      // 写入 project.json
-      fs.writeFileSync(
-        path.join(savePath, 'project.json'),
-        JSON.stringify(projectCore, null, 2),
-        'utf-8'
-      );
-
-      // 收集当前存在的节点，建立 nodeId -> node 映射
-      const currentNodes = collectTreeNodeIds(projectCore.methodsTree);
-      const nodeMap = new Map(currentNodes.map(n => [n.id, n]));
-      
-      // 补充来自 nodeRichContents/overlayImages/nodeFileSystems 的 nodeId（这些可能有数据但不在树中）
-      if (nodeRichContents) for (const id of Object.keys(nodeRichContents)) {
-        if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
+      // 复用通用写入函数
+      const result = _writeProjectToDisk(savePath, projectData);
+      if (!result.success) {
+        return { success: false, error: result.error };
       }
-      if (overlayImages) for (const id of Object.keys(overlayImages)) {
-        if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
-      }
-      if (nodeFileSystems) for (const id of Object.keys(nodeFileSystems)) {
-        if (!nodeMap.has(id)) nodeMap.set(id, { id, name: '未知节点' });
-      }
-      
-      // 建立文件夹名集合（用于清理检测）
-      const currentFolderNames = new Set([...nodeMap.values()].map(n => getNodeFolderName(n)));
-
-      if (fs.existsSync(nodesDir)) {
-        for (const folder of fs.readdirSync(nodesDir, { withFileTypes: true })) {
-          if (folder.isDirectory() && !currentFolderNames.has(folder.name)) {
-            fs.rmSync(path.join(nodesDir, folder.name), { recursive: true, force: true });
-          }
-        }
-      }
-
-      // 写入每个节点的 content.html
-      for (const [nodeId, content] of Object.entries(nodeRichContents || {})) {
-        const nodeDir = path.join(nodesDir, nodeId);
-        fs.mkdirSync(nodeDir, { recursive: true });
-        fs.writeFileSync(path.join(nodeDir, 'content.html'), content, 'utf-8');
-      }
-
-      // 写入每个节点的 overlay 数据
-      for (const [nodeId, overlays] of Object.entries(overlayImages || {})) {
-        if (!overlays || overlays.length === 0) continue;
-        const node = nodeMap.get(nodeId);
-        const folderName = node ? getNodeFolderName(node) : sanitizeNodeFolderName('未知节点') + '_' + nodeId.slice(0, 8);
-        const nodeDir = path.join(nodesDir, folderName);
-        const overlaysDir = path.join(nodeDir, 'overlays');
-        saveOverlays(overlaysDir, overlays);
-      }
-
-      // 写入每个节点的沙盒代码文件（虚拟文件系统 → 真实磁盘文件）
-      for (const [nodeId, fileSystem] of Object.entries(nodeFileSystems || {})) {
-        if (!fileSystem) continue;
-        const node = nodeMap.get(nodeId);
-        const folderName = node ? getNodeFolderName(node) : sanitizeNodeFolderName('未知节点') + '_' + nodeId.slice(0, 8);
-        const sandboxDir = path.join(nodesDir, folderName, 'sandbox');
-        // 先清空旧的 sandbox 目录，避免残留已删除的文件
-        if (fs.existsSync(sandboxDir)) {
-          fs.rmSync(sandboxDir, { recursive: true, force: true });
-        }
-        // 递归写入文件树
-        _writeFileSystemToDisk(fileSystem, sandboxDir);
-      }
-
-      // 生成 project.md
-      generateProjectMd(savePath, projectCore, nodeRichContents, overlayImages);
 
       return { success: true, path: savePath, rootPath: rootPath };
     } catch (err) {
@@ -1112,68 +1241,42 @@ function bindFileIPC() {
         }
       }
 
-      const projectJsonPath = path.join(folderPath, 'project.json');
-
-      if (!fs.existsSync(projectJsonPath)) {
-        return { success: false, error: '所选文件夹中没有 project.json，不是有效的 AstroKnot 项目' };
-      }
-
-      // 读取 project.json
-      const projectCore = JSON.parse(fs.readFileSync(projectJsonPath, 'utf-8'));
-
-      // 读取节点内容
-      const nodesDir = path.join(folderPath, 'nodes');
-      const nodeRichContents = {};
-      const overlayImages = {};
-      const nodeFileSystems = {};
-
-      if (fs.existsSync(nodesDir)) {
-        for (const entry of fs.readdirSync(nodesDir, { withFileTypes: true })) {
-          if (!entry.isDirectory()) continue;
-          const folderName = entry.name;
-          const nodeDir = path.join(nodesDir, folderName);
-          
-          // 从文件夹名解析 nodeId（格式：节点名称_[nodeId前8位]）
-          // 回退：如果是旧格式（纯 nodeId），直接用 folderName 作为 nodeId
-          const nodeIdMatch = folderName.match(/_(.+)$/);
-          const nodeId = nodeIdMatch ? nodeIdMatch[1] : folderName;
-
-          // 读取 content.html
-          const contentPath = path.join(nodeDir, 'content.html');
-          if (fs.existsSync(contentPath)) {
-            nodeRichContents[nodeId] = fs.readFileSync(contentPath, 'utf-8');
-          }
-
-          // 读取 overlays
-          const overlaysDir = path.join(nodeDir, 'overlays');
-          if (fs.existsSync(path.join(overlaysDir, 'manifest.json'))) {
-            const overlays = loadOverlays(overlaysDir);
-            if (overlays && overlays.length > 0) {
-              overlayImages[nodeId] = overlays;
-            }
-          }
-
-          // 读取沙盒代码文件（sandbox/ 目录 → 虚拟文件系统）
-          const sandboxDir = path.join(nodeDir, 'sandbox');
-          if (fs.existsSync(sandboxDir)) {
-            const fsTree = _readFileSystemFromDisk(sandboxDir);
-            if (fsTree && fsTree.children && fsTree.children.length > 0) {
-              // 将根目录名改为 '/' 以匹配 VirtualFileSystem 的约定
-              fsTree.name = '/';
-              nodeFileSystems[nodeId] = fsTree;
-            }
-          }
-        }
+      // 复用通用读取函数
+      const readResult = _readProjectData(folderPath);
+      if (!readResult.success) {
+        return { success: false, error: readResult.error };
       }
 
       return {
         success: true,
-        data: { ...projectCore, nodeRichContents, overlayImages, nodeFileSystems },
-        folderName: path.basename(folderPath),
-        folderPath
+        data: readResult.data,
+        folderName: readResult.folderName,
+        folderPath: readResult.folderPath
       };
     } catch (err) {
       console.error('[load-project] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 无弹窗版：从指定文件夹读取项目数据（供回收站恢复使用）──
+  ipcMain.handle('read-project-from-folder', async (event, folderPath) => {
+    try {
+      if (!folderPath || !fs.existsSync(folderPath)) {
+        return { success: false, error: '项目文件夹不存在' };
+      }
+      const readResult = _readProjectData(folderPath);
+      if (!readResult.success) {
+        return { success: false, error: readResult.error };
+      }
+      return {
+        success: true,
+        data: readResult.data,
+        folderName: readResult.folderName,
+        folderPath: readResult.folderPath
+      };
+    } catch (err) {
+      console.error('[read-project-from-folder] 错误:', err);
       return { success: false, error: err.message };
     }
   });
@@ -1678,6 +1781,195 @@ function bindFileIPC() {
     }
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  回收站 IPC
+  // ════════════════════════════════════════════════════════════
+
+  // ── 移动项目到回收站 ──
+  ipcMain.handle('move-project-to-trash', async (event, payload) => {
+    const { folderPath, projectId, projectName, projectData } = payload || {};
+    try {
+      const trashDir = dataSettings.getTrashDir();
+      if (!trashDir) return { success: false, error: '回收站目录未配置' };
+      fs.mkdirSync(trashDir, { recursive: true });
+
+      // 处理重名：trash/<项目名> 已存在则追加 _<时间戳>
+      let targetName = projectName || '未命名项目';
+      let targetPath = path.join(trashDir, targetName);
+      if (fs.existsSync(targetPath)) {
+        targetName = `${targetName}_${Date.now()}`;
+        targetPath = path.join(trashDir, targetName);
+      }
+
+      const wasUnsaved = !folderPath || !fs.existsSync(folderPath);
+      if (!wasUnsaved) {
+        // 已保存项目：移动整个文件夹（跨盘时回退到复制+删除）
+        try {
+          fs.renameSync(folderPath, targetPath);
+        } catch (renameErr) {
+          // 跨设备链接失败，回退到复制 + 删除
+          fs.cpSync(folderPath, targetPath, { recursive: true });
+          fs.rmSync(folderPath, { recursive: true, force: true });
+        }
+      } else {
+        // 未保存项目：用 projectData 写入 trash 文件夹
+        if (!projectData) {
+          return { success: false, error: '未保存项目缺少 projectData，无法移入回收站' };
+        }
+        _writeProjectToDisk(targetPath, projectData);
+        // 清理 sandbox-tmp
+        const tmpDir = dataSettings.getSandboxTmpDir(projectId);
+        if (tmpDir && fs.existsSync(tmpDir)) {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+      }
+
+      // 写入回收站元数据
+      const meta = {
+        projectId: projectId || null,
+        projectName: projectName || targetName,
+        originalPath: folderPath || null,
+        deletedAt: new Date().toISOString(),
+        wasUnsaved
+      };
+      fs.writeFileSync(path.join(targetPath, '.trash-meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+      console.log('[move-project-to-trash] 已移入回收站:', targetPath);
+      return { success: true, trashPath: targetPath };
+    } catch (err) {
+      console.error('[move-project-to-trash] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 列出回收站内容 ──
+  ipcMain.handle('list-trash', async () => {
+    try {
+      const trashDir = dataSettings.getTrashDir();
+      if (!trashDir || !fs.existsSync(trashDir)) return { success: true, items: [] };
+      const items = [];
+      for (const entry of fs.readdirSync(trashDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const itemPath = path.join(trashDir, entry.name);
+        const metaPath = path.join(itemPath, '.trash-meta.json');
+        let meta = {};
+        try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch (e) { /* 无 meta 文件 */ }
+        items.push({
+          trashPath: itemPath,
+          folderName: entry.name,
+          projectName: meta.projectName || entry.name,
+          projectId: meta.projectId || null,
+          originalPath: meta.originalPath || null,
+          deletedAt: meta.deletedAt || null,
+          wasUnsaved: meta.wasUnsaved || false
+        });
+      }
+      // 按删除时间倒序（最近删除的排前面）
+      items.sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+      return { success: true, items };
+    } catch (err) {
+      console.error('[list-trash] 错误:', err);
+      return { success: false, error: err.message, items: [] };
+    }
+  });
+
+  // ── 从回收站恢复项目 ──
+  ipcMain.handle('restore-from-trash', async (event, payload) => {
+    const { trashPath } = payload || {};
+    try {
+      if (!trashPath || !fs.existsSync(trashPath)) {
+        return { success: false, error: '回收站项目不存在' };
+      }
+      // 安全检查：确保 trashPath 在回收站目录内
+      const trashDir = dataSettings.getTrashDir();
+      if (!trashDir || !trashPath.startsWith(trashDir)) {
+        return { success: false, error: '路径越权' };
+      }
+
+      // 读 meta，决定恢复目标路径
+      const metaPath = path.join(trashPath, '.trash-meta.json');
+      let meta = {};
+      try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch (e) { /* 无 meta */ }
+
+      let restorePath;
+      const originalParentExists = meta.originalPath && fs.existsSync(path.dirname(meta.originalPath));
+      const originalSlotFree = originalParentExists && !fs.existsSync(meta.originalPath);
+      if (originalSlotFree) {
+        // 原路径父目录存在且原位置空闲 → 恢复到原位置
+        restorePath = meta.originalPath;
+      } else {
+        // 否则恢复到 projects 目录，处理重名
+        const projectsDir = dataSettings.getProjectsDir();
+        fs.mkdirSync(projectsDir, { recursive: true });
+        let name = meta.projectName || path.basename(trashPath);
+        restorePath = path.join(projectsDir, name);
+        let i = 1;
+        while (fs.existsSync(restorePath)) {
+          restorePath = path.join(projectsDir, `${name}_${i}`);
+          i++;
+        }
+      }
+
+      // 移动文件夹（跨盘回退到复制+删除）
+      try {
+        fs.renameSync(trashPath, restorePath);
+      } catch (renameErr) {
+        fs.cpSync(trashPath, restorePath, { recursive: true });
+        fs.rmSync(trashPath, { recursive: true, force: true });
+      }
+
+      // 删除 meta 文件（已恢复，不再是回收站项目）
+      const metaInRestored = path.join(restorePath, '.trash-meta.json');
+      if (fs.existsSync(metaInRestored)) fs.unlinkSync(metaInRestored);
+
+      console.log('[restore-from-trash] 已恢复到:', restorePath);
+      return { success: true, folderPath: restorePath, projectName: meta.projectName || path.basename(restorePath) };
+    } catch (err) {
+      console.error('[restore-from-trash] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 永久删除回收站中的单个项目 ──
+  ipcMain.handle('permanently-delete-trash-item', async (event, payload) => {
+    const { trashPath } = payload || {};
+    try {
+      if (!trashPath) return { success: false };
+      // 安全检查：确保 trashPath 在回收站目录内
+      const trashDir = dataSettings.getTrashDir();
+      if (!trashDir || !trashPath.startsWith(trashDir)) {
+        return { success: false, error: '路径越权' };
+      }
+      if (fs.existsSync(trashPath)) {
+        fs.rmSync(trashPath, { recursive: true, force: true });
+        console.log('[permanently-delete-trash-item] 已永久删除:', trashPath);
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('[permanently-delete-trash-item] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 清空回收站 ──
+  ipcMain.handle('empty-trash', async () => {
+    try {
+      const trashDir = dataSettings.getTrashDir();
+      if (!trashDir || !fs.existsSync(trashDir)) return { success: true, count: 0 };
+      let count = 0;
+      for (const entry of fs.readdirSync(trashDir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          fs.rmSync(path.join(trashDir, entry.name), { recursive: true, force: true });
+          count++;
+        }
+      }
+      console.log('[empty-trash] 已清空回收站，共', count, '个项目');
+      return { success: true, count };
+    } catch (err) {
+      console.error('[empty-trash] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
   // ── 提取 exe 图标（使用 PowerShell 调用 System.Drawing 提取真实图标）──
   ipcMain.handle('extract-icon', async (event, filePath) => {
     try {
@@ -1953,6 +2245,387 @@ function bindFileIPC() {
     }
   });
 
+  // ════════════════════════════════════════════════════════════
+  //  文件管理器 IPC（仅限 AstroKnot-Data 目录）
+  // ════════════════════════════════════════════════════════════
+
+  /** 安全解析相对路径，防止路径遍历攻击，返回绝对路径或 null */
+  function _fmResolve(relPath) {
+    const dataRoot = dataSettings.getDataRoot();
+    if (!dataRoot) return null;
+    // 规范化相对路径：统一用 / 分隔，去除开头的 /
+    const normalized = (relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    const absPath = path.resolve(dataRoot, normalized);
+    // 检查是否在 dataRoot 内
+    if (!absPath.startsWith(path.resolve(dataRoot))) return null;
+    return absPath;
+  }
+
+  // ── 读取目录树（仅目录，不含文件内容）──
+  ipcMain.handle('fm-read-dir-tree', async () => {
+    const dataRoot = dataSettings.getDataRoot();
+    if (!dataRoot || !fs.existsSync(dataRoot)) return {};
+
+    function scanDir(dirPath) {
+      const node = { children: {} };
+      try {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            const childPath = path.join(dirPath, entry.name);
+            node.children[entry.name] = scanDir(childPath);
+          }
+        }
+      } catch (e) { /* 权限不足等 */ }
+      return node;
+    }
+
+    return scanDir(dataRoot);
+  });
+
+  // ── 读取目录内容（文件+文件夹列表）──
+  ipcMain.handle('fm-read-dir', async (event, relPath) => {
+    const absPath = _fmResolve(relPath);
+    if (!absPath) return [];
+    if (!fs.existsSync(absPath)) return [];
+
+    const items = [];
+    try {
+      const entries = fs.readdirSync(absPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(absPath, entry.name);
+        const stat = fs.statSync(fullPath);
+        items.push({
+          name: entry.name,
+          type: entry.isDirectory() ? 'directory' : 'file',
+          size: entry.isFile() ? stat.size : 0,
+          mtime: stat.mtimeMs,
+        });
+      }
+    } catch (e) {
+      console.error('[fm-read-dir] 错误:', e.message);
+    }
+    return items;
+  });
+
+  // ── 读取文件内容（文本或图片）──
+  ipcMain.handle('fm-read-file', async (event, relPath) => {
+    const absPath = _fmResolve(relPath);
+    if (!absPath || !fs.existsSync(absPath)) return { type: 'error' };
+
+    const ext = path.extname(absPath).toLowerCase().slice(1);
+    const imageExts = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'svg', 'tiff', 'tif']);
+    const textExts = new Set([
+      'json', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'html', 'htm', 'css', 'scss', 'less',
+      'md', 'txt', 'xml', 'yaml', 'yml', 'sh', 'bash', 'zsh', 'fish', 'py', 'rb', 'go', 'rs',
+      'java', 'c', 'h', 'cpp', 'hpp', 'cc', 'cs', 'php', 'swift', 'kt', 'dart', 'vue', 'svelte',
+      'sql', 'graphql', 'toml', 'ini', 'cfg', 'conf', 'env', 'gitignore', 'editorconfig',
+      'prettierrc', 'eslintrc', 'babelrc', 'stylelintrc',
+    ]);
+
+    try {
+      const stat = fs.statSync(absPath);
+      if (stat.isDirectory()) return { type: 'directory' };
+
+      if (imageExts.has(ext)) {
+        const buffer = fs.readFileSync(absPath);
+        const mimeMap = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+          svg: 'image/svg+xml', ico: 'image/x-icon',
+          tiff: 'image/tiff', tif: 'image/tiff',
+        };
+        const mime = mimeMap[ext] || 'application/octet-stream';
+        return { type: 'image', dataUrl: `data:${mime};base64,${buffer.toString('base64')}`, size: stat.size };
+      }
+
+      if (textExts.has(ext) || ext === '') {
+        const content = fs.readFileSync(absPath, 'utf-8');
+        return { type: 'text', content, size: stat.size };
+      }
+
+      // 未知二进制文件
+      return { type: 'binary', size: stat.size };
+    } catch (e) {
+      return { type: 'error', message: e.message };
+    }
+  });
+
+  // ── 创建文件/文件夹 ──
+  ipcMain.handle('fm-create-item', async (event, relDir, name, itemType) => {
+    const absDir = _fmResolve(relDir);
+    if (!absDir) throw new Error('无效路径');
+
+    const absPath = path.join(absDir, name);
+    // 安全检查：确保在 dataRoot 内
+    const dataRoot = dataSettings.getDataRoot();
+    if (!path.resolve(absPath).startsWith(path.resolve(dataRoot))) {
+      throw new Error('路径越界');
+    }
+
+    if (fs.existsSync(absPath)) {
+      throw new Error('项目已存在: ' + name);
+    }
+
+    if (itemType === 'directory') {
+      fs.mkdirSync(absPath, { recursive: true });
+    } else {
+      fs.mkdirSync(absDir, { recursive: true });
+      fs.writeFileSync(absPath, '', 'utf-8');
+    }
+    return { success: true };
+  });
+
+  // ── 删除文件/文件夹 ──
+  ipcMain.handle('fm-delete-item', async (event, relPath) => {
+    const absPath = _fmResolve(relPath);
+    if (!absPath || !fs.existsSync(absPath)) throw new Error('项目不存在');
+
+    const stat = fs.statSync(absPath);
+    if (stat.isDirectory()) {
+      fs.rmSync(absPath, { recursive: true, force: true });
+    } else {
+      fs.unlinkSync(absPath);
+    }
+    return { success: true };
+  });
+
+  // ── 重命名文件/文件夹 ──
+  ipcMain.handle('fm-rename-item', async (event, relPath, newName) => {
+    const absPath = _fmResolve(relPath);
+    if (!absPath || !fs.existsSync(absPath)) throw new Error('项目不存在');
+
+    const dir = path.dirname(absPath);
+    const newPath = path.join(dir, newName);
+
+    // 安全检查
+    const dataRoot = dataSettings.getDataRoot();
+    if (!path.resolve(newPath).startsWith(path.resolve(dataRoot))) {
+      throw new Error('路径越界');
+    }
+    if (fs.existsSync(newPath)) {
+      throw new Error('目标名称已存在: ' + newName);
+    }
+
+    fs.renameSync(absPath, newPath);
+    return { success: true };
+  });
+
+  // ── 复制/移动文件 ──
+  ipcMain.handle('fm-copy-item', async (event, srcRelPath, destRelDir, destName, isMove) => {
+    const srcAbs = _fmResolve(srcRelPath);
+    const destDirAbs = _fmResolve(destRelDir);
+    if (!srcAbs || !destDirAbs) throw new Error('无效路径');
+    if (!fs.existsSync(srcAbs)) throw new Error('源文件不存在');
+
+    const destAbs = path.join(destDirAbs, destName);
+    // 安全检查
+    const dataRoot = dataSettings.getDataRoot();
+    if (!path.resolve(destAbs).startsWith(path.resolve(dataRoot))) {
+      throw new Error('路径越界');
+    }
+
+    if (isMove) {
+      fs.renameSync(srcAbs, destAbs);
+    } else {
+      const stat = fs.statSync(srcAbs);
+      if (stat.isDirectory()) {
+        fs.cpSync(srcAbs, destAbs, { recursive: true });
+      } else {
+        fs.copyFileSync(srcAbs, destAbs);
+      }
+    }
+    return { success: true };
+  });
+
+  // ════════════════════════════════════════════════════════════
+  //  IDE 真实文件系统 IPC（无路径限制，操作电脑任意文件夹）
+  // ════════════════════════════════════════════════════════════
+
+  // ── 选择文件夹 ──
+  ipcMain.handle('ide-select-folder', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '选择项目文件夹',
+      properties: ['openDirectory']
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    return result.filePaths[0];
+  });
+
+  // ── 获取节点 sandbox 路径（同步 node.fileSystem 到磁盘后返回路径）──
+  ipcMain.handle('ide-get-node-sandbox-path', async (event, node, projectFolderPath) => {
+    try {
+      let sandboxDir;
+      if (projectFolderPath) {
+        const folderName = getNodeFolderName(node);
+        sandboxDir = path.join(projectFolderPath, 'nodes', folderName, 'sandbox');
+      } else {
+        const tmpDir = dataSettings.getSandboxTmpDir(node.id);
+        sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', node.id, 'sandbox');
+      }
+
+      // 如果 node 有 fileSystem，先同步到磁盘
+      if (node.fileSystem) {
+        if (fs.existsSync(sandboxDir)) {
+          fs.rmSync(sandboxDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(sandboxDir, { recursive: true });
+        _writeFileSystemToDisk(node.fileSystem, sandboxDir);
+      }
+
+      return { success: true, sandboxPath: sandboxDir };
+    } catch (err) {
+      console.error('[ide-get-node-sandbox-path] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 反向同步：将 sandbox 目录内容读回 node.fileSystem ──
+  ipcMain.handle('ide-sync-sandbox-to-node', async (event, sandboxDir) => {
+    try {
+      if (!fs.existsSync(sandboxDir)) return { success: true, fileSystem: null };
+      const fileSystem = _readFileSystemFromDisk(sandboxDir);
+      return { success: true, fileSystem };
+    } catch (err) {
+      console.error('[ide-sync-sandbox-to-node] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 读取目录树（递归，仅目录）──
+  ipcMain.handle('ide-read-dir-tree', async (event, dirPath) => {
+    if (!dirPath || !fs.existsSync(dirPath)) return {};
+    const stat = fs.statSync(dirPath);
+    if (!stat.isDirectory()) return {};
+
+    function scanDir(dir) {
+      const node = { children: {} };
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+            const childPath = path.join(dir, entry.name);
+            node.children[entry.name] = scanDir(childPath);
+          }
+        }
+      } catch (e) { /* 权限不足等 */ }
+      return node;
+    }
+
+    return scanDir(dirPath);
+  });
+
+  // ── 读取目录内容（文件+文件夹，含大小/修改时间）──
+  ipcMain.handle('ide-read-dir', async (event, dirPath) => {
+    if (!dirPath || !fs.existsSync(dirPath)) return [];
+    const stat = fs.statSync(dirPath);
+    if (!stat.isDirectory()) return [];
+
+    const items = [];
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        try {
+          const st = fs.statSync(fullPath);
+          items.push({
+            name: entry.name,
+            type: entry.isDirectory() ? 'directory' : 'file',
+            size: entry.isFile() ? st.size : 0,
+            mtime: st.mtimeMs,
+          });
+        } catch (e) { /* 跳过无权限文件 */ }
+      }
+    } catch (e) {
+      console.error('[ide-read-dir] 错误:', e.message);
+    }
+    return items;
+  });
+
+  // ── 读取文件内容（文本或图片 base64）──
+  ipcMain.handle('ide-read-file', async (event, filePath) => {
+    if (!filePath || !fs.existsSync(filePath)) return { type: 'error', message: '文件不存在' };
+
+    const ext = path.extname(filePath).toLowerCase().slice(1);
+    const imageExts = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'svg', 'tiff', 'tif']);
+
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) return { type: 'directory' };
+      if (stat.size > 10 * 1024 * 1024) return { type: 'binary', size: stat.size, message: '文件过大 (>10MB)' };
+
+      if (imageExts.has(ext)) {
+        const buffer = fs.readFileSync(filePath);
+        const mimeMap = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+          svg: 'image/svg+xml', ico: 'image/x-icon',
+        };
+        const mime = mimeMap[ext] || 'application/octet-stream';
+        return { type: 'image', dataUrl: `data:${mime};base64,${buffer.toString('base64')}`, size: stat.size };
+      }
+
+      // 默认作为文本读取
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return { type: 'text', content, size: stat.size };
+    } catch (e) {
+      return { type: 'error', message: e.message };
+    }
+  });
+
+  // ── 写入文件 ──
+  ipcMain.handle('ide-write-file', async (event, filePath, content) => {
+    if (!filePath) throw new Error('无效路径');
+    try {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, content, 'utf-8');
+      return { success: true };
+    } catch (e) {
+      throw new Error('写入失败: ' + e.message);
+    }
+  });
+
+  // ── 创建文件/文件夹 ──
+  ipcMain.handle('ide-create-item', async (event, dirPath, name, itemType) => {
+    if (!dirPath || !name) throw new Error('无效参数');
+    const absPath = path.join(dirPath, name);
+    if (fs.existsSync(absPath)) throw new Error('项目已存在: ' + name);
+
+    if (itemType === 'directory') {
+      fs.mkdirSync(absPath, { recursive: true });
+    } else {
+      fs.mkdirSync(dirPath, { recursive: true });
+      fs.writeFileSync(absPath, '', 'utf-8');
+    }
+    return { success: true };
+  });
+
+  // ── 删除文件/文件夹 ──
+  ipcMain.handle('ide-delete-item', async (event, filePath) => {
+    if (!filePath || !fs.existsSync(filePath)) throw new Error('项目不存在');
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        fs.rmSync(filePath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(filePath);
+      }
+      return { success: true };
+    } catch (e) {
+      throw new Error('删除失败: ' + e.message);
+    }
+  });
+
+  // ── 重命名文件/文件夹 ──
+  ipcMain.handle('ide-rename-item', async (event, filePath, newName) => {
+    if (!filePath || !newName || !fs.existsSync(filePath)) throw new Error('参数无效');
+    const dir = path.dirname(filePath);
+    const newPath = path.join(dir, newName);
+    if (fs.existsSync(newPath)) throw new Error('目标名称已存在: ' + newName);
+    fs.renameSync(filePath, newPath);
+    return { success: true };
+  });
+
 }
 
 // ── GPU 进程崩溃全局恢复 ──
@@ -2037,6 +2710,66 @@ app.whenReady().then(() => {
   ipcMain.handle('get-projects-dir', () => dataSettings.getProjectsDir());
   ipcMain.handle('get-quicknotes-dir', () => dataSettings.getQuicknotesDir());
 
+  // ── IPC：系统偏好设置文件化 ──
+  // 同步读取 preferences.json（sendSync 模式，启动引导用）
+  ipcMain.on('read-preferences-sync', (event) => {
+    try {
+      const systemDir = dataSettings.getSystemDir();
+      const prefPath = path.join(systemDir, 'preferences.json');
+      if (fs.existsSync(prefPath)) {
+        const raw = fs.readFileSync(prefPath, 'utf-8');
+        const data = JSON.parse(raw);
+        event.returnValue = { success: true, data: data };
+      } else {
+        event.returnValue = { success: true, data: null };
+      }
+    } catch (e) {
+      console.error('[read-preferences-sync] 错误:', e);
+      event.returnValue = { success: false, data: null, error: e.message };
+    }
+  });
+
+  // 异步写入 preferences.json（防抖落盘用，原子写入）
+  ipcMain.handle('write-preferences', async (event, data) => {
+    try {
+      const systemDir = dataSettings.getSystemDir();
+      if (!systemDir) return { success: false, error: 'systemDir 未初始化' };
+      if (!fs.existsSync(systemDir)) {
+        fs.mkdirSync(systemDir, { recursive: true });
+      }
+      const prefPath = path.join(systemDir, 'preferences.json');
+      const tmpPath = prefPath + '.tmp';
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tmpPath, prefPath); // 原子写入
+      return { success: true };
+    } catch (e) {
+      console.error('[write-preferences] 错误:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  // 同步写入 preferences.json（退出落盘用，sendSync 模式，原子写入）
+  ipcMain.on('flush-preferences-sync', (event, data) => {
+    try {
+      const systemDir = dataSettings.getSystemDir();
+      if (!systemDir) {
+        event.returnValue = { success: false, error: 'systemDir 未初始化' };
+        return;
+      }
+      if (!fs.existsSync(systemDir)) {
+        fs.mkdirSync(systemDir, { recursive: true });
+      }
+      const prefPath = path.join(systemDir, 'preferences.json');
+      const tmpPath = prefPath + '.tmp';
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tmpPath, prefPath);
+      event.returnValue = { success: true };
+    } catch (e) {
+      console.error('[flush-preferences-sync] 错误:', e);
+      event.returnValue = { success: false, error: e.message };
+    }
+  });
+
   bindWindowIPC();
   bindFileIPC();
   bindEmergencyIPC();
@@ -2044,6 +2777,263 @@ app.whenReady().then(() => {
   bindTerminalIPC();
   createWindow();
   startHMR();
+
+  // ── 拦截内置浏览器 webview 弹出窗口 → 通知渲染进程新建标签页 ──
+  // Electron 29+ 中渲染进程无法通过 webview.getWebContents() 调用
+  // setWindowOpenHandler（因为 contextIsolation: true），
+  // 必须在主进程中通过 web-contents-created 事件拦截
+  app.on('web-contents-created', (_, contents) => {
+    if (contents.getType() === 'webview') {
+      contents.setWindowOpenHandler(({ url }) => {
+        if (url && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('browser-open-tab', url);
+        }
+        return { action: 'deny' };
+      });
+    }
+  });
+
+  // ── 内置浏览器下载管理 ──
+  // 为浏览器 session 注册 will-download 事件，将下载状态通过 IPC 通知渲染进程
+  const browserSession = session.fromPartition('persist:browsersession');
+  browserSession.on('will-download', (event, item) => {
+    // 弹出保存对话框让用户选择保存位置
+    const defaultPath = path.join(app.getPath('downloads'), item.getFilename());
+    const savePath = dialog.showSaveDialogSync(mainWindow, {
+      title: '保存文件',
+      defaultPath,
+      filters: [{ name: '所有文件', extensions: ['*'] }],
+    });
+    if (!savePath) {
+      // 用户取消了保存
+      event.preventDefault();
+      return;
+    }
+    item.setSavePath(savePath);
+
+    // 通知渲染进程下载开始
+    const downloadId = 'dl_' + Date.now();
+    mainWindow.webContents.send('browser-download-update', {
+      id: downloadId,
+      state: 'progressing',
+      filename: item.getFilename(),
+      savePath,
+      received: 0,
+      total: item.getTotalBytes(),
+    });
+
+    item.on('updated', (_, state) => {
+      if (mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send('browser-download-update', {
+        id: downloadId,
+        state,
+        filename: item.getFilename(),
+        savePath,
+        received: item.getReceivedBytes(),
+        total: item.getTotalBytes(),
+      });
+    });
+
+    item.once('done', (_, state) => {
+      if (mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send('browser-download-update', {
+        id: downloadId,
+        state,
+        filename: item.getFilename(),
+        savePath,
+        received: item.getReceivedBytes(),
+        total: item.getTotalBytes(),
+      });
+    });
+  });
+
+  // ── 内置浏览器：清除隐私模式数据 ──
+  ipcMain.handle('browser-clear-private-data', async () => {
+    try {
+      const privateSession = session.fromPartition('private-browsersession');
+      await privateSession.clearStorageData();
+      await privateSession.clearCache();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  });
+
+  // ── 内置浏览器：Cookies 管理 ──
+  // 获取指定 partition 的所有 cookies
+  ipcMain.handle('browser-get-cookies', async (_e, partition) => {
+    try {
+      const ses = session.fromPartition(partition || 'persist:browsersession');
+      const cookies = await ses.cookies.get({});
+      return cookies.map(c => ({
+        domain: c.domain, name: c.name, value: c.value,
+        path: c.path, secure: c.secure, httpOnly: c.httpOnly,
+        hostOnly: c.hostOnly, session: c.session,
+        expirationDate: c.expirationDate,
+      }));
+    } catch (err) { return { error: err.message }; }
+  });
+  // 删除单个 cookie
+  ipcMain.handle('browser-delete-cookie', async (_e, { partition, url, name }) => {
+    try {
+      const ses = session.fromPartition(partition || 'persist:browsersession');
+      await ses.cookies.remove(url, name);
+      return true;
+    } catch (_) { return false; }
+  });
+  // 清空所有 cookies
+  ipcMain.handle('browser-clear-cookies', async (_e, partition) => {
+    try {
+      const ses = session.fromPartition(partition || 'persist:browsersession');
+      const cookies = await ses.cookies.get({});
+      for (const c of cookies) {
+        const url = `http${c.secure ? 's' : ''}://${c.domain.replace(/^\./, '')}${c.path}`;
+        try { await ses.cookies.remove(url, c.name); } catch (_) {}
+      }
+      return true;
+    } catch (_) { return false; }
+  });
+
+  // ── 内置浏览器：广告拦截 ──
+  // 基于域名黑名单拦截常见广告/追踪请求
+  const AD_DOMAINS = [
+    'doubleclick.net', 'googlesyndication.com', 'googletagservices.com',
+    'google-analytics.com', 'googletagmanager.com', 'adservice.google.com',
+    'facebook.net', 'facebook.com/tr', 'connect.facebook.net',
+    'amazon-adsystem.com', 'adnxs.com', '2mdn.net', 'pubmatic.com',
+    'rubiconproject.com', 'openx.net', 'criteo.com', 'criteo.net',
+    'taboola.com', 'outbrain.com', 'disqus.com', 'scorecardresearch.com',
+    'quantserve.com', 'adroll.com', 'yandex.ru/ads', 'yandex.ru/an',
+    'baidu.com/cpro', 'cnzz.com', 'umeng.com', 'tanx.com',
+    'mediav.com', 'baidustatic.com/adx', 'clarity.ms',
+  ];
+  /** 判断 URL 是否匹配广告域名 */
+  function _isAdRequest(urlStr) {
+    try {
+      const u = new URL(urlStr);
+      const host = u.hostname.toLowerCase();
+      const path = u.pathname.toLowerCase();
+      for (const ad of AD_DOMAINS) {
+        if (ad.includes('/')) {
+          // 带路径的规则
+          if (host.endsWith(ad.split('/')[0]) && path.startsWith('/' + ad.split('/').slice(1).join('/'))) return true;
+        } else {
+          if (host === ad || host.endsWith('.' + ad)) return true;
+        }
+      }
+      return false;
+    } catch (_) { return false; }
+  }
+  // 为浏览器 session 和隐私 session 都注册拦截
+  ['persist:browsersession', 'private-browsersession'].forEach(partition => {
+    const ses = session.fromPartition(partition);
+    ses.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+      if (_isAdRequest(details.url)) {
+        callback({ cancel: true });
+      } else {
+        callback({});
+      }
+    });
+  });
+
+  // ── 内置浏览器：网页截图保存 ──
+  ipcMain.handle('browser-save-screenshot', async (_e, { dataUrl, filename }) => {
+    try {
+      const defaultPath = path.join(app.getPath('downloads'), filename || `screenshot_${Date.now()}.png`);
+      const savePath = dialog.showSaveDialogSync(mainWindow, {
+        title: '保存截图',
+        defaultPath,
+        filters: [{ name: 'PNG 图片', extensions: ['png'] }],
+      });
+      if (!savePath) return { canceled: true };
+      // dataUrl 格式：data:image/png;base64,XXXX
+      const base64 = dataUrl.split(',')[1];
+      fs.writeFileSync(savePath, Buffer.from(base64, 'base64'));
+      return { success: true, path: savePath };
+    } catch (err) {
+      return { error: err.message };
+    }
+  });
+
+  // ── 内置浏览器：DevTools 侧边栏 ──
+  // 使用无框 BrowserWindow 作为 DevTools 容器（webview 不支持 devtools:// 协议）
+  let _devtoolsWindow = null;
+  ipcMain.handle('browser-attach-devtools', async (_e, { targetId }) => {
+    try {
+      const targetContents = webContents.fromId(targetId);
+      if (!targetContents) return { error: 'target not found' };
+      // 如果已有 DevTools 窗口，先销毁
+      if (_devtoolsWindow) {
+        try { _devtoolsWindow.destroy(); } catch (_) {}
+        _devtoolsWindow = null;
+      }
+      // 创建无框子窗口
+      _devtoolsWindow = new BrowserWindow({
+        parent: mainWindow,
+        frame: false,
+        show: false,
+        resizable: false,
+        skipTaskbar: true,
+        webPreferences: { contextIsolation: true, nodeIntegration: false },
+      });
+      // 将 DevTools 重定向到子窗口的 webContents
+      targetContents.setDevToolsWebContents(_devtoolsWindow.webContents);
+      targetContents.openDevTools();
+      // DevTools 页面加载完成后显示
+      _devtoolsWindow.webContents.once('dom-ready', () => {
+        if (_devtoolsWindow && !_devtoolsWindow.isDestroyed()) {
+          _devtoolsWindow.show();
+        }
+      });
+      return { success: true };
+    } catch (err) {
+      return { error: err.message };
+    }
+  });
+  // 更新 DevTools 窗口位置和大小（渲染进程传递相对于视口的坐标）
+  ipcMain.handle('browser-update-devtools-bounds', async (_e, { left, top, width, height }) => {
+    if (_devtoolsWindow && !_devtoolsWindow.isDestroyed() && mainWindow && !mainWindow.isDestroyed()) {
+      const contentBounds = mainWindow.getContentBounds();
+      _devtoolsWindow.setBounds({
+        x: contentBounds.x + left,
+        y: contentBounds.y + top,
+        width: Math.max(1, width),
+        height: Math.max(1, height),
+      });
+    }
+    return { success: true };
+  });
+  // 关闭 DevTools
+  ipcMain.handle('browser-close-devtools', async (_e, { targetId }) => {
+    try {
+      if (targetId) {
+        const targetContents = webContents.fromId(targetId);
+        if (targetContents && targetContents.isDevToolsOpened()) {
+          targetContents.closeDevTools();
+        }
+      }
+      if (_devtoolsWindow) {
+        try { _devtoolsWindow.destroy(); } catch (_) {}
+        _devtoolsWindow = null;
+      }
+      return { success: true };
+    } catch (_) {
+      return { error: 'failed' };
+    }
+  });
+  // 主窗口移动/调整大小时通知渲染进程更新 DevTools 位置
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.on('move', () => {
+      if (_devtoolsWindow && !_devtoolsWindow.isDestroyed()) {
+        mainWindow.webContents.send('browser-devtools-bounds-changed');
+      }
+    });
+    mainWindow.on('resize', () => {
+      if (_devtoolsWindow && !_devtoolsWindow.isDestroyed()) {
+        mainWindow.webContents.send('browser-devtools-bounds-changed');
+      }
+    });
+  }
 
   // ── before-quit 兜底：正常退出/重启时触发渲染进程同步落盘应急备份 ──
   // 覆盖：点关闭、Alt+F4、系统关机。不覆盖：任务管理器强杀/断电（由定时备份兼底）

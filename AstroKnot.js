@@ -57,7 +57,7 @@ import { initNodeDiskSync } from './modules/nodeDiskSync.js';
 
 // ---------- 模块10：富文本编辑器 ----------
 import { initRichEditor } from './modules/richEditor/index.js';
-import './modules/richEditor/sandbox/index.js';
+import './modules/AppLibrary/ide/index.js';
 
 // ---------- 模块11：快速笔记 ----------
 import { initQuickNotes } from './modules/module11_QuickNotes.js';

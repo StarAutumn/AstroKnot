@@ -279,6 +279,7 @@ function renderWeekView() {
   html += '<div class="cal-add-slot" style="flex:1;text-align:center;padding:8px;border:1px dashed rgba(0,255,255,0.25);border-radius:8px;cursor:pointer;color:#5ee8ff;font-size:13px;">+ \u6DFB\u52A0\u4E00\u8282</div>';
   const fwLabel = schedule.firstWeekDate ? '\u8D77\u59CB\u5468\uFF1A' + schedule.firstWeekDate : '\u8BBE\u7F6E\u7B2C\u4E00\u5468\u65E5\u671F';
   html += '<div class="cal-set-firstweek" style="flex:1;text-align:center;padding:8px;border:1px dashed rgba(0,255,255,0.25);border-radius:8px;cursor:pointer;color:#5ee8ff;font-size:13px;">\uD83D\uDD04 ' + escapeHtml(fwLabel) + '</div>';
+  html += '<div class="cal-import-schedule" style="flex:0 0 auto;text-align:center;padding:8px 14px;border:1px dashed rgba(200,168,255,0.35);border-radius:8px;cursor:pointer;color:#c8a8ff;font-size:13px;">\uD83D\uDCDA \u4ECE\u6559\u52A1\u5BFC\u5165</div>';
   html += '<div class="cal-clear-all" style="flex:0 0 auto;text-align:center;padding:8px 14px;border:1px dashed rgba(255,143,163,0.35);border-radius:8px;cursor:pointer;color:#ff8fa3;font-size:13px;">\uD83D\uDDD1 \u6E05\u7A7A</div>';
   html += '</div>';
   html += '</div>';
@@ -801,6 +802,20 @@ function bindPopupEvents() {
       clearAll();
       state.calView = 'week';
       refreshPopup();
+      return;
+    }
+    // 从教务系统导入课表
+    const importBtn = e.target.closest('.cal-import-schedule');
+    if (importBtn && state.calView === 'week') {
+      e.stopPropagation();
+      // 动态导入，避免循环依赖
+      import('./schedule-import.js').then(function (mod) {
+        if (typeof mod.openScheduleImport === 'function') {
+          mod.openScheduleImport(refreshPopup);
+        }
+      }).catch(function (err) {
+        console.error('[calendar] 加载 schedule-import 失败:', err);
+      });
       return;
     }
   });

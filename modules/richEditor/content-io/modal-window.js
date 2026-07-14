@@ -318,7 +318,12 @@ export function initModalWindowControls() {
 
   // 点击模态框自动置顶（统一由 WindowManager 管理）
   if (window.WindowManager) {
-    window.WindowManager.registerElement(modalRich);
+    window.WindowManager.registerElement(modalRich, () => {
+      // 置顶时同步更新任务栏高亮
+      if (window.Taskbar) {
+        window.Taskbar.setEditorActive('rich', true);
+      }
+    });
   }
 
   if (minBtn) {

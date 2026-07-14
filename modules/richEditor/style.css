@@ -24,5 +24,5 @@
 /* Univer 表格编辑器 z-index 修复（对应 core/overlay/overlay-excel-editor.js） */
 @import './core/univer-table.css';
 
-/* 沙盒 IDE（对应 sandbox/*.js） */
-@import './sandbox/ide.css';
+/* 沙盒 IDE（对应 AppLibrary/ide/*.js） */
+@import '../AppLibrary/ide/ide.css';

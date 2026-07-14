@@ -7,9 +7,51 @@ import * as THREE from 'three';
 
 let isStartPageVisible = false;
 
+// 应用开始页面背景（ribbon 飘带 / custom 本地图片）
+export function applyStartPageBackground() {
+    const startPage = document.getElementById('startPage');
+    if (!startPage) return;
+
+    const ribbonsEl = startPage.querySelector('.start-page-ribbons');
+    const customBgEl = document.getElementById('startPageCustomBg');
+    const beforePseudo = startPage; // ::before/::after 通过 CSS 类控制
+
+    const mode = appState.startPageBackground || 'ribbon';
+
+    if (mode === 'custom' && appState.customBgPath) {
+        // 显示自定义背景，隐藏飘带和渐变动画
+        if (ribbonsEl) ribbonsEl.style.display = 'none';
+        if (customBgEl) {
+            // Windows 路径需要转换为 file:// URL
+            const filePath = appState.customBgPath.replace(/\\/g, '/');
+            const fileUrl = 'file:///' + encodeURI(filePath).replace(/#/g, '%23');
+            customBgEl.style.backgroundImage = `url("${fileUrl}")`;
+            customBgEl.style.display = 'block';
+        }
+        // 隐藏 CSS 伪元素渐变动画
+        startPage.classList.add('custom-bg-mode');
+    } else {
+        // 显示飘带和渐变动画，隐藏自定义背景
+        if (ribbonsEl) ribbonsEl.style.display = '';
+        if (customBgEl) {
+            customBgEl.style.display = 'none';
+            customBgEl.style.backgroundImage = '';
+        }
+        startPage.classList.remove('custom-bg-mode');
+    }
+}
+
+// 监听设置变化事件（实时切换背景）
+document.addEventListener('start-page-bg-change', () => {
+    applyStartPageBackground();
+});
+
 export function showStartPage(withSlideDown = false) {
     const startPage = document.getElementById('startPage');
     if (!startPage) return;
+    
+    // 应用背景设置
+    applyStartPageBackground();
     
     // 重置动画状态
     startPage.classList.remove('slide-up-exit');

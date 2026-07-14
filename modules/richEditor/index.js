@@ -15,4 +15,4 @@ export { showSavedToast, getCKEditorInstance, isCKEditorActive, setEditingFormul
 export { contentStyle } from './content-style.js';
 export { modalRich, ckContainer } from './dom-refs.js';
 export { state } from './shared-state.js';
-export { openHtmlSandboxEditor, closeHtmlSandboxEditor, isNodeSandbox, getSandboxHtml, renderSandboxContent } from './sandbox/index.js';
+export { openHtmlSandboxEditor, closeHtmlSandboxEditor, isNodeSandbox, getSandboxHtml, renderSandboxContent } from '../AppLibrary/ide/index.js';

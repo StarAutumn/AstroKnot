@@ -4,8 +4,8 @@
 //  应用存储在 AstroKnot-Data/apps/<app-id>/sandbox/
 // ============================================================
 
-import { GithubApiClient } from '../richEditor/sandbox/core/github-api.js';
-import { VirtualFileSystem } from '../richEditor/sandbox/core/virtual-fs.js';
+import { GithubApiClient } from './ide/core/github-api.js';
+import { VirtualFileSystem } from './ide/core/virtual-fs.js';
 import { createNodeInProject } from '../MoveMode/MoveCore.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
 import { appState } from '../module0_AppState.js';
@@ -21,6 +21,59 @@ const BINARY_EXTS = new Set([
 ]);
 
 export class AppManager {
+  // ── 内置应用定义（不可删除、不可卸载）──
+  static BUILTIN_APPS = [
+    {
+      id: 'builtin-browser',
+      name: '浏览器',
+      icon: '🌐',
+      description: '内嵌浏览器，可访问教务系统等网站',
+      type: 'browser',
+      defaultUrl: 'about:blank',
+      builtin: true,
+      removable: false,
+      importedAt: '2026-01-01T00:00:00.000Z',
+      lastUpdated: '2026-01-01T00:00:00.000Z',
+      fileCount: 0
+    },
+    {
+      id: 'builtin-file-manager',
+      name: '此 AstroKnot',
+      icon: 'assets/icon.png',
+      description: '文件管理器，管理 AstroKnot-Data 目录',
+      type: 'file-manager',
+      builtin: true,
+      removable: false,
+      importedAt: '2026-01-01T00:00:00.000Z',
+      lastUpdated: '2026-01-01T00:00:00.000Z',
+      fileCount: 0
+    },
+    {
+      id: 'builtin-ide',
+      name: 'IDE',
+      icon: '💻',
+      description: 'VSCode 风格代码编辑器，支持 HTML/CSS/JS 开发',
+      type: 'ide',
+      builtin: true,
+      removable: false,
+      importedAt: '2026-01-01T00:00:00.000Z',
+      lastUpdated: '2026-01-01T00:00:00.000Z',
+      fileCount: 0
+    },
+    {
+      id: 'builtin-trash',
+      name: '回收站',
+      icon: '♻️',
+      description: '已删除项目的回收站，可恢复或永久删除',
+      type: 'trash',
+      builtin: true,
+      removable: false,
+      importedAt: '2026-01-01T00:00:00.000Z',
+      lastUpdated: '2026-01-01T00:00:00.000Z',
+      fileCount: 0
+    }
+  ];
+
   constructor() {
     /** @type {Array<Object>} 应用列表缓存 */
     this._apps = [];
@@ -33,7 +86,7 @@ export class AppManager {
   }
 
   /**
-   * 加载应用列表
+   * 加载应用列表（并确保内置应用始终存在）
    * @returns {Promise<Array>}
    */
   async loadApps() {
@@ -44,7 +97,47 @@ export class AppManager {
       console.error('[AppManager] 加载应用列表失败:', e);
       this._apps = [];
     }
+    // 确保内置应用始终存在
+    this._ensureBuiltinApps();
     return this._apps;
+  }
+
+  /**
+   * 确保内置应用存在于列表中
+   * @private
+   */
+  _ensureBuiltinApps() {
+    let changed = false;
+    // 清理不在 BUILTIN_APPS 中但以 builtin- 开头的幽灵应用
+    const validBuiltinIds = new Set(AppManager.BUILTIN_APPS.map(a => a.id));
+    const beforeLen = this._apps.length;
+    this._apps = this._apps.filter(a => {
+      if (a.id.startsWith('builtin-') && !validBuiltinIds.has(a.id)) {
+        console.warn('[AppManager] 清理无效内置应用:', a.id);
+        return false;
+      }
+      return true;
+    });
+    if (this._apps.length !== beforeLen) changed = true;
+
+    for (const builtin of AppManager.BUILTIN_APPS) {
+      const existing = this._apps.find(a => a.id === builtin.id);
+      if (!existing) {
+        this._apps.unshift(builtin);
+        changed = true;
+      } else {
+        // 同步内置应用的字段（如名称变更）
+        for (const key of Object.keys(builtin)) {
+          if (existing[key] !== builtin[key]) {
+            existing[key] = builtin[key];
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) {
+      this._saveAppList(); // 异步保存，不阻塞
+    }
   }
 
   /**
@@ -283,6 +376,11 @@ export class AppManager {
    * @param {string} appId
    */
   async deleteApp(appId) {
+    // 禁止删除内置应用
+    const app = this._apps.find(a => a.id === appId);
+    if (app && app.builtin) {
+      throw new Error('内置应用不可删除');
+    }
     await window.api.deleteApp(appId);
     this._apps = this._apps.filter(a => a.id !== appId);
     await this._saveAppList();
@@ -297,6 +395,7 @@ export class AppManager {
   async renameApp(appId, newName) {
     const app = this._apps.find(a => a.id === appId);
     if (!app) throw new Error('应用不存在');
+    if (app.builtin) throw new Error('内置应用不可重命名');
     const name = (newName || '').trim();
     if (!name) throw new Error('名称不能为空');
     app.name = name;

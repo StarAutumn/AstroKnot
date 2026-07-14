@@ -5,6 +5,7 @@
 // ============================================================
 
 import { showToast } from '../module5_SelectAndEdit.js';
+import { appState } from '../module0_AppState.js';
 
 export class AppPanel {
   /**
@@ -155,6 +156,254 @@ export class AppPanel {
         this._manager.reorderApps(this._draggingAppId, item.dataset.appId, position);
       });
     }
+
+    // 绑定桌面图标层事件委托（desktop 模式）
+    this._bindDesktopLayerEvents();
+
+    // 暴露清除选中方法供 Dock.js 调用
+    window._clearAppSelection = () => {
+      this._selectedId = null;
+      this._updateSelectedClass();
+      this._lastClickedId = null;
+      this._lastClickTime = 0;
+    };
+
+    // 监听布局模式切换
+    document.addEventListener('dock-layout-mode-change', () => this._onLayoutModeChange());
+    document.addEventListener('dock-grid-mode-change', () => this._onGridModeChange());
+
+    // 全局点击监听：点击非桌面图标区域时取消选中（使用捕获阶段确保最先处理）
+    document.addEventListener('click', (e) => {
+      if (appState.dockLayoutMode !== 'desktop') return;
+      // 只有点击桌面图标时不取消选中，其他任何点击都取消
+      if (e.target.closest('.desktop-icon')) return;
+      // 点击右键菜单项时不取消选中（菜单 action 依赖 selectedPaths）
+      if (e.target.closest('.dock-context-menu')) return;
+      // 点击其他区域（画布、任务栏、空白区域等）时取消选中
+      this._selectedId = null;
+      this._updateSelectedClass();
+      this._lastClickedId = null;
+      this._lastClickedTime = 0;
+      if (typeof window._clearExternalSelection === 'function') {
+        window._clearExternalSelection();
+      }
+    }, true); // capture: true 使用捕获阶段
+
+    // 初始化模式
+    this._onLayoutModeChange();
+    this._onGridModeChange();
+  }
+
+  /**
+   * 绑定桌面图标层事件
+   * @private
+   */
+  _bindDesktopLayerEvents() {
+    const desktopLayer = document.getElementById('desktopIconsLayer');
+    if (!desktopLayer) return;
+
+    /* ---- 鼠标拖拽自由移动 ---- */
+    let dragState = null; // { icon, appId, startX, startY, origLeft, origTop, moved }
+
+    const onMouseDown = (e) => {
+      if (e.button !== 0) return; // 仅左键
+      if (this._renameActive) return;
+      const icon = e.target.closest('.desktop-icon');
+      if (!icon) return;
+      const rect = icon.getBoundingClientRect();
+      dragState = {
+        icon,
+        appId: icon.dataset.appId,
+        source: icon.dataset.source,
+        startX: e.clientX,
+        startY: e.clientY,
+        origLeft: icon.offsetLeft,
+        origTop: icon.offsetTop,
+        moved: false
+      };
+      icon.classList.add('drag-moving');
+      e.preventDefault();
+    };
+
+    const onMouseMove = (e) => {
+      if (!dragState) return;
+      const dx = e.clientX - dragState.startX;
+      const dy = e.clientY - dragState.startY;
+      if (!dragState.moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+      dragState.moved = true;
+      const parent = dragState.icon.offsetParent || desktopLayer;
+      let newLeft = Math.max(0, dragState.origLeft + dx);
+      let newTop = Math.max(0, dragState.origTop + dy);
+
+      // 网格布局时实时吸附到格子中心
+      if (appState.dockGridMode === 'grid') {
+        const snapped = _snapToGrid(newLeft, newTop);
+        newLeft = snapped.left;
+        newTop = snapped.top;
+      }
+
+      dragState.icon.style.left = newLeft + 'px';
+      dragState.icon.style.top = newTop + 'px';
+    };
+
+    const onMouseUp = () => {
+      if (!dragState) return;
+      dragState.icon.classList.remove('drag-moving');
+      const wasMoved = dragState.moved;
+      if (wasMoved) {
+        desktopLayer._dragJustMoved = true;
+        setTimeout(() => { desktopLayer._dragJustMoved = false; }, 200);
+
+        let left = parseFloat(dragState.icon.style.left) || dragState.origLeft;
+        let top = parseFloat(dragState.icon.style.top) || dragState.origTop;
+
+        // 网格布局时最终吸附
+        if (appState.dockGridMode === 'grid') {
+          const snapped = _snapToGrid(left, top);
+          left = snapped.left;
+          top = snapped.top;
+          dragState.icon.style.left = left + 'px';
+          dragState.icon.style.top = top + 'px';
+        }
+
+        const key = dragState.source === 'app' ? 'app:' + dragState.appId : 'ext:' + dragState.appId;
+        _saveDesktopIconPosition(key, { left, top });
+      }
+      dragState = null;
+    };
+
+    desktopLayer.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    /* ---- 单击选中 + 慢双击重命名（仅 GitHub 应用） ---- */
+    desktopLayer.addEventListener('click', (e) => {
+      if (desktopLayer._dragJustMoved) return; // 拖拽后不触发点击
+      if (dragState && dragState.moved) return;
+      const icon = e.target.closest('.desktop-icon');
+
+      // 点击空白区域由全局 document 监听器处理，这里只处理图标点击
+      if (!icon) return;
+
+      // 外部程序图标不处理选中（由 Dock.js 处理）
+      if (icon.dataset.source !== 'app') return;
+
+      if (this._renameActive) return;
+
+      const appId = icon.dataset.appId;
+      const now = Date.now();
+
+      // 慢双击重命名
+      if (this._selectedId === appId && this._lastClickedId === appId
+          && now - this._lastClickTime > 300 && now - this._lastClickTime < 1500) {
+        const app = this._manager.getApps().find(a => a.id === appId);
+        if (app) this._startInlineRename(icon, app);
+        this._lastClickedId = null;
+        this._lastClickTime = 0;
+        return;
+      }
+
+      // 先取消之前的选中，再设置新选中
+      this._selectedId = null;
+      this._updateSelectedClass();
+      
+      // 同时清除外部程序的选中状态
+      if (typeof window._clearExternalSelection === 'function') {
+        window._clearExternalSelection();
+      }
+      
+      this._selectedId = appId;
+      this._updateSelectedClass();
+      this._lastClickedId = appId;
+      this._lastClickTime = now;
+    });
+
+    /* ---- 双击运行 ---- */
+    desktopLayer.addEventListener('dblclick', (e) => {
+      const icon = e.target.closest('.desktop-icon');
+      if (!icon || icon.dataset.source !== 'app') return;
+      const app = this._manager.getApps().find(a => a.id === icon.dataset.appId);
+      if (app) this._runApp(app);
+    });
+
+    /* ---- 右键菜单（仅 GitHub 应用） ---- */
+    desktopLayer.addEventListener('contextmenu', (e) => {
+      const icon = e.target.closest('.desktop-icon');
+      if (!icon || icon.dataset.source !== 'app') return;
+      const app = this._manager.getApps().find(a => a.id === icon.dataset.appId);
+      if (app) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._showAppContextMenu(e.clientX, e.clientY, app);
+      }
+    });
+  }
+
+  /**
+   * 布局模式切换处理
+   * @private
+   */
+  _onLayoutModeChange() {
+    const isDesktop = appState.dockLayoutMode === 'desktop';
+    // 切换 body class
+    document.body.classList.toggle('desktop-mode', isDesktop);
+    // 切换 dock 面板显隐（整个侧边栏）
+    const dockPanel = document.getElementById('dockPanel');
+    if (dockPanel) dockPanel.style.display = isDesktop ? 'none' : '';
+    // 切换桌面图标层显隐
+    const desktopLayer = document.getElementById('desktopIconsLayer');
+    if (desktopLayer) {
+      desktopLayer.style.display = isDesktop ? 'block' : 'none';
+      // 填充默认图标位置（首次使用桌面模式）
+      if (isDesktop && desktopLayer.children.length === 0) {
+        _initDefaultDesktopPositions(this._manager.getApps());
+      }
+    }
+    // 重新渲染
+    this._render();
+  }
+
+  /**
+   * 网格模式切换时重新渲染（将所有图标吸附到格子中心）
+   * @private
+   */
+  _onGridModeChange() {
+    if (appState.dockLayoutMode !== 'desktop') return;
+    // 网格布局时，将所有图标重新吸附到格子中心
+    if (appState.dockGridMode === 'grid') {
+      const desktopLayer = document.getElementById('desktopIconsLayer');
+      if (!desktopLayer) return;
+      for (const icon of desktopLayer.children) {
+        if (!icon.classList.contains('desktop-icon')) continue;
+        const left = parseFloat(icon.style.left) || 16;
+        const top = parseFloat(icon.style.top) || 16;
+        const snapped = _snapToGrid(left, top);
+        icon.style.left = snapped.left + 'px';
+        icon.style.top = snapped.top + 'px';
+        // 保存吸附后的位置
+        const key = icon.dataset.source === 'app' ? 'app:' + icon.dataset.appId : 'ext:' + icon.dataset.appId;
+        _saveDesktopIconPosition(key, { left: snapped.left, top: snapped.top });
+      }
+    }
+  }
+
+  /**
+   * 获取当前模式的容器
+   * @private
+   */
+  _getItemsContainer() {
+    if (appState.dockLayoutMode === 'desktop') {
+      return document.getElementById('desktopIconsLayer');
+    }
+    return document.getElementById('dockAppItems');
+  }
+
+  /**
+   * 判断是否为桌面模式
+   * @private
+   */
+  _isDesktopMode() {
+    return appState.dockLayoutMode === 'desktop';
   }
 
   /**
@@ -166,21 +415,32 @@ export class AppPanel {
   }
 
   /**
-   * 渲染应用列表
+   * 渲染应用列表（根据布局模式走不同分支）
    * @private
    */
   _render() {
-    const container = document.getElementById('dockAppItems');
+    const container = this._getItemsContainer();
     if (!container) return;
 
     const apps = this._manager.getApps();
     container.innerHTML = '';
 
+    if (this._isDesktopMode()) {
+      this._renderDesktop(container, apps);
+    } else {
+      this._renderSidebar(container, apps);
+    }
+  }
+
+  /**
+   * 侧边栏模式渲染
+   * @private
+   */
+  _renderSidebar(container, apps) {
     if (apps.length === 0) {
       container.innerHTML = '<div class="dock-app-empty">点击 ➕ 从 GitHub<br>导入应用</div>';
       return;
     }
-
     for (const app of apps) {
       const el = document.createElement('div');
       el.className = 'dock-app-item' + (this._selectedId === app.id ? ' selected' : '');
@@ -190,7 +450,15 @@ export class AppPanel {
 
       const icon = document.createElement('span');
       icon.className = 'dock-app-icon';
-      icon.textContent = app.icon || '📦';
+      if (_isImagePath(app.icon)) {
+        const imgEl = document.createElement('img');
+        imgEl.src = app.icon;
+        imgEl.alt = app.name;
+        imgEl.draggable = false;
+        icon.appendChild(imgEl);
+      } else {
+        icon.textContent = app.icon || '📦';
+      }
       el.appendChild(icon);
 
       const label = document.createElement('span');
@@ -203,11 +471,55 @@ export class AppPanel {
   }
 
   /**
+   * Windows 桌面图标模式渲染
+   * @private
+   */
+  _renderDesktop(container, apps) {
+    container.innerHTML = '';
+
+    // 加载保存的位置
+    const positions = _loadDesktopPositions();
+
+    for (const app of apps) {
+      const el = _createDesktopIconElement(app.name, app.icon || '📦', app.id, 'app');
+      el.title = `${app.name}\n${app.repo || ''}\n${app.fileCount || 0} 个文件`;
+      if (this._selectedId === app.id) el.classList.add('selected');
+
+      const key = 'app:' + app.id;
+      const pos = positions[key];
+      if (pos) {
+        el.style.left = pos.left + 'px';
+        el.style.top = pos.top + 'px';
+      } else {
+        const def = _getDefaultPosition(key, apps.length);
+        el.style.left = def.left + 'px';
+        el.style.top = def.top + 'px';
+      }
+
+      container.appendChild(el);
+    }
+
+    // 追加外部程序图标（由 Dock.js 提供）
+    let hasExternal = false;
+    if (typeof window._renderExternalAppsToDesktop === 'function') {
+      hasExternal = window._renderExternalAppsToDesktop(container, positions);
+    }
+
+    // 空状态提示
+    if (apps.length === 0 && !hasExternal) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#5a7a8a; font-size:13px; pointer-events:none;';
+      empty.textContent = '右键空白处从 GitHub 导入应用或添加外部程序';
+      container.appendChild(empty);
+    }
+  }
+
+  /**
    * 更新选中状态
    * @private
    */
   _updateSelectedClass() {
-    const container = document.getElementById('dockAppItems');
+    const container = this._getItemsContainer();
     if (!container) return;
     for (const child of container.children) {
       child.classList.toggle('selected', child.dataset.appId === this._selectedId);
@@ -293,16 +605,18 @@ export class AppPanel {
    * @private
    */
   _showAppContextMenu(x, y, app) {
+    const isBuiltin = app.builtin === true;
     const items = [
       { label: '📂 打开', action: () => this._runApp(app) },
       { type: 'separator' },
-      { label: '📋 插入为节点', action: () => this._insertAsNode(app) },
-      { label: '🔄 从 GitHub 更新', action: () => this._updateApp(app) },
+      { label: '📋 插入为节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
+      { label: '🔗 创建应用节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
+      { label: '🔄 从 GitHub 更新', action: () => this._updateApp(app), disabled: isBuiltin },
       { type: 'separator' },
-      { label: '📁 打开文件所在位置', action: () => this._openInExplorer(app) },
-      { label: '📋 复制', action: () => this._copyApp(app) },
-      { label: '🗑 删除', action: () => this._deleteApp(app) },
-      { label: '✏ 重命名', action: () => this._renameApp(app) },
+      { label: '📁 打开文件所在位置', action: () => this._openInExplorer(app), disabled: isBuiltin },
+      { label: '📋 复制', action: () => this._copyApp(app), disabled: isBuiltin },
+      { label: '🗑 删除', action: () => this._deleteApp(app), disabled: isBuiltin },
+      { label: '✏ 重命名', action: () => this._renameApp(app), disabled: isBuiltin },
       { type: 'separator' },
       { label: 'ℹ 属性', action: () => this._showProperties(app) },
     ];
@@ -315,6 +629,9 @@ export class AppPanel {
    */
   _showBlankContextMenu(x, y) {
     const items = [
+      { label: '📦 从 GitHub 导入应用', action: () => this._showImportDialog() },
+      { label: '➕ 添加外部程序', action: () => this._addExternalApp() },
+      { type: 'separator' },
       {
         label: '📋 粘贴',
         action: () => this._pasteApp(),
@@ -322,9 +639,29 @@ export class AppPanel {
       },
       { type: 'separator' },
       { label: '🔄 刷新列表', action: () => this.refresh() },
-      { label: '📦 导入应用', action: () => this._showImportDialog() },
     ];
     this._showMenu(x, y, items);
+  }
+
+  /**
+   * 添加外部程序（打开文件选择对话框）
+   * @private
+   */
+  async _addExternalApp() {
+    if (!window.__ELECTRON__ || !window.api?.selectExternalApp) {
+      showToast('仅 Electron 环境支持添加外部程序', 3000);
+      return;
+    }
+    try {
+      const result = await window.api.selectExternalApp();
+      if (result.canceled || !result.path) return;
+      // 触发 Dock 模块的外部程序添加流程
+      document.dispatchEvent(new CustomEvent('dock-add-external', { detail: { path: result.path, name: result.name } }));
+      showToast(`已添加: ${result.name}`, 2000);
+    } catch (e) {
+      console.error('[AppPanel] 添加外部程序失败:', e);
+      showToast(`添加失败: ${e.message}`, 3000);
+    }
   }
 
   /**
@@ -374,8 +711,13 @@ export class AppPanel {
    * @private
    */
   async _deleteApp(app) {
-    if (!confirm(`确定删除应用 "${app.name}" 吗？\n此操作不可撤销。`)) return;
     try {
+      const confirmed = await this._showConfirmDialog(
+        '🗑 删除应用',
+        `确定删除应用「${app.name}」吗？`,
+        '此操作不可撤销。'
+      );
+      if (!confirmed) return;
       await this._manager.deleteApp(app.id);
       showToast(`已删除: ${app.name}`, 2000);
     } catch (e) {
@@ -433,14 +775,14 @@ export class AppPanel {
    * @private
    */
   _startInlineRename(el, app) {
-    const label = el.querySelector('.dock-app-label');
+    const label = el.querySelector('.dock-app-label, .desktop-icon-label');
     if (!label) return;
 
     this._renameActive = true;
     const originalName = label.textContent;
 
     const input = document.createElement('input');
-    input.className = 'dock-app-rename-input';
+    input.className = this._isDesktopMode() ? 'desktop-icon-rename-input' : 'dock-app-rename-input';
     input.value = originalName;
     input.style.width = Math.max(label.offsetWidth + 20, 60) + 'px';
     label.replaceWith(input);
@@ -473,7 +815,7 @@ export class AppPanel {
    * @private
    */
   _renameApp(app) {
-    const container = document.getElementById('dockAppItems');
+    const container = this._getItemsContainer();
     if (!container) return;
     for (const child of container.children) {
       if (child.dataset.appId === app.id) {
@@ -490,6 +832,7 @@ export class AppPanel {
   _showProperties(app) {
     this._closePropertiesDialog();
 
+    const isBuiltin = app.builtin === true;
     const overlay = document.createElement('div');
     overlay.className = 'app-props-overlay';
     overlay.innerHTML = `
@@ -501,16 +844,23 @@ export class AppPanel {
         <div class="app-props-body">
           <div class="app-props-row">
             <span class="app-props-label">名称</span>
-            <span class="app-props-value">${app.name}</span>
+            <span class="app-props-value">${app.name} ${isBuiltin ? '<span style="color:#5ee8ff;font-size:11px;margin-left:6px;">[内置]</span>' : ''}</span>
           </div>
+          ${isBuiltin ? `
+          <div class="app-props-row">
+            <span class="app-props-label">类型</span>
+            <span class="app-props-value">${app.type === 'browser' ? '浏览器' : '内置应用'}</span>
+          </div>
+          ` : `
           <div class="app-props-row">
             <span class="app-props-label">仓库</span>
-            <span class="app-props-value">${app.repo}</span>
+            <span class="app-props-value">${app.repo || '未知'}</span>
           </div>
           <div class="app-props-row">
             <span class="app-props-label">分支</span>
-            <span class="app-props-value">${app.ref}</span>
+            <span class="app-props-value">${app.ref || '未知'}</span>
           </div>
+          `}
           <div class="app-props-row">
             <span class="app-props-label">文件数</span>
             <span class="app-props-value">${app.fileCount || '未知'}</span>
@@ -549,6 +899,93 @@ export class AppPanel {
    */
   _closePropertiesDialog() {
     const existing = document.querySelector('.app-props-overlay');
+    if (existing) existing.remove();
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  确认对话框
+  // ════════════════════════════════════════════════════════════
+
+  /**
+   * 显示自定义确认对话框（替代原生 confirm）
+   * @param {string} title - 对话框标题
+   * @param {string} message - 主消息
+   * @param {string} [warning] - 警告副文本
+   * @returns {Promise<boolean>} 用户是否确认
+   * @private
+   */
+  _showConfirmDialog(title, message, warning = '') {
+    return new Promise((resolve) => {
+      this._closeConfirmDialog();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'app-confirm-overlay';
+
+      const dialog = document.createElement('div');
+      dialog.className = 'app-confirm-dialog';
+
+      const header = document.createElement('div');
+      header.className = 'app-confirm-header';
+      const titleEl = document.createElement('span');
+      titleEl.className = 'app-confirm-title';
+      titleEl.textContent = title;
+      header.appendChild(titleEl);
+
+      const body = document.createElement('div');
+      body.className = 'app-confirm-body';
+      const msgEl = document.createElement('div');
+      msgEl.className = 'app-confirm-message';
+      msgEl.textContent = message;
+      body.appendChild(msgEl);
+      if (warning) {
+        const warnEl = document.createElement('div');
+        warnEl.className = 'app-confirm-warning';
+        warnEl.textContent = warning;
+        body.appendChild(warnEl);
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'app-confirm-footer';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'app-confirm-cancel';
+      cancelBtn.textContent = '取消';
+      const okBtn = document.createElement('button');
+      okBtn.className = 'app-confirm-ok';
+      okBtn.textContent = '确定';
+      footer.appendChild(cancelBtn);
+      footer.appendChild(okBtn);
+
+      dialog.appendChild(header);
+      dialog.appendChild(body);
+      dialog.appendChild(footer);
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
+
+      const close = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+
+      cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); close(false); });
+      okBtn.addEventListener('click', (e) => { e.stopPropagation(); close(true); });
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close(false);
+      });
+
+      // ESC 关闭
+      const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(false); document.removeEventListener('keydown', onKey); }
+      };
+      document.addEventListener('keydown', onKey);
+
+      // 聚焦确定按钮
+      okBtn.focus();
+    });
+  }
+
+  /** 关闭确认对话框 @private */
+  _closeConfirmDialog() {
+    const existing = document.querySelector('.app-confirm-overlay');
     if (existing) existing.remove();
   }
 
@@ -707,4 +1144,147 @@ export class AppPanel {
       this._importDialog = null;
     }
   }
+}
+
+// ════════════════════════════════════════════════════════════
+//  桌面图标位置持久化 + 辅助函数
+// ════════════════════════════════════════════════════════════
+
+const DESKTOP_POS_KEY = 'astroknot-desktop-icon-positions';
+
+/** 加载所有保存的图标位置 */
+function _loadDesktopPositions() {
+  try {
+    return JSON.parse(localStorage.getItem(DESKTOP_POS_KEY)) || {};
+  } catch { return {}; }
+}
+
+/** 保存单个图标位置 */
+function _saveDesktopIconPosition(key, pos) {
+  const all = _loadDesktopPositions();
+  all[key] = { left: Math.round(pos.left), top: Math.round(pos.top) };
+  localStorage.setItem(DESKTOP_POS_KEY, JSON.stringify(all));
+}
+
+/** 清除所有图标位置 */
+function _clearDesktopPositions() {
+  localStorage.removeItem(DESKTOP_POS_KEY);
+}
+
+/** 获取默认位置（网格排列） */
+function _getDefaultPosition(key, totalCount) {
+  const gapX = 84; // 80px 图标 + 4px 间距（高密度）
+  const gapY = 84; // 80px 图标 + 4px 间距（高密度）
+  const startX = 8;
+  const startY = 8;
+  const cols = Math.max(1, Math.floor((window.innerWidth - 160) / gapX) || 10);
+
+  // 对所有已知 key 排序，新 key 排在末尾
+  const keys = _getAllKeys();
+  let idx = keys.indexOf(key);
+  if (idx < 0) {
+    idx = keys.length; // 新 key 排在末尾
+  }
+  const col = idx % cols;
+  const row = Math.floor(idx / cols);
+
+  // 网格布局时使用吸附后的位置，自由布局时直接计算
+  if (appState.dockGridMode === 'grid') {
+    return _snapToGrid(startX + col * gapX, startY + row * gapY);
+  }
+  return {
+    left: startX + col * gapX,
+    top: startY + row * gapY
+  };
+}
+
+/** 获取所有已保存的 key 列表 */
+function _getAllKeys() {
+  const positions = _loadDesktopPositions();
+  return Object.keys(positions).sort();
+}
+
+/** 初始化默认位置（为所有应用计算默认位置） */
+function _initDefaultDesktopPositions(apps) {
+  const positions = _loadDesktopPositions();
+  let changed = false;
+  const gapX = 84; // 80px 图标 + 4px 间距（高密度）
+  const gapY = 84; // 80px 图标 + 4px 间距（高密度）
+  const startX = 8;
+  const startY = 8;
+  const cols = Math.max(1, Math.floor((window.innerWidth - 160) / gapX) || 10);
+
+  apps.forEach((app, i) => {
+    const key = 'app:' + app.id;
+    if (!positions[key]) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      positions[key] = { left: startX + col * gapX, top: startY + row * gapY };
+      changed = true;
+    }
+  });
+
+  if (changed) localStorage.setItem(DESKTOP_POS_KEY, JSON.stringify(positions));
+}
+
+/** 检测是否为图片路径 */
+function _isImagePath(icon) {
+  if (!icon || typeof icon !== 'string') return false;
+  // 支持：相对路径、http(s) URL、data URI
+  return /\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(icon) ||
+         /^https?:\/\//i.test(icon) ||
+         /^data:image\//i.test(icon);
+}
+
+/** 创建桌面图标 DOM 元素（通用） */
+function _createDesktopIconElement(name, iconText, id, source) {
+  const el = document.createElement('div');
+  el.className = 'desktop-icon';
+  el.dataset.appId = id;
+  el.dataset.source = source;
+
+  const img = document.createElement('div');
+  img.className = 'desktop-icon-img';
+
+  if (_isImagePath(iconText)) {
+    // 图片路径：创建 <img> 元素
+    const imgEl = document.createElement('img');
+    imgEl.src = iconText;
+    imgEl.alt = name;
+    imgEl.draggable = false;
+    img.appendChild(imgEl);
+  } else {
+    // emoji 或文本
+    img.textContent = iconText;
+  }
+  el.appendChild(img);
+
+  const label = document.createElement('div');
+  label.className = 'desktop-icon-label';
+  label.textContent = name;
+  el.appendChild(label);
+
+  return el;
+}
+
+/** 网格吸附：将任意坐标吸附到最近的格子中心 */
+function _snapToGrid(left, top) {
+  const CELL_WIDTH = 84;  // 80px 图标 + 4px 间距（高密度）
+  const CELL_HEIGHT = 84; // 80px 图标 + 4px 间距（高密度）
+  const START_X = 8;
+  const START_Y = 8;
+
+  // 计算最近的格子索引
+  const col = Math.round((left - START_X) / CELL_WIDTH);
+  const row = Math.round((top - START_Y) / CELL_HEIGHT);
+
+  // 确保不超出边界（负数）
+  const safeCol = Math.max(0, col);
+  const safeRow = Math.max(0, row);
+
+  // 返回格子中心坐标
+  return {
+    left: START_X + safeCol * CELL_WIDTH,
+    top: START_Y + safeRow * CELL_HEIGHT
+  };
 }

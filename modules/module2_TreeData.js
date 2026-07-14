@@ -444,22 +444,34 @@ export function copyCurrentProject() {
 }
 
 /**
- * 删除项目（需保留至少一个）
+ * 删除项目
+ * - permanent=false（默认）：移入回收站，可恢复
+ * - permanent=true（Shift+点击）：永久删除，不可恢复
  * @param {string} projId 项目 ID
+ * @param {boolean} permanent 是否永久删除
  */
-export function deleteProject(projId) {
+export function deleteProject(projId, permanent = false) {
   const proj = appState.projects.find(p => p.id === projId);
   const projName = proj?.name;
   const folderPath = proj?.folderPath;
   const isLastProject = appState.projects.length === 1;
-  
+
+  // 根据删除方式构造确认文案
+  let confirmText;
+  if (permanent) {
+    confirmText = `⚠️ 永久删除项目 "${projName}"？此操作不可恢复！`;
+  } else {
+    confirmText = `将项目 "${projName}" 移入回收站？\n可随时从应用栏的「♻️ 回收站」中恢复。`;
+  }
+  if (isLastProject) {
+    confirmText += '\n（这是最后一个项目，删除后将返回开始首页）';
+  }
+
   // 使用自定义确认弹窗
   showConfirm(
-    isLastProject 
-      ? `删除项目 "${projName}"？这是最后一个项目，删除后将返回开始首页。` 
-      : `删除项目 "${projName}"？`, 
+    confirmText,
     async () => {
-      // 清理该项目的版本图缓存和临时存储（惰性动态 import 避免循环依赖）
+      // 清理该项目的版本图缓存和临时存储（两种删除方式都清理）
       try {
         const { clearCache, getVersionKey } = await import('./versionGraph/versionGraph.js');
         const key = getVersionKey(projId);
@@ -471,29 +483,49 @@ export function deleteProject(projId) {
         }
       } catch (e) { console.warn('清理版本图失败:', e); }
 
-      // 删除磁盘上的项目文件夹（已保存项目）
-      if (folderPath && window.api?.deleteProjectFolder) {
-        try {
-          await window.api.deleteProjectFolder(folderPath);
-          console.log('[项目删除] 已删除磁盘文件夹:', folderPath);
-        } catch (e) {
-          console.warn('[项目删除] 删除磁盘文件夹失败:', e);
+      if (permanent) {
+        // ── 永久删除：沿用现有逻辑 ──
+        if (folderPath && window.api?.deleteProjectFolder) {
+          try {
+            await window.api.deleteProjectFolder(folderPath);
+            console.log('[项目删除] 已永久删除磁盘文件夹:', folderPath);
+          } catch (e) {
+            console.warn('[项目删除] 删除磁盘文件夹失败:', e);
+          }
         }
-      }
-
-      // 删除未保存项目的临时文件夹（sandbox-tmp）
-      if (!folderPath && window.api?.deleteSandboxTmpFolder) {
-        try {
-          await window.api.deleteSandboxTmpFolder(projId);
-          console.log('[项目删除] 已删除临时文件夹:', projId);
-        } catch (e) {
-          console.warn('[项目删除] 删除临时文件夹失败:', e);
+        if (!folderPath && window.api?.deleteSandboxTmpFolder) {
+          try {
+            await window.api.deleteSandboxTmpFolder(projId);
+            console.log('[项目删除] 已永久删除临时文件夹:', projId);
+          } catch (e) {
+            console.warn('[项目删除] 删除临时文件夹失败:', e);
+          }
+        }
+      } else {
+        // ── 软删除：移入回收站 ──
+        saveCurrentProjectData(); // 确保未保存项目的最新数据已捕获到 appState.projects
+        if (window.__ELECTRON__ && window.api?.moveProjectToTrash) {
+          try {
+            const serialized = _serializeProjectForIPC(proj);
+            await window.api.moveProjectToTrash({
+              folderPath,
+              projectId: projId,
+              projectName: projName,
+              projectData: serialized
+            });
+            console.log('[项目删除] 已移入回收站:', projName);
+          } catch (e) {
+            console.warn('[项目删除] 移入回收站失败:', e);
+          }
+        } else {
+          // Web 环境：移到 localStorage 回收站
+          _moveToWebTrash(proj);
         }
       }
 
       let idx = appState.projects.findIndex(p => p.id === projId);
       if (idx !== -1) appState.projects.splice(idx, 1);
-      
+
       // 如果删除的是当前项目
       if (appState.currentProjectId === projId) {
         if (appState.projects.length > 0) {
@@ -507,10 +539,129 @@ export function deleteProject(projId) {
         }
       }
       renderProjectList();
-    }, 
-    null, 
-    '删除项目'
+      showToast(permanent ? '项目已永久删除' : '项目已移入回收站');
+    },
+    null,
+    permanent ? '永久删除' : '移入回收站'
   );
+}
+
+/**
+ * 将项目对象序列化为可经 IPC 传输的纯 JSON（扁平结构，匹配 save-project 的 projectData 格式）
+ * 供回收站未保存项目写入磁盘使用（_writeProjectToDisk 期望扁平结构 + overlayImages 字段名）
+ * @param {Object} proj - appState.projects 中的项目对象
+ * @returns {Object} 可序列化的项目数据（扁平结构）
+ */
+function _serializeProjectForIPC(proj) {
+  if (!proj || !proj.data) return proj;
+  const d = proj.data;
+  // positions: Map<Vector3> → 普通对象 {id:{x,y,z}}（匹配磁盘格式）
+  let positionsObj = {};
+  if (d.positions && typeof d.positions[Symbol.iterator] === 'function') {
+    for (const [k, v] of d.positions.entries()) {
+      positionsObj[k] = { x: v.x, y: v.y, z: v.z };
+    }
+  } else if (d.positions && typeof d.positions === 'object') {
+    positionsObj = d.positions;
+  }
+  // layers: Set → 数组
+  const layers = (d.layers || []).map(l => ({
+    id: l.id,
+    name: l.name,
+    order: l.order,
+    nodeIds: l.nodeIds && typeof l.nodeIds[Symbol.iterator] === 'function' ? Array.from(l.nodeIds) : (l.nodeIds || []),
+    positions2D: l.positions2D instanceof Map ? Object.fromEntries(l.positions2D) : (l.positions2D || {})
+  }));
+  return {
+    id: proj.id,
+    name: proj.name,
+    projectName: proj.name,           // 兼容 save-project 的字段名
+    methodsTree: d.methodsTree,
+    crossEdges: d.crossEdges || [],
+    positions: positionsObj,           // 普通对象格式（磁盘格式）
+    positions2D: d.positions2D instanceof Map ? Object.fromEntries(d.positions2D) : (d.positions2D || {}),
+    collapsed2D: d.collapsed2D && typeof d.collapsed2D[Symbol.iterator] === 'function' ? Array.from(d.collapsed2D) : (d.collapsed2D || []),
+    nodeRichContents: d.nodeRichContents || {},
+    overlayImages: d.nodeOverlayImages || {},   // 磁盘格式字段名为 overlayImages
+    nodeHtmlSources: d.nodeHtmlSources || {},
+    nodeFileSystems: d.nodeFileSystems || {},
+    nodeActiveModes: d.nodeActiveModes || {},
+    layers,
+    currentLayerId: d.currentLayerId || null,
+    treeEdgeLabels: d.treeEdgeLabels || {},
+    cameraView: d.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
+  };
+}
+
+/**
+ * 将恢复的项目数据加入 appState.projects（不自动切换当前项目，除非当前无项目）
+ * 供回收站「恢复」功能调用
+ * @param {Object} data - 从 read-project-from-folder IPC 返回的项目数据（磁盘格式）
+ * @param {string} folderName - 项目名称
+ * @param {string} folderPath - 恢复后的项目文件夹路径
+ */
+export function addRestoredProject(data, folderName, folderPath) {
+  if (!data) return;
+
+  // 将磁盘格式的 positions（普通对象 {id:{x,y,z}}）转为内存格式 Map<Vector3>
+  let positionsMap = new Map();
+  if (data.positions) {
+    if (Array.isArray(data.positions)) {
+      // 数组格式 [[id,{x,y,z}],...]
+      for (const [k, v] of data.positions) {
+        positionsMap.set(k, new THREE.Vector3(v.x, v.y, v.z));
+      }
+    } else {
+      // 普通对象格式 {id:{x,y,z}}
+      for (const [k, v] of Object.entries(data.positions)) {
+        positionsMap.set(k, new THREE.Vector3(v.x, v.y, v.z));
+      }
+    }
+  }
+
+  // 确定 projectId（使用原始 ID，若已存在则生成新 ID）
+  let projId = data.id || ('proj_' + Date.now());
+  if (appState.projects.find(p => p.id === projId)) {
+    projId = 'proj_' + Date.now();
+  }
+
+  // 构造项目对象（内存格式：positions 为 Map，其余为普通对象/数组，与 saveCurrentProjectData 一致）
+  const project = {
+    id: projId,
+    name: folderName || data.name || '已恢复项目',
+    folderPath: folderPath || null,
+    data: {
+      methodsTree: data.methodsTree,
+      crossEdges: data.crossEdges || [],
+      positions: positionsMap,
+      positions2D: data.positions2D || {},
+      collapsed2D: data.collapsed2D || [],
+      nodeRichContents: data.nodeRichContents || {},
+      // 磁盘格式字段名为 overlayImages，内存格式为 nodeOverlayImages
+      nodeOverlayImages: data.overlayImages || data.nodeOverlayImages || {},
+      nodeHtmlSources: data.nodeHtmlSources || {},
+      nodeFileSystems: data.nodeFileSystems || {},
+      nodeActiveModes: data.nodeActiveModes || {},
+      layers: data.layers || [],
+      currentLayerId: data.currentLayerId || null,
+      treeEdgeLabels: data.treeEdgeLabels || {},
+      cameraView: data.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
+    }
+  };
+
+  appState.projects.push(project);
+
+  // 若当前无项目，加载恢复的项目；否则仅刷新列表（不打断当前工作）
+  if (!appState.currentProjectId) {
+    loadProject(projId);
+  } else {
+    renderProjectList();
+  }
+
+  // Web 环境持久化
+  _persistToLocalStorage();
+
+  return projId;
 }
 
 /**
@@ -720,7 +871,7 @@ export function showItemContextMenu(x, y, items) {
     el.addEventListener('click', function (e) {
       e.stopPropagation();
       menu.style.display = 'none';
-      if (item.action) item.action();
+      if (item.action) item.action(e);
     });
     menu.appendChild(el);
   });
@@ -788,7 +939,7 @@ function onProjectItemContextMenu(e) {
         }
     }},
     { sep: true },
-    { label: '🗑️ 删除', action: function () { deleteProject(projId); } }
+    { label: '🗑️ 删除', title: '普通点击移入回收站；按住 Shift 永久删除', action: function (e) { deleteProject(projId, e && e.shiftKey); } }
   ]);
 }
 
@@ -864,6 +1015,135 @@ function _restoreFromLocalStorage() {
     console.warn('[Web持久化] 恢复失败:', e);
     return null;
   }
+}
+
+// ── Web 环境回收站（localStorage）──
+const _WEB_TRASH_KEY = 'astroknot_web_trash';
+
+/** 将项目移入 Web 回收站（proj 已从 appState.projects 移除前调用，或传入副本） */
+function _moveToWebTrash(proj) {
+  if (window.__ELECTRON__) return;
+  try {
+    const trash = JSON.parse(localStorage.getItem(_WEB_TRASH_KEY) || '[]');
+    // 序列化 positions Map → 数组（与 _persistToLocalStorage 一致）
+    const serializable = {
+      id: proj.id,
+      name: proj.name,
+      folderPath: proj.folderPath || null,
+      deletedAt: new Date().toISOString(),
+      data: {
+        ...proj.data,
+        positions: proj.data.positions ? [...proj.data.positions.entries()].map(([k, v]) => [k, { x: v.x, y: v.y, z: v.z }]) : [],
+        positions2D: proj.data.positions2D || {},
+        collapsed2D: proj.data.collapsed2D || [],
+        nodeRichContents: proj.data.nodeRichContents || {},
+        nodeOverlayImages: proj.data.nodeOverlayImages || {},
+        nodeHtmlSources: proj.data.nodeHtmlSources || {},
+        nodeFileSystems: proj.data.nodeFileSystems || {},
+        layers: proj.data.layers || [],
+        currentLayerId: proj.data.currentLayerId || null,
+        cameraView: proj.data.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
+      }
+    };
+    trash.push(serializable);
+    localStorage.setItem(_WEB_TRASH_KEY, JSON.stringify(trash));
+    _persistToLocalStorage();
+  } catch (e) {
+    console.warn('[Web回收站] 移入失败:', e);
+  }
+}
+
+/** 获取 Web 回收站列表（返回反序列化后的项目数组） */
+export function _getWebTrash() {
+  if (window.__ELECTRON__) return [];
+  try {
+    const raw = localStorage.getItem(_WEB_TRASH_KEY);
+    if (!raw) return [];
+    const trash = JSON.parse(raw);
+    // 反序列化 positions 数组 → Map<Vector3>，layers → Set/Map
+    for (const p of trash) {
+      if (p.data.positions && Array.isArray(p.data.positions)) {
+        const map = new Map();
+        for (const [k, v] of p.data.positions) {
+          map.set(k, new THREE.Vector3(v.x, v.y, v.z));
+        }
+        p.data.positions = map;
+      }
+      if (p.data.layers && Array.isArray(p.data.layers)) {
+        p.data.layers = p.data.layers.map(l => ({
+          ...l,
+          nodeIds: new Set(l.nodeIds || []),
+          positions2D: new Map(Object.entries(l.positions2D || {}))
+        }));
+      }
+    }
+    return trash;
+  } catch (e) {
+    console.warn('[Web回收站] 读取失败:', e);
+    return [];
+  }
+}
+
+/** 从 Web 回收站恢复项目（按索引），加入 appState.projects */
+export function _restoreWebTrash(index) {
+  if (window.__ELECTRON__) return null;
+  try {
+    const trash = JSON.parse(localStorage.getItem(_WEB_TRASH_KEY) || '[]');
+    if (index < 0 || index >= trash.length) return null;
+    const item = trash.splice(index, 1)[0];
+    localStorage.setItem(_WEB_TRASH_KEY, JSON.stringify(trash));
+    // 反序列化并加入项目列表
+    if (item.data.positions && Array.isArray(item.data.positions)) {
+      const map = new Map();
+      for (const [k, v] of item.data.positions) {
+        map.set(k, new THREE.Vector3(v.x, v.y, v.z));
+      }
+      item.data.positions = map;
+    }
+    if (item.data.layers && Array.isArray(item.data.layers)) {
+      item.data.layers = item.data.layers.map(l => ({
+        ...l,
+        nodeIds: new Set(l.nodeIds || []),
+        positions2D: new Map(Object.entries(l.positions2D || {}))
+      }));
+    }
+    delete item.deletedAt;
+    // 重命名 overlayImages → nodeOverlayImages（如有）
+    if (item.data.overlayImages && !item.data.nodeOverlayImages) {
+      item.data.nodeOverlayImages = item.data.overlayImages;
+      delete item.data.overlayImages;
+    }
+    appState.projects.push(item);
+    if (!appState.currentProjectId) {
+      loadProject(item.id);
+    } else {
+      renderProjectList();
+    }
+    _persistToLocalStorage();
+    return item.id;
+  } catch (e) {
+    console.warn('[Web回收站] 恢复失败:', e);
+    return null;
+  }
+}
+
+/** 永久删除 Web 回收站中的单个项目（按索引） */
+export function _permanentDeleteWebTrash(index) {
+  if (window.__ELECTRON__) return;
+  try {
+    const trash = JSON.parse(localStorage.getItem(_WEB_TRASH_KEY) || '[]');
+    if (index < 0 || index >= trash.length) return;
+    trash.splice(index, 1);
+    localStorage.setItem(_WEB_TRASH_KEY, JSON.stringify(trash));
+  } catch (e) {
+    console.warn('[Web回收站] 永久删除失败:', e);
+  }
+}
+
+/** 清空 Web 回收站 */
+export function _emptyWebTrash() {
+  if (window.__ELECTRON__) return;
+  localStorage.removeItem(_WEB_TRASH_KEY);
 }
 
 /**

@@ -131,6 +131,8 @@
 
     <!-- ==================== 开始首页 ==================== -->
     <div id="startPage" style="display: none;">
+        <!-- 自定义背景图片/动图 -->
+        <div id="startPageCustomBg" style="display:none;"></div>
         <!-- 流光飘带效果 -->
         <div class="start-page-ribbons">
             <div class="ribbon ribbon-1"></div>
@@ -349,6 +351,9 @@
 
     <!-- ==================== 2D 视图画布（预留） ==================== -->
     <div id="view2dContainer"><canvas id="view2dCanvas"></canvas></div>
+
+    <!-- ==================== 桌面图标层（Windows 桌面模式，z-index 低于模态框 1500） ==================== -->
+    <div id="desktopIconsLayer" class="desktop-icons-layer" style="display:none;"></div>
 
     <!-- 图层管理按钮（2D/3D 通用） -->
     <button id="layerIconBtn" class="layer-icon-btn" title="图层管理">🗂️</button>
@@ -1857,6 +1862,12 @@
             <button id="pasteNodeBtn" style="background:rgba(44,90,126,0.6);">📋 粘贴节点</button>
         </div>
         <div class="menu-row" style="border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">
+            <button id="blankAppImportBtn" style="background:rgba(44,160,126,0.55);">📦 从 GitHub 导入应用</button>
+        </div>
+        <div class="menu-row">
+            <button id="blankAppExternalBtn" style="background:rgba(44,160,126,0.55);">➕ 添加外部程序</button>
+        </div>
+        <div class="menu-row" style="border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">
             <button id="blankSettingsBtn" style="background:rgba(0,255,255,0.12);">⚙️ 设置</button>
         </div>
     </div>
@@ -2196,19 +2207,6 @@
                 <button class="btn-cancel" id="sandboxSettingsCancel">取消</button>
                 <button class="btn-save" id="sandboxSettingsSave">保存</button>
             </div>
-        </div>
-    </div>
-
-    <!-- ==================== 沙盒模板选择器 ==================== -->
-    <div id="sandboxTemplateModal" class="sandbox-overlay-modal" style="display:none;">
-        <div class="sandbox-overlay-content">
-            <div class="sandbox-overlay-header">
-                <h3>📋 从模板创建</h3>
-                <button id="templateCloseBtn" class="sandbox-overlay-close">✕</button>
-            </div>
-            <div class="panel-accent-line"></div>
-            <div id="templateGrid" class="template-grid"></div>
-            <div class="template-tip">选择模板后将创建新文件，若文件名冲突会自动追加序号</div>
         </div>
     </div>
 
@@ -2590,6 +2588,8 @@
 
     <!-- 浏览器兼容层：非 Electron 环境模拟 window.api -->
     <script src="web-api-shim.js"></script>
+    <!-- 系统偏好设置文件化引导（Electron 环境，必须在 AstroKnot.js 之前同步执行） -->
+    <script src="system-storage.js"></script>
     <script type="module" src="AstroKnot.js"></script>
 
     <!-- Web 环境适配：隐藏 Electron 标题栏 -->

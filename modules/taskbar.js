@@ -84,6 +84,14 @@ function _hideCtxMenu() {
     _tabCtxMenuTarget = null;
 }
 
+/** 检测是否为图片路径 */
+function _isImagePath(icon) {
+    if (!icon || typeof icon !== 'string') return false;
+    return /\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(icon) ||
+           /^https?:\/\//i.test(icon) ||
+           /^data:image\//i.test(icon);
+}
+
 function _renderItems() {
     let container = document.getElementById('taskbarTabs');
     if (!container) return;
@@ -100,7 +108,15 @@ function _renderItems() {
 
         let icon = document.createElement('span');
         icon.className = 'tab-icon';
-        icon.textContent = item.icon || '📘';
+        if (_isImagePath(item.icon)) {
+            let imgEl = document.createElement('img');
+            imgEl.src = item.icon;
+            imgEl.alt = item.label || '';
+            imgEl.draggable = false;
+            icon.appendChild(imgEl);
+        } else {
+            icon.textContent = item.icon || '📘';
+        }
 
         let label = document.createElement('span');
         label.className = 'tab-label';

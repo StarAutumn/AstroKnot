@@ -74,6 +74,9 @@ async function doBackup() {
  */
 function flushNow() {
   try {
+    // 同步刷新系统偏好设置（将防抖中的待写入数据立即落盘到 preferences.json）
+    if (window.__flushSystemPreferences) window.__flushSystemPreferences();
+
     // 刷新快速笔记（将防抖中的待保存数据立即写入磁盘）
     if (appState.saveQuickNotesNow) appState.saveQuickNotesNow();
 

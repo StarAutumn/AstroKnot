@@ -196,6 +196,19 @@ function _startInlineRename(el, item) {
  * 右键菜单触发的重命名（找到对应 DOM 元素后调用内联重命名）
  */
 function renameItem(targetPath) {
+  // desktop 模式下从桌面图标层查找
+  if (document.body.classList.contains('desktop-mode')) {
+    const desktopLayer = document.getElementById('desktopIconsLayer');
+    if (!desktopLayer) return;
+    for (const child of desktopLayer.children) {
+      if (child.dataset.path !== targetPath) continue;
+      const items = getSavedItems();
+      const item = items.find(i => i.path === targetPath);
+      if (item) _startDesktopInlineRename(child, targetPath);
+      return;
+    }
+    return;
+  }
   const container = document.getElementById('dockPanelItems');
   if (!container) return;
   for (const child of container.children) {
@@ -280,6 +293,11 @@ async function extractAndCacheIcon(item, items) {
 // ---- 选中状态 ----
 
 function updateSelectedClass() {
+  // desktop 模式下更新桌面图标层的选中状态
+  if (document.body.classList.contains('desktop-mode')) {
+    _updateDesktopSelectedClass();
+    return;
+  }
   const container = document.getElementById('dockPanelItems');
   if (!container) return;
   for (const child of container.children) {
@@ -290,6 +308,15 @@ function updateSelectedClass() {
 // ---- 渲染 ----
 
 function renderDock() {
+  // desktop 模式下，侧边栏隐藏，外部程序由 AppPanel 调用 _renderExternalAppsToDesktop 渲染到桌面层
+  const desktopLayer = document.getElementById('desktopIconsLayer');
+  const isDesktopMode = document.body.classList.contains('desktop-mode')
+    || (desktopLayer && desktopLayer.style.display !== 'none' && desktopLayer.style.display !== '');
+  if (isDesktopMode) {
+    // 触发 AppPanel 重新渲染（会调用 _renderExternalAppsToDesktop）
+    if (window.AppPanel) window.AppPanel._render();
+    return;
+  }
   const container = document.getElementById('dockPanelItems');
   if (!container) return;
   const items = getSavedItems();
@@ -309,7 +336,6 @@ function renderDock() {
       img.style.height = '24px';
       img.style.imageRendering = 'auto';
       img.draggable = false;
-      // 图标加载失败时回退到 emoji，并清除损坏的 iconData
       img.addEventListener('error', () => {
         item.iconData = null;
         const savedItems = getSavedItems();
@@ -329,12 +355,9 @@ function renderDock() {
     labelSpan.textContent = item.name;
     el.appendChild(labelSpan);
 
-    // 单击：选中（Ctrl 多选）+ 慢双击重命名
     el.addEventListener('click', (e) => {
-      if (_renameActive) return; // 重命名进行中，不处理
-
+      if (_renameActive) return;
       const now = Date.now();
-      // 慢双击检测：同一选中项在 300-1500ms 内再次单击 → 进入重命名
       if (selectedPaths.has(item.path) && _lastClickedPath === item.path
           && now - _lastClickTime > 300 && now - _lastClickTime < 1500) {
         _startInlineRename(el, item);
@@ -342,8 +365,6 @@ function renderDock() {
         _lastClickTime = 0;
         return;
       }
-
-      // 普通单击 → 选中
       if (e.ctrlKey || e.metaKey) {
         if (selectedPaths.has(item.path)) selectedPaths.delete(item.path);
         else selectedPaths.add(item.path);
@@ -352,17 +373,197 @@ function renderDock() {
         selectedPaths.add(item.path);
       }
       updateSelectedClass();
-
       _lastClickedPath = item.path;
       _lastClickTime = now;
     });
 
-    // 双击：启动
     el.addEventListener('dblclick', () => launchApp(item.path));
     el.addEventListener('contextmenu', (e) => showContextMenu(e, item));
+    container.appendChild(el);
+  }
+}
+
+// ---- 桌面模式：外部程序渲染到桌面图标层 ----
+
+function renderExternalAppsToDesktop(container, existingPositions) {
+  const items = getSavedItems();
+  if (items.length === 0) return false;
+  const positions = existingPositions || (typeof _loadDesktopPositions === 'function' ? _loadDesktopPositions() : {});
+  for (const item of items) {
+    const el = document.createElement('div');
+    el.className = 'desktop-icon' + (selectedPaths.has(item.path) ? ' selected' : '');
+    el.dataset.path = item.path;
+    el.dataset.appId = item.path;
+    el.dataset.source = 'external';
+    el.title = `${item.name}\n${item.path}`;
+
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'desktop-icon-img';
+    if (item.iconData) {
+      const img = document.createElement('img');
+      img.src = item.iconData;
+      img.draggable = false;
+      img.addEventListener('error', () => {
+        item.iconData = null;
+        const savedItems = getSavedItems();
+        const si = savedItems.find(i => i.path === item.path);
+        if (si) { si.iconData = null; saveItems(savedItems); }
+        imgWrap.innerHTML = '';
+        imgWrap.textContent = _getEmojiForExt(item.path);
+      });
+      imgWrap.appendChild(img);
+    } else {
+      imgWrap.textContent = _getEmojiForExt(item.path);
+    }
+    el.appendChild(imgWrap);
+
+    const label = document.createElement('div');
+    label.className = 'desktop-icon-label';
+    label.textContent = item.name;
+    el.appendChild(label);
+
+    const key = 'ext:' + item.path;
+    const pos = positions[key];
+    if (pos) {
+      el.style.left = pos.left + 'px';
+      el.style.top = pos.top + 'px';
+    } else {
+      const keys = Object.keys(positions).sort();
+      let idx = keys.indexOf(key);
+      if (idx < 0) {
+        idx = keys.length;
+        keys.push(key);
+      }
+      const gapX = 84, gapY = 84, startX = 8, startY = 8;
+      const cols = Math.max(1, Math.floor((window.innerWidth - 160) / gapX) || 10);
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      el.style.left = (startX + col * gapX) + 'px';
+      el.style.top = (startY + row * gapY) + 'px';
+    }
 
     container.appendChild(el);
   }
+  return true;
+}
+
+// ---- 桌面模式：外部程序事件委托 ----
+
+function _bindDesktopExternalEvents() {
+  const desktopLayer = document.getElementById('desktopIconsLayer');
+  if (!desktopLayer || desktopLayer._externalBound) return;
+  desktopLayer._externalBound = true;
+
+  // 单击选中 + 慢双击重命名
+  desktopLayer.addEventListener('click', (e) => {
+    if (desktopLayer._dragJustMoved) return; // 拖拽后不触发点击
+    const icon = e.target.closest('.desktop-icon');
+    if (!icon || icon.dataset.source !== 'external') return;
+    if (_renameActive) return;
+    const path = icon.dataset.path;
+    const now = Date.now();
+
+    // 慢双击重命名
+    if (selectedPaths.has(path) && _lastClickedPath === path
+        && now - _lastClickTime > 300 && now - _lastClickTime < 1500) {
+      _startDesktopInlineRename(icon, path);
+      _lastClickedPath = null;
+      _lastClickTime = 0;
+      return;
+    }
+
+    // 先取消之前的选中，再设置新选中
+    selectedPaths.clear();
+    
+    // 同时清除 GitHub 应用的选中状态
+    if (typeof window._clearAppSelection === 'function') {
+      window._clearAppSelection();
+    }
+    
+    selectedPaths.add(path);
+    _updateDesktopSelectedClass();
+    _lastClickedPath = path;
+    _lastClickTime = now;
+  });
+
+  // 双击运行
+  desktopLayer.addEventListener('dblclick', (e) => {
+    const icon = e.target.closest('.desktop-icon');
+    if (!icon || icon.dataset.source !== 'external') return;
+    launchApp(icon.dataset.path);
+  });
+
+  // 右键菜单
+  desktopLayer.addEventListener('contextmenu', (e) => {
+    const icon = e.target.closest('.desktop-icon');
+    if (!icon || icon.dataset.source !== 'external') return;
+    const items = getSavedItems();
+    const item = items.find(i => i.path === icon.dataset.path);
+    if (item) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!selectedPaths.has(item.path)) {
+        selectedPaths.clear();
+        selectedPaths.add(item.path);
+        _updateDesktopSelectedClass();
+      }
+      showContextMenu(e, item);
+    }
+  });
+}
+
+/** 桌面模式选中状态更新 */
+function _updateDesktopSelectedClass() {
+  const desktopLayer = document.getElementById('desktopIconsLayer');
+  if (!desktopLayer) return;
+  for (const child of desktopLayer.children) {
+    if (child.dataset.source === 'external') {
+      child.classList.toggle('selected', selectedPaths.has(child.dataset.path));
+    }
+  }
+}
+
+/** 清除外部程序选中状态（供 AppPanel 调用） */
+function _clearExternalSelection() {
+  selectedPaths.clear();
+  _updateDesktopSelectedClass();
+}
+window._clearExternalSelection = _clearExternalSelection;
+
+/** 桌面模式内联重命名 */
+function _startDesktopInlineRename(el, path) {
+  const label = el.querySelector('.desktop-icon-label');
+  if (!label) return;
+  const items = getSavedItems();
+  const item = items.find(i => i.path === path);
+  if (!item) return;
+
+  _renameActive = true;
+  const originalName = label.textContent;
+  const input = document.createElement('input');
+  input.className = 'desktop-icon-rename-input';
+  input.value = originalName;
+  input.style.width = Math.max(label.offsetWidth + 20, 60) + 'px';
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const finish = (save) => {
+    _renameActive = false;
+    const newName = save ? (input.value.trim() || originalName) : originalName;
+    if (newName !== originalName) {
+      const idx = items.findIndex(i => i.path === path);
+      if (idx >= 0) items[idx].name = newName;
+      saveItems(items);
+    }
+    if (window.AppPanel) window.AppPanel._render();
+  };
+
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+    if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+  });
 }
 
 // ---- 添加（批量） ----
@@ -486,6 +687,49 @@ export function initDock() {
 
   // ---- 启动时重新提取失败的图标 ----
   _retryFailedIcons();
+
+  // ---- 桌面模式：注册全局函数和事件 ----
+  window._renderExternalAppsToDesktop = renderExternalAppsToDesktop;
+  _bindDesktopExternalEvents();
+
+  // 监听布局模式切换
+  document.addEventListener('dock-layout-mode-change', () => {
+    renderDock();
+  });
+
+  // desktop 模式下空白区域右键 → 显示 AppPanel 空白菜单
+  document.addEventListener('contextmenu', (e) => {
+    if (!document.body.classList.contains('desktop-mode')) return;
+    // 已被其他处理器处理（如图标右键）则跳过
+    if (e.defaultPrevented) return;
+    // 检查是否点在桌面图标层范围内
+    const desktopLayer = document.getElementById('desktopIconsLayer');
+    if (!desktopLayer) return;
+    const rect = desktopLayer.getBoundingClientRect();
+    const inLayer = e.clientX >= rect.left && e.clientX <= rect.right
+                  && e.clientY >= rect.top && e.clientY <= rect.bottom;
+    if (!inLayer) return;
+    // 检查是否点在图标上（图标已处理则 defaultPrevented 为 true）
+    const icon = e.target.closest('.desktop-icon');
+    if (icon) return; // 图标自己处理
+    // 空白区域 → 显示 AppPanel 空白菜单
+    e.preventDefault();
+    if (window.AppPanel) window.AppPanel._showBlankContextMenu(e.clientX, e.clientY);
+  });
+
+  // 监听 AppPanel 的"添加外部程序"请求
+  document.addEventListener('dock-add-external', (e) => {
+    const { path, name } = e.detail;
+    if (!path) return;
+    const items = getSavedItems();
+    if (!items.some(i => i.path === path)) {
+      const itemName = name || path.split(/[/\\]/).pop().replace(/\.[^.]+$/, '');
+      items.push({ name: itemName, path });
+      saveItems(items);
+      renderDock();
+      extractAndCacheIcon(items[items.length - 1], items);
+    }
+  });
 
   // ---- 应用库面板初始化 ----
   initAppPanel();

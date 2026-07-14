@@ -11,7 +11,8 @@
     "build:linux": "electron-builder --linux --x64",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "node scripts/copy-xterm.js && electron-builder install-app-deps",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "knowledge-graph",
@@ -37,7 +38,8 @@
   "devDependencies": {
     "@electron/rebuild": "^4.1.0",
     "electron": "^29.4.6",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "vitest": "^4.1.10"
   },
   "build": {
     "appId": "com.astroknot.app",
@@ -66,6 +68,8 @@
       "!web_version/**/*",
       "!official_website/**/*",
       "!scripts/**/*",
+      "!tests/**/*",
+      "!vitest.config.js",
       "!build-with-mirror.ps1",
       "!dist-web/**/*",
       "!dist/**/*",

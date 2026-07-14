@@ -60,7 +60,10 @@ class AppState {
     this.treeEdgeLabels = new Map();  // key: "startId->endId" → { label, labelHidden }, 树连线标签后备存储
     this.skyRotationSpeed = 1.0;
     this.startupMode = '3d_simple';  // 默认启动模式：3D 极简
-    this.startPageBackground = 'ribbon';  // 'ribbon' | 'spaceship'
+    this.startPageBackground = 'ribbon';  // 'ribbon' | 'custom'
+    this.customBgPath = '';  // 自定义背景图片路径（本地文件路径）
+    this.dockLayoutMode = 'sidebar';  // 'sidebar' | 'desktop'  应用栏布局模式
+    this.dockGridMode = 'free';    // 'free' | 'grid'  桌面图标排列方式（仅 desktop 模式生效）
     this.simpleBgColor = '#000000';
     this.bgColor2D = '#01010c';
     this.gridColor2D = '#1a2a34';
