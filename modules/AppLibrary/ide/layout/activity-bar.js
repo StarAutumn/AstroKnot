@@ -9,7 +9,7 @@ export class SandboxActivityBar {
   constructor(ctx) {
     /** @private */
     this._ctx = ctx;
-    /** @private @type {'explorer'|'search'|null} */
+    /** @private @type {'explorer'|'search'|'github'|null} */
     this._activePanel = null;
     /** @private @type {boolean} */
     this._isPreviewTab = false;
@@ -31,7 +31,7 @@ export class SandboxActivityBar {
 
   /**
    * 切换侧边面板可见性
-   * @param {'explorer'|'search'} panel - 面板名称
+   * @param {'explorer'|'search'|'github'} panel - 面板名称
    */
   toggleSidePanel(panel) {
     if (this._activePanel === panel) {
@@ -46,10 +46,11 @@ export class SandboxActivityBar {
 
   /**
    * 更新活动栏按钮的激活状态
-   * @param {'explorer'|'search'|null} activePanel - 当前激活的面板
+   * @param {'explorer'|'search'|'github'|null} activePanel - 当前激活的面板
    */
   updateActivityBarButtons(activePanel) {
-    const activityBar = document.querySelector('.sandbox-activity-bar');
+    const activityBar = document.getElementById('htmlSandboxModal')?.querySelector('.sandbox-activity-bar')
+      || document.querySelector('.sandbox-activity-bar');
     if (!activityBar) return;
 
     const buttons = activityBar.querySelectorAll('.activity-bar-btn');

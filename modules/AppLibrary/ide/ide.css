@@ -1861,3 +1861,150 @@
 .npm-script-cmd { color: #7aa; font-size: 10px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .npm-menu-empty { padding: 8px 10px; color: #7aa; font-size: 11px; text-align: center; }
 .npm-menu-header { padding: 4px 10px; color: #cef; font-size: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+
+/* ── 菜单栏对话框（快捷键帮助 / 关于） ── */
+.sandbox-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1600;
+}
+.sandbox-dialog {
+    background: #1e2a38;
+    border: 1px solid rgba(0,255,255,0.2);
+    border-radius: 8px;
+    min-width: 360px;
+    max-width: 520px;
+    max-height: 80vh;
+    overflow-y: auto;
+    color: #cef;
+    font-size: 13px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.sandbox-dialog .dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.sandbox-dialog .dialog-header h3 {
+    margin: 0;
+    font-size: 14px;
+    color: #e0f0ff;
+}
+.sandbox-dialog .dialog-close {
+    background: none;
+    border: none;
+    color: #7aa;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+.sandbox-dialog .dialog-close:hover { color: #ff6b6b; }
+.sandbox-dialog .dialog-body { padding: 16px; }
+.shortcuts-table { width: 100%; border-collapse: collapse; }
+.shortcuts-table td { padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.shortcut-keys kbd {
+    background: rgba(0,255,255,0.1);
+    border: 1px solid rgba(0,255,255,0.2);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    color: #00e5ff;
+}
+.shortcut-desc { color: #cef; }
+.about-content { text-align: center; }
+.about-logo { font-size: 48px; margin-bottom: 8px; }
+.about-content h2 { margin: 8px 0 4px; color: #e0f0ff; }
+.about-version { color: #7aa; font-size: 12px; margin: 4px 0; }
+.about-desc { color: #cef; font-size: 13px; margin: 8px 0; }
+.about-content hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 12px 0; }
+.about-tech { color: #7aa; font-size: 11px; }
+
+/* ── npm 安装对话框 ── */
+.npm-install-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+.npm-install-dialog {
+    background: #0d1f2b;
+    border: 1px solid #2c6e7e;
+    border-radius: 10px;
+    padding: 20px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.npm-install-dialog-header {
+    font-size: 16px;
+    font-weight: bold;
+    color: #eef;
+    margin-bottom: 12px;
+}
+.npm-install-dialog-body {
+    color: #cef;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.npm-install-dialog-body p {
+    margin: 4px 0;
+}
+.npm-install-options {
+    margin-top: 12px;
+}
+.npm-install-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #aef;
+    font-size: 12px;
+    cursor: pointer;
+}
+.npm-install-options input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #00e5ff;
+}
+.npm-install-dialog-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+.npm-install-dialog-footer .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+}
+.npm-install-dialog-footer .btn-secondary {
+    background: transparent;
+    color: #8aa;
+    border: 1px solid #2c6e7e;
+}
+.npm-install-dialog-footer .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+.npm-install-dialog-footer .btn-primary {
+    background: #2c6e7e;
+    color: #eef;
+}
+.npm-install-dialog-footer .btn-primary:hover {
+    background: #3c8e9e;
+}

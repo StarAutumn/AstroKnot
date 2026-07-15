@@ -489,15 +489,18 @@ function _readFileSystemFromDisk(dirPath) {
  * @param {string} dirPath - sandbox 目录绝对路径
  * @returns {Object} 文件树根节点
  */
-function _readFileSystemFromDiskBinary(dirPath) {
+function _readFileSystemFromDiskBinary(dirPath, skipNodeModules = false) {
   if (!fs.existsSync(dirPath)) return null;
 
   const children = [];
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 
   for (const entry of entries) {
+    // 跳过 node_modules 目录（避免几万个文件导致 VFS 膨胀）
+    if (skipNodeModules && entry.isDirectory() && entry.name === 'node_modules') continue;
+
     if (entry.isDirectory()) {
-      const subTree = _readFileSystemFromDiskBinary(path.join(dirPath, entry.name));
+      const subTree = _readFileSystemFromDiskBinary(path.join(dirPath, entry.name), skipNodeModules);
       if (subTree) children.push(subTree);
     } else if (entry.isFile()) {
       const filePath = path.join(dirPath, entry.name);
@@ -1504,13 +1507,13 @@ function bindFileIPC() {
     }
   });
 
-  // 读取应用 sandbox 文件树（增强二进制支持）
+  // 读取应用 sandbox 文件树（跳过 node_modules 避免 VFS 膨胀）
   ipcMain.handle('read-app-sandbox', async (event, appId) => {
     try {
       const appsDir = dataSettings.getAppsDir();
       const sandboxDir = path.join(appsDir, appId, 'sandbox');
       if (!fs.existsSync(sandboxDir)) return null;
-      const tree = _readFileSystemFromDiskBinary(sandboxDir);
+      const tree = _readFileSystemFromDiskBinary(sandboxDir, true);
       // 规范化根目录名：path.basename 返回 'sandbox'，但 VFS _flattenTree 只认 '/'
       if (tree) tree.name = '/';
       return tree;
@@ -1518,6 +1521,148 @@ function bindFileIPC() {
       console.error('[read-app-sandbox] 错误:', err);
       return null;
     }
+  });
+
+  // 获取应用 sandbox 磁盘路径
+  ipcMain.handle('get-app-sandbox-path', async (event, appId) => {
+    const appsDir = dataSettings.getAppsDir();
+    const sandboxDir = path.join(appsDir, appId, 'sandbox');
+    if (fs.existsSync(sandboxDir)) return sandboxDir;
+    return null;
+  });
+
+  // 查找应用入口 HTML 文件
+  ipcMain.handle('find-app-entry-html', async (event, appId) => {
+    const appsDir = dataSettings.getAppsDir();
+    const sandboxDir = path.join(appsDir, appId, 'sandbox');
+    if (!fs.existsSync(sandboxDir)) return null;
+
+    // 按优先级查找入口文件
+    const candidates = ['index.html', 'dist/index.html', 'build/index.html', 'public/index.html'];
+    for (const c of candidates) {
+      const fullPath = path.join(sandboxDir, c);
+      if (fs.existsSync(fullPath)) return fullPath;
+    }
+
+    // 递归搜索所有 index.html（排除 node_modules）
+    const found = _findHtmlFiles(sandboxDir, sandboxDir, 3);
+    return found;
+  });
+
+  /**
+   * 递归搜索 HTML 文件（排除 node_modules，限制深度）
+   * @param {string} dir - 当前目录
+   * @param {string} baseDir - 根目录
+   * @param {number} maxDepth - 最大搜索深度
+   * @returns {string|null} 找到的 HTML 文件绝对路径
+   */
+  function _findHtmlFiles(dir, baseDir, maxDepth) {
+    if (maxDepth < 0) return null;
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name === 'node_modules' || entry.name === '.git') continue;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          const result = _findHtmlFiles(fullPath, baseDir, maxDepth - 1);
+          if (result) return result;
+        } else if (entry.name.endsWith('.html')) {
+          return fullPath;
+        }
+      }
+    } catch { /* 忽略权限错误 */ }
+    return null;
+  }
+
+  // 启动本地 HTTP 服务器为应用提供静态文件服务
+  const _appServers = new Map(); // appId -> { server, port }
+  
+  ipcMain.handle('start-app-server', async (event, appId) => {
+    // 如果已有服务器，直接返回
+    if (_appServers.has(appId)) {
+      const existing = _appServers.get(appId);
+      return { port: existing.port };
+    }
+
+    const appsDir = dataSettings.getAppsDir();
+    const sandboxDir = path.join(appsDir, appId, 'sandbox');
+    if (!fs.existsSync(sandboxDir)) return null;
+
+    const http = require('http');
+    const url = require('url');
+
+    const server = http.createServer((req, res) => {
+      const parsedUrl = url.parse(req.url);
+      let filePath = path.join(sandboxDir, parsedUrl.pathname === '/' ? 'index.html' : parsedUrl.pathname);
+      
+      // 安全检查：确保路径在 sandboxDir 内
+      const resolved = path.resolve(filePath);
+      if (!resolved.startsWith(path.resolve(sandboxDir))) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+      
+      if (!fs.existsSync(resolved) || fs.statSync(resolved).isDirectory()) {
+        // 尝试 index.html
+        const indexPath = path.join(resolved, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          filePath = indexPath;
+        } else {
+          res.writeHead(404);
+          res.end('Not Found');
+          return;
+        }
+      }
+      
+      try {
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes = {
+          '.html': 'text/html', '.htm': 'text/html',
+          '.js': 'application/javascript', '.mjs': 'application/javascript',
+          '.css': 'text/css', '.scss': 'text/css',
+          '.json': 'application/json',
+          '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+          '.webp': 'image/webp',
+          '.woff': 'font/woff', '.woff2': 'font/woff2',
+          '.ttf': 'font/ttf', '.otf': 'font/otf', '.eot': 'application/vnd.ms-fontobject',
+          '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+          '.mp4': 'video/mp4', '.webm': 'video/webm',
+          '.wasm': 'application/wasm',
+          '.map': 'application/json',
+        };
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        const data = fs.readFileSync(filePath);
+        res.writeHead(200, { 'Content-Type': contentType + (ext === '.html' ? '; charset=utf-8' : '') });
+        res.end(data);
+      } catch (err) {
+        res.writeHead(500);
+        res.end('Internal Server Error');
+      }
+    });
+
+    return new Promise((resolve) => {
+      server.listen(0, '127.0.0.1', () => {
+        const port = server.address().port;
+        _appServers.set(appId, { server, port });
+        resolve({ port });
+      });
+      server.on('error', (err) => {
+        console.error('[start-app-server] 错误:', err);
+        resolve(null);
+      });
+    });
+  });
+
+  // 停止应用的 HTTP 服务器
+  ipcMain.handle('stop-app-server', async (event, appId) => {
+    const entry = _appServers.get(appId);
+    if (entry) {
+      entry.server.close();
+      _appServers.delete(appId);
+    }
+    return { success: true };
   });
 
   // 写入应用 sandbox 到磁盘
@@ -2626,6 +2771,205 @@ function bindFileIPC() {
     return { success: true };
   });
 
+  // ── Git 克隆到临时目录并读取文件 ──
+  ipcMain.handle('git-clone-and-read', async (event, repoUrl) => {
+    const { spawn } = require('child_process');
+    const os = require('os');
+    
+    const tempDir = `astroknot-clone-${Date.now()}`;
+    const cloneTarget = path.join(os.tmpdir(), tempDir);
+    
+    // 1. 执行 git clone
+    await new Promise((resolve, reject) => {
+      const git = spawn('git', ['clone', '--depth', '1', repoUrl, cloneTarget], {
+        windowsHide: true,
+      });
+      
+      let stderr = '';
+      
+      git.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      git.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`git clone 失败 (code ${code}): ${stderr}`));
+        }
+      });
+      
+      git.on('error', (err) => {
+        if (err.code === 'ENOENT') {
+          reject(new Error('系统未安装 git，请先安装 Git 并确保在 PATH 中'));
+        } else {
+          reject(err);
+        }
+      });
+    });
+    
+    // 2. 读取所有文件
+    const files = [];
+    const BINARY_EXTS = new Set([
+      'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'tiff', 'tif', 'svg',
+      'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma',
+      'mp4', 'webm', 'avi', 'mov', 'mkv', 'wmv', 'flv',
+      'zip', 'gz', 'tar', 'rar', '7z', 'bz2',
+      'woff', 'woff2', 'ttf', 'otf', 'eot',
+      'pdf', 'exe', 'dll', 'so', 'dylib', 'bin', 'dat',
+    ]);
+    
+    const isBinary = (filePath) => {
+      const ext = filePath.split('.').pop()?.toLowerCase();
+      return BINARY_EXTS.has(ext);
+    };
+    
+    const readDirRecursive = (dir, baseDir = '') => {
+      try {
+        const items = fs.readdirSync(dir, { withFileTypes: true });
+        for (const item of items) {
+          const fullPath = path.join(dir, item.name);
+          const relativePath = baseDir ? `${baseDir}/${item.name}` : item.name;
+          if (item.isDirectory()) {
+            if (item.name !== '.git') {
+              readDirRecursive(fullPath, relativePath);
+            }
+          } else {
+            try {
+              const content = isBinary(relativePath)
+                ? fs.readFileSync(fullPath).toString('base64')
+                : fs.readFileSync(fullPath, 'utf-8');
+              files.push({
+                path: relativePath,
+                content,
+                isBinary: isBinary(relativePath)
+              });
+            } catch (e) {
+              // 跳过无法读取的文件
+            }
+          }
+        }
+      } catch (e) {
+        // 跳过无法读取的目录
+      }
+    };
+    
+    readDirRecursive(cloneTarget);
+    
+    // 3. 删除临时目录
+    try {
+      fs.rmSync(cloneTarget, { recursive: true, force: true });
+    } catch (e) {
+      // 忽略清理失败
+    }
+    
+    return { success: true, files };
+  });
+
+  // ── git clone 到指定目录（真实文件系统模式）──
+  ipcMain.handle('git-clone-to-dir', async (event, repoUrl, targetDir) => {
+    const { spawn } = require('child_process');
+    
+    if (!targetDir || !fs.existsSync(targetDir)) {
+      return { success: false, error: '目标目录不存在: ' + targetDir };
+    }
+    
+    const tempDir = `astroknot-clone-${Date.now()}`;
+    const cloneTarget = path.join(require('os').tmpdir(), tempDir);
+    
+    // 1. 执行 git clone
+    try {
+      await new Promise((resolve, reject) => {
+        const git = spawn('git', ['clone', '--depth', '1', repoUrl, cloneTarget], {
+          windowsHide: true,
+        });
+        
+        let stderr = '';
+        git.stderr.on('data', (data) => { stderr += data.toString(); });
+        git.on('close', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`git clone 失败 (code ${code}): ${stderr}`));
+        });
+        git.on('error', (err) => {
+          if (err.code === 'ENOENT') reject(new Error('系统未安装 git'));
+          else reject(err);
+        });
+      });
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+    
+    // 2. 将克隆的文件复制到目标目录（跳过 .git）
+    let fileCount = 0;
+    const copyDir = (src, dest) => {
+      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+      const entries = fs.readdirSync(src, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name === '.git') continue;
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+        if (entry.isDirectory()) {
+          copyDir(srcPath, destPath);
+        } else {
+          try {
+            fs.copyFileSync(srcPath, destPath);
+            fileCount++;
+          } catch (e) {
+            // 跳过无法复制的文件
+          }
+        }
+      }
+    };
+    
+    try {
+      copyDir(cloneTarget, targetDir);
+    } catch (err) {
+      return { success: false, error: '复制文件失败: ' + err.message };
+    }
+    
+    // 3. 删除临时目录
+    try {
+      fs.rmSync(cloneTarget, { recursive: true, force: true });
+    } catch (e) {}
+    
+    return { success: true, fileCount };
+  });
+
+  // ── 运行命令 ──
+  ipcMain.handle('run-command', async (event, command, cwd) => {
+    const { spawn } = require('child_process');
+    
+    return new Promise((resolve) => {
+      const isWindows = process.platform === 'win32';
+      const shell = isWindows ? true : '/bin/bash';
+      
+      const proc = spawn(command, [], {
+        cwd: cwd || undefined,
+        shell,
+        windowsHide: true,
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      proc.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      proc.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      proc.on('close', (code) => {
+        resolve({ code, stdout, stderr });
+      });
+      
+      proc.on('error', (err) => {
+        resolve({ code: 1, stdout: '', stderr: err.message });
+      });
+    });
+  });
+
 }
 
 // ── GPU 进程崩溃全局恢复 ──
@@ -2767,6 +3111,98 @@ app.whenReady().then(() => {
     } catch (e) {
       console.error('[flush-preferences-sync] 错误:', e);
       event.returnValue = { success: false, error: e.message };
+    }
+  });
+
+  // ── IPC：SystemStorage 文件化键值存储 ──
+  const _storageDir = path.join(dataSettings.getSystemDir(), 'storage');
+
+  function _storageEncodeKey(key) {
+    return Buffer.from(encodeURIComponent(key), 'utf8')
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  }
+
+  function _storageFilePath(key) {
+    return path.join(_storageDir, _storageEncodeKey(key) + '.json');
+  }
+
+  function _ensureStorageDir() {
+    if (!fs.existsSync(_storageDir)) {
+      fs.mkdirSync(_storageDir, { recursive: true });
+    }
+  }
+
+  // 同步读取单个 key
+  ipcMain.on('system-storage-read-sync', (event, key) => {
+    try {
+      const filePath = _storageFilePath(key);
+      if (!fs.existsSync(filePath)) {
+        event.returnValue = { success: true, value: null };
+        return;
+      }
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const data = JSON.parse(raw);
+      event.returnValue = { success: true, value: data.value };
+    } catch (e) {
+      console.error('[system-storage-read-sync] 错误:', key, e);
+      event.returnValue = { success: false, value: null, error: e.message };
+    }
+  });
+
+  // 同步写入单个 key（原子写入）
+  ipcMain.on('system-storage-write-sync', (event, key, value) => {
+    try {
+      _ensureStorageDir();
+      const filePath = _storageFilePath(key);
+      const tmpPath = filePath + '.tmp';
+      const payload = { key, value, updatedAt: new Date().toISOString() };
+      fs.writeFileSync(tmpPath, JSON.stringify(payload, null, 2), 'utf-8');
+      fs.renameSync(tmpPath, filePath);
+      event.returnValue = { success: true };
+    } catch (e) {
+      console.error('[system-storage-write-sync] 错误:', key, e);
+      event.returnValue = { success: false, error: e.message };
+    }
+  });
+
+  // 同步删除单个 key
+  ipcMain.on('system-storage-remove-sync', (event, key) => {
+    try {
+      const filePath = _storageFilePath(key);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      event.returnValue = { success: true };
+    } catch (e) {
+      console.error('[system-storage-remove-sync] 错误:', key, e);
+      event.returnValue = { success: false, error: e.message };
+    }
+  });
+
+  // 同步列出所有 key
+  ipcMain.on('system-storage-keys-sync', (event) => {
+    try {
+      if (!fs.existsSync(_storageDir)) {
+        event.returnValue = { success: true, keys: [] };
+        return;
+      }
+      const files = fs.readdirSync(_storageDir).filter(f => f.endsWith('.json'));
+      const keys = files.map(f => {
+        try {
+          const raw = fs.readFileSync(path.join(_storageDir, f), 'utf-8');
+          const data = JSON.parse(raw);
+          return data.key || null;
+        } catch (e) {
+          return null;
+        }
+      }).filter(k => k !== null);
+      event.returnValue = { success: true, keys };
+    } catch (e) {
+      console.error('[system-storage-keys-sync] 错误:', e);
+      event.returnValue = { success: false, keys: [], error: e.message };
     }
   });
 

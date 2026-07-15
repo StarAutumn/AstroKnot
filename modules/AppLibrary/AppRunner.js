@@ -97,6 +97,17 @@ export class AppRunner {
         }
       },
       onStateChange: (newState) => {
+        // 更新最大化按钮图标
+        const maxBtn = headerEl.querySelector('.app-runner-max');
+        if (maxBtn) {
+          if (newState === WindowState.MAXIMIZED) {
+            maxBtn.textContent = '❐'; // 窗口化图标
+            maxBtn.title = '窗口化';
+          } else if (newState === WindowState.WINDOWED) {
+            maxBtn.textContent = '▢'; // 最大化图标
+            maxBtn.title = '最大化';
+          }
+        }
         if (newState === WindowState.MAXIMIZED) {
           window._pause3DAnimation = true;
         } else if (this._windows.size === 0 || Array.from(this._windows.values()).every(w => w.windowInstance.getState() !== WindowState.MAXIMIZED)) {
@@ -196,7 +207,7 @@ export class AppRunner {
       content: content,
       header: headerEl,
       icon: app.icon || '💾',
-      initialState: WindowState.MAXIMIZED,
+      initialState: WindowState.WINDOWED,
       resizable: true,
       onClose: () => {
         fmApp.destroy();
@@ -211,6 +222,17 @@ export class AppRunner {
         }
       },
       onStateChange: (newState) => {
+        // 更新最大化按钮图标
+        const maxBtn = headerEl.querySelector('.app-runner-max');
+        if (maxBtn) {
+          if (newState === WindowState.MAXIMIZED) {
+            maxBtn.textContent = '❐'; // 窗口化图标
+            maxBtn.title = '窗口化';
+          } else if (newState === WindowState.WINDOWED) {
+            maxBtn.textContent = '▢'; // 最大化图标
+            maxBtn.title = '最大化';
+          }
+        }
         if (newState === WindowState.MAXIMIZED) {
           window._pause3DAnimation = true;
         } else if (this._windows.size === 0 || Array.from(this._windows.values()).every(w => w.windowInstance.getState() !== WindowState.MAXIMIZED)) {
@@ -322,6 +344,17 @@ export class AppRunner {
         }
       },
       onStateChange: (newState) => {
+        // 更新最大化按钮图标
+        const maxBtn = headerEl.querySelector('.app-runner-max');
+        if (maxBtn) {
+          if (newState === WindowState.MAXIMIZED) {
+            maxBtn.textContent = '❐'; // 窗口化图标
+            maxBtn.title = '窗口化';
+          } else if (newState === WindowState.WINDOWED) {
+            maxBtn.textContent = '▢'; // 最大化图标
+            maxBtn.title = '最大化';
+          }
+        }
         if (newState === WindowState.MAXIMIZED) {
           window._pause3DAnimation = true;
         } else if (this._windows.size === 0 || Array.from(this._windows.values()).every(w => w.windowInstance.getState() !== WindowState.MAXIMIZED)) {
@@ -448,6 +481,19 @@ export class AppRunner {
         }
       },
       onStateChange: (newState) => {
+        // 更新最大化按钮图标（IDE 使用 SVG）
+        const maxBtn = headerEl.querySelector('.app-runner-max');
+        if (maxBtn) {
+          if (newState === WindowState.MAXIMIZED) {
+            // 窗口化图标：两个重叠的矩形
+            maxBtn.innerHTML = '<svg viewBox="0 0 10 10"><rect x="0" y="3" width="5" height="5" rx="0"/><rect x="3" y="0" width="5" height="5" rx="0"/></svg>';
+            maxBtn.title = '窗口化';
+          } else if (newState === WindowState.WINDOWED) {
+            // 最大化图标：单个矩形
+            maxBtn.innerHTML = '<svg viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" rx="0"/></svg>';
+            maxBtn.title = '最大化';
+          }
+        }
         if (newState === WindowState.MAXIMIZED) {
           window._pause3DAnimation = true;
         } else if (this._windows.size === 0 || Array.from(this._windows.values()).every(w => w.windowInstance.getState() !== WindowState.MAXIMIZED)) {
@@ -532,11 +578,13 @@ export class AppRunner {
     modal.innerHTML = `
       <div class="rich-modal-content app-runner-content">
         <div class="rich-modal-header">
-          <span class="caption-icon">${app.icon || '📦'}</span>
-          <h2 class="app-runner-title">${app.name || '应用'}</h2>
+          <div style="display:flex; align-items:center; gap:8px; flex:1;">
+            <span class="caption-icon">${app.icon || '📦'}</span>
+            <h2 class="app-runner-title">${app.name || '应用'}</h2>
+          </div>
           <div class="caption-btns">
-            <button class="caption-btn app-runner-min" title="最小化">⚋</button>
-            <button class="caption-btn app-runner-max" title="最大化/还原">🗖</button>
+            <button class="caption-btn app-runner-min" title="最小化">⚊</button>
+            <button class="caption-btn app-runner-max" title="窗口化">❐</button>
             <button class="caption-btn app-runner-close" title="关闭">✕</button>
           </div>
         </div>
@@ -575,6 +623,17 @@ export class AppRunner {
         }
       },
       onStateChange: (newState) => {
+        // 更新最大化按钮图标
+        const maxBtn = modal.querySelector('.app-runner-max');
+        if (maxBtn) {
+          if (newState === WindowState.MAXIMIZED) {
+            maxBtn.textContent = '❐'; // 窗口化图标
+            maxBtn.title = '窗口化';
+          } else if (newState === WindowState.WINDOWED) {
+            maxBtn.textContent = '▢'; // 最大化图标
+            maxBtn.title = '最大化';
+          }
+        }
         if (newState === WindowState.MAXIMIZED) {
           window._pause3DAnimation = true;
         } else if (this._windows.size === 0 || Array.from(this._windows.values()).every(w => w.windowInstance.getState() !== WindowState.MAXIMIZED)) {
@@ -606,6 +665,48 @@ export class AppRunner {
 
     // 加载应用文件
     try {
+      // 优先：直接从磁盘加载 HTML（避免 buildSimpleHtml 内联大项目卡死）
+      const sandboxPath = await window.api.getAppSandboxPath(app.id);
+      if (sandboxPath) {
+        // 通过 IPC 查找入口 HTML 文件
+        const entryFile = await window.api.findAppEntryHtml(app.id);
+        
+        if (entryFile) {
+          // 启动本地 HTTP 服务器提供静态文件服务
+          const serverInfo = await window.api.startAppServer(app.id);
+          if (serverInfo && serverInfo.port) {
+            // 计算入口文件相对于 sandbox 的路径
+            const normalizedSandbox = sandboxPath.replace(/\\/g, '/');
+            const normalizedEntry = entryFile.replace(/\\/g, '/');
+            const relPath = normalizedEntry.replace(normalizedSandbox + '/', '').replace(normalizedSandbox, '');
+            const baseUrl = `http://127.0.0.1:${serverInfo.port}`;
+            iframe.src = relPath ? `${baseUrl}/${relPath}` : `${baseUrl}/`;
+          } else {
+            const localUrl = 'astroknot-local://' + entryFile.replace(/\\/g, '/');
+            iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><script>window.location.replace("${localUrl}");</script></head><body></body></html>`;
+          }
+          windowInstance.open(WindowState.MAXIMIZED);
+          this._registerAppTaskbar(app, windowInstance, taskbarKey);
+          window._pause3DAnimation = true;
+          this._activeAppId = app.id;
+          this._windows.set(app.id, { modal, iframe, windowInstance });
+          return;
+        }
+
+        // 没有找到 HTML 文件，显示提示页面
+        const serverInfo = await window.api.startAppServer(app.id);
+        if (serverInfo && serverInfo.port) {
+          iframe.srcdoc = this._buildNoEntryPage(app, sandboxPath, serverInfo.port);
+          windowInstance.open(WindowState.MAXIMIZED);
+          this._registerAppTaskbar(app, windowInstance, taskbarKey);
+          window._pause3DAnimation = true;
+          this._activeAppId = app.id;
+          this._windows.set(app.id, { modal, iframe, windowInstance });
+          return;
+        }
+      }
+
+      // 回退：使用 VFS 内联方式（适用于纯 HTML 小项目）
       const tree = await window.api.readAppSandbox(app.id);
       if (!tree) {
         console.error('[AppRunner] 应用文件不存在:', app.id);
@@ -666,6 +767,8 @@ export class AppRunner {
     if (appId) {
       const win = this._windows.get(appId);
       if (win) win.windowInstance.close();
+      // 停止 HTTP 服务器
+      if (window.api?.stopAppServer) window.api.stopAppServer(appId);
     } else {
       for (const [, win] of this._windows) {
         win.windowInstance.close();
@@ -736,6 +839,82 @@ export class AppRunner {
     }
     this._windows.clear();
     window._pause3DAnimation = false;
+  }
+
+  /**
+   * 注册应用到任务栏
+   * @private
+   */
+  _registerAppTaskbar(app, windowInstance, taskbarKey) {
+    window.Taskbar.addOrUpdateEditor(taskbarKey, {
+      icon: app.icon || '📦',
+      label: app.name || '应用',
+      active: true,
+      activate: () => {
+        const state = windowInstance.getState();
+        if (state === WindowState.MINIMIZED) {
+          windowInstance.restore();
+          WindowManager.bringToFront(windowInstance);
+          this._activeAppId = app.id;
+        } else if (this._activeAppId === app.id) {
+          windowInstance.minimize();
+          this._activeAppId = null;
+        } else {
+          WindowManager.bringToFront(windowInstance);
+          this._activeAppId = app.id;
+        }
+      },
+      close: () => this.close(app.id),
+      maximize: () => windowInstance.toggleMaximize(),
+      minimize: () => windowInstance.minimize(),
+    });
+  }
+
+  /**
+   * 构建无入口文件提示页面
+   * @private
+   */
+  _buildNoEntryPage(app, sandboxPath, port) {
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${app.name}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    background: #0d1b23; color: #cef; font-family: -apple-system, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100vh; gap: 16px;
+  }
+  .icon { font-size: 64px; }
+  h1 { font-size: 20px; color: #eef; }
+  .msg { color: #8aa; font-size: 14px; text-align: center; max-width: 500px; line-height: 1.6; }
+  .hint { background: #1a2a3a; border: 1px solid #2c6e7e; border-radius: 8px; padding: 16px 24px; margin-top: 8px; }
+  .hint code { color: #0ff; background: rgba(0,229,255,0.1); padding: 2px 6px; border-radius: 3px; font-family: Consolas, monospace; }
+  .btn { 
+    background: #2c6e7e; color: #eef; border: none; padding: 10px 24px; 
+    border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 8px;
+  }
+  .btn:hover { background: #3c8e9e; }
+</style>
+</head>
+<body>
+  <div class="icon">📦</div>
+  <h1>${app.name}</h1>
+  <div class="msg">
+    此项目没有找到可运行的入口 HTML 文件。<br>
+    可能是一个库（Library）项目，需要额外配置才能运行。
+  </div>
+  <div class="hint">
+    <p>你可以：</p>
+    <p>1. 在 IDE 中手动创建 <code>index.html</code> 入口文件</p>
+    <p>2. 在终端中运行 <code>npm start</code> 启动开发服务器</p>
+    <p>3. 查看项目文档了解如何运行</p>
+  </div>
+  <button class="btn" onclick="window.parent.postMessage({type:'open-in-ide',appId:'${app.id}'},'*')">在 IDE 中打开</button>
+</body>
+</html>`;
   }
 }
 

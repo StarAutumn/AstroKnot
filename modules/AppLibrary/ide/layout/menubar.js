@@ -5,6 +5,7 @@ export class SandboxMenuBar {
     /** @type {import('../core/context').SandboxContext} */
     this.ctx = ctx;
     this._activeMenu = null;
+    this._activeDialog = null;
     this._mousedownHandler = null;
     this._clickHandler = null;
     this._mouseoverHandler = null;
@@ -219,6 +220,9 @@ export class SandboxMenuBar {
   // ─── 快捷键帮助 ───────────────────────────────────────────
 
   _showShortcutsHelp() {
+    // 防止重复创建
+    this._closeDialog();
+
     const shortcuts = [
       { keys: 'Ctrl + S', desc: '保存' },
       { keys: 'Ctrl + Z', desc: '撤销' },
@@ -264,8 +268,9 @@ export class SandboxMenuBar {
     `;
 
     document.body.appendChild(overlay);
+    this._activeDialog = overlay;
 
-    const closeDialog = () => overlay.remove();
+    const closeDialog = () => { overlay.remove(); this._activeDialog = null; };
     overlay.querySelector('[data-close]').addEventListener('click', closeDialog);
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeDialog();
@@ -275,17 +280,20 @@ export class SandboxMenuBar {
   // ─── 关于对话框 ───────────────────────────────────────────
 
   _showAboutDialog() {
+    // 防止重复创建
+    this._closeDialog();
+
     const overlay = document.createElement('div');
     overlay.className = 'sandbox-dialog-overlay';
     overlay.innerHTML = `
       <div class="sandbox-dialog about-dialog">
         <div class="dialog-header">
-          <h3>关于 Sandbox</h3>
+          <h3>关于 AstroKnot IDE</h3>
           <button class="dialog-close" data-close>&times;</button>
         </div>
         <div class="dialog-body about-content">
           <div class="about-logo">🚀</div>
-          <h2>AstroKnot Sandbox</h2>
+          <h2>AstroKnot IDE</h2>
           <p class="about-version">v1.0.0</p>
           <p class="about-desc">轻量级在线代码编辑器，支持实时预览与终端操作。</p>
           <hr>
@@ -295,11 +303,21 @@ export class SandboxMenuBar {
     `;
 
     document.body.appendChild(overlay);
+    this._activeDialog = overlay;
 
-    const closeDialog = () => overlay.remove();
+    const closeDialog = () => { overlay.remove(); this._activeDialog = null; };
     overlay.querySelector('[data-close]').addEventListener('click', closeDialog);
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeDialog();
     });
+  }
+
+  // ─── 关闭当前对话框 ──────────────────────────────────────
+
+  _closeDialog() {
+    if (this._activeDialog) {
+      this._activeDialog.remove();
+      this._activeDialog = null;
+    }
   }
 }

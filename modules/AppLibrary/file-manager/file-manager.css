@@ -225,8 +225,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.fm-tree-children {
-}
 
 /* 侧边栏分隔条 */
 .fm-sidebar-resizer {
@@ -366,6 +364,7 @@
   text-align: center;
   word-break: break-all;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -679,4 +678,13 @@
 @keyframes fm-toast-out {
   from { opacity: 1; transform: translateX(-50%) translateY(0); }
   to   { opacity: 0; transform: translateX(-50%) translateY(10px); }
+}
+
+/* ── 拖拽选框 ── */
+.fm-selection-box {
+  position: absolute;
+  border: 1px solid rgba(0, 200, 255, 0.6);
+  background: rgba(0, 200, 255, 0.1);
+  pointer-events: none;
+  z-index: 100;
 }

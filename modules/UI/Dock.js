@@ -131,8 +131,16 @@ function showContextMenu(e, item) {
   contextMenuEl.style.top = y + 'px';
   document.body.appendChild(contextMenuEl);
 
+  // 使用 mousedown + pointerdown + 捕获模式，确保 3D canvas 点击也能关闭菜单
+  // 与 AppPanel.js 保持一致
+  const closeHandler = (ev) => {
+    if (contextMenuEl && !contextMenuEl.contains(ev.target)) {
+      hideContextMenu();
+    }
+  };
   setTimeout(() => {
-    document.addEventListener('click', hideContextMenu, { once: true });
+    document.addEventListener('mousedown', closeHandler, true);
+    document.addEventListener('pointerdown', closeHandler, true);
   }, 0);
 }
 
@@ -149,6 +157,12 @@ function removeItems(paths) {
   const items = getSavedItems();
   const remaining = items.filter(i => !paths.has(i.path));
   saveItems(remaining);
+  // 清理这些外部程序的桌面图标位置数据
+  if (typeof window._removeDesktopIconPosition === 'function') {
+    for (const path of paths) {
+      window._removeDesktopIconPosition('ext:' + path);
+    }
+  }
   selectedPaths.clear();
   renderDock();
 }
@@ -695,26 +709,6 @@ export function initDock() {
   // 监听布局模式切换
   document.addEventListener('dock-layout-mode-change', () => {
     renderDock();
-  });
-
-  // desktop 模式下空白区域右键 → 显示 AppPanel 空白菜单
-  document.addEventListener('contextmenu', (e) => {
-    if (!document.body.classList.contains('desktop-mode')) return;
-    // 已被其他处理器处理（如图标右键）则跳过
-    if (e.defaultPrevented) return;
-    // 检查是否点在桌面图标层范围内
-    const desktopLayer = document.getElementById('desktopIconsLayer');
-    if (!desktopLayer) return;
-    const rect = desktopLayer.getBoundingClientRect();
-    const inLayer = e.clientX >= rect.left && e.clientX <= rect.right
-                  && e.clientY >= rect.top && e.clientY <= rect.bottom;
-    if (!inLayer) return;
-    // 检查是否点在图标上（图标已处理则 defaultPrevented 为 true）
-    const icon = e.target.closest('.desktop-icon');
-    if (icon) return; // 图标自己处理
-    // 空白区域 → 显示 AppPanel 空白菜单
-    e.preventDefault();
-    if (window.AppPanel) window.AppPanel._showBlankContextMenu(e.clientX, e.clientY);
   });
 
   // 监听 AppPanel 的"添加外部程序"请求

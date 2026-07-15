@@ -262,63 +262,7 @@ function initHtmlSandboxWindow() {
   document.addEventListener('sandbox-command-palette', () => _showCommandPalette());
 
   // ── 兼容过渡期：监听模块事件 ──
-  _ctx.on('activatePreviewTab', () => _activatePreviewTab());
-  _ctx.on('syncSplitEditor', (vfs) => {
-    if (_splitEditorModule && _splitEditorModule.monacoEditor2) _splitEditorModule.monacoEditor2.syncAllToFS(vfs);
-  });
-  _ctx.on('executeMenuAction', (action) => _executeCommandAction(action));
-  _ctx.on('executeCommand', (action) => _executeCommandAction(action));
-  _ctx.on('closeImagePreview', () => _closeImagePreview());
-  _ctx.on('exitMarkdownMode', () => _exitMarkdownMode());
-  _ctx.on('openFileInEditor', (filePath) => _openFileInEditor(filePath));
-  _ctx.on('runPreview', () => runPreview(true));
-  _ctx.on('updateStatusBar', () => _updateStatusBar());
-  _ctx.on('updateBreadcrumb', (data) => {
-    if (_breadcrumbModule) {
-      if (data && data.barEl) {
-        _breadcrumbModule.updateBreadcrumbIn(data.barEl, data.filePath);
-      } else {
-        _breadcrumbModule.updateBreadcrumb(data);
-      }
-    }
-  });
-  _ctx.on('contentChange', (filePath) => _onContentChange(filePath));
-  _ctx.on('copyPath', (filePath) => _onCopyPath(filePath));
-  _ctx.on('revealInTree', (filePath) => _onRevealInTree(filePath));
-  _ctx.on('toggleSidePanel', (panel) => {
-    // 模块侧边面板状态变更通知 → 同步 ctx 状态
-    const sidePanel = document.getElementById('sandboxSidePanel');
-    const searchPanel = document.getElementById('sandboxSearchPanel');
-    const fileTreePanel = document.getElementById('sandboxFileTreeContainer');
-    const githubPanel = document.getElementById('sandboxGithubPanel');
-    if (panel) {
-      _ctx.activePanel = panel;
-      if (sidePanel) sidePanel.classList.remove('collapsed');
-      // 根据面板类型切换显示搜索面板/文件树/GitHub 导入
-      if (panel === 'search') {
-        if (searchPanel) searchPanel.style.display = 'flex';
-        if (fileTreePanel) fileTreePanel.style.display = 'none';
-        if (githubPanel) githubPanel.style.display = 'none';
-        // 聚焦搜索输入框
-        const searchInput = document.getElementById('sandboxSearchInput');
-        if (searchInput) searchInput.focus();
-      } else if (panel === 'explorer') {
-        if (searchPanel) searchPanel.style.display = 'none';
-        if (fileTreePanel) fileTreePanel.style.display = 'flex';
-        if (githubPanel) githubPanel.style.display = 'none';
-      } else if (panel === 'github') {
-        if (searchPanel) searchPanel.style.display = 'none';
-        if (fileTreePanel) fileTreePanel.style.display = 'none';
-        if (githubPanel) githubPanel.style.display = 'flex';
-        // 聚焦 URL 输入框
-        const urlInput = document.getElementById('githubUrlInput');
-        if (urlInput) urlInput.focus();
-      }
-    } else {
-      _ctx.activePanel = null;
-      if (sidePanel) sidePanel.classList.add('collapsed');
-    }
-  });
+  _registerCtxListeners();
   // SandboxTemplateHistory 模块事件
   _ctx.on('fileSystemChange', () => _onFileSystemChange());
   _ctx.on('autoRunPreview', () => { if (_autoRunEnabled) runPreview(false); });
@@ -507,6 +451,65 @@ function _initConsoleListener() {
     _ctx.registerModule('console', _consoleModule);
   }
   _consoleModule.init();
+}
+
+/**
+ * 注册 ctx 事件监听器（initHtmlSandboxWindow 和 initIdeInContainer 共用）
+ */
+function _registerCtxListeners() {
+  _ctx.on('activatePreviewTab', () => _activatePreviewTab());
+  _ctx.on('syncSplitEditor', (vfs) => {
+    if (_splitEditorModule && _splitEditorModule.monacoEditor2) _splitEditorModule.monacoEditor2.syncAllToFS(vfs);
+  });
+  _ctx.on('executeMenuAction', (action) => _executeCommandAction(action));
+  _ctx.on('executeCommand', (action) => _executeCommandAction(action));
+  _ctx.on('closeImagePreview', () => _closeImagePreview());
+  _ctx.on('exitMarkdownMode', () => _exitMarkdownMode());
+  _ctx.on('openFileInEditor', (filePath) => _openFileInEditor(filePath));
+  _ctx.on('runPreview', () => runPreview(true));
+  _ctx.on('updateStatusBar', () => _updateStatusBar());
+  _ctx.on('updateBreadcrumb', (data) => {
+    if (_breadcrumbModule) {
+      if (data && data.barEl) {
+        _breadcrumbModule.updateBreadcrumbIn(data.barEl, data.filePath);
+      } else {
+        _breadcrumbModule.updateBreadcrumb(data);
+      }
+    }
+  });
+  _ctx.on('contentChange', (filePath) => _onContentChange(filePath));
+  _ctx.on('copyPath', (filePath) => _onCopyPath(filePath));
+  _ctx.on('revealInTree', (filePath) => _onRevealInTree(filePath));
+  _ctx.on('toggleSidePanel', (panel) => {
+    const sidePanel = document.getElementById('sandboxSidePanel');
+    const searchPanel = document.getElementById('sandboxSearchPanel');
+    const fileTreePanel = document.getElementById('sandboxFileTreeContainer');
+    const githubPanel = document.getElementById('sandboxGithubPanel');
+    if (panel) {
+      _ctx.activePanel = panel;
+      if (sidePanel) sidePanel.classList.remove('collapsed');
+      if (panel === 'search') {
+        if (searchPanel) searchPanel.style.display = 'flex';
+        if (fileTreePanel) fileTreePanel.style.display = 'none';
+        if (githubPanel) githubPanel.style.display = 'none';
+        const searchInput = document.getElementById('sandboxSearchInput');
+        if (searchInput) searchInput.focus();
+      } else if (panel === 'explorer') {
+        if (searchPanel) searchPanel.style.display = 'none';
+        if (fileTreePanel) fileTreePanel.style.display = 'flex';
+        if (githubPanel) githubPanel.style.display = 'none';
+      } else if (panel === 'github') {
+        if (searchPanel) searchPanel.style.display = 'none';
+        if (fileTreePanel) fileTreePanel.style.display = 'none';
+        if (githubPanel) githubPanel.style.display = 'flex';
+        const urlInput = document.getElementById('githubUrlInput');
+        if (urlInput) urlInput.focus();
+      }
+    } else {
+      _ctx.activePanel = null;
+      if (sidePanel) sidePanel.classList.add('collapsed');
+    }
+  });
 }
 
 function _addConsoleLine(level, args) {
@@ -1439,8 +1442,14 @@ export async function initIdeInContainer(modal, options = {}) {
   // 绑定 Activity Bar 按钮（需要重新绑定，因为 DOM 是新的）
   _bindActivityBarForContainer();
 
+  // 注册 ctx 事件监听器（toggleSidePanel 等事件处理）
+  _registerCtxListeners();
+
   // 绑定历史面板按钮（容器内重新绑定）
   _bindHistoryPanelForContainer();
+
+  // 绑定容器内所有缺失的 UI 事件（控制台过滤、底部面板、快捷键等）
+  _bindContainerUIEvents();
 
   // 绑定"打开文件夹"按钮
   _bindOpenFolderBtn();
@@ -1544,6 +1553,62 @@ function _bindHistoryPanelForContainer() {
   if (restoreBtn) restoreBtn.addEventListener('click', () => _restoreHistoryVersion());
 }
 
+/**
+ * 绑定容器内所有缺失的 UI 事件（initHtmlSandboxWindow 中有但 initIdeInContainer 缺失的绑定）
+ */
+function _bindContainerUIEvents() {
+  // 控制台过滤按钮
+  _modal?.querySelectorAll('.console-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => _setConsoleFilter(btn.dataset.filter));
+  });
+
+  // 底部面板 Tab 切换
+  _modal?.querySelectorAll('.bottom-panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => _showBottomPanel(tab.dataset.tab));
+  });
+
+  // 窗口控制按钮
+  const minBtn = _modal?.querySelector('#sandboxMinimizeBtn');
+  const maxBtn = _modal?.querySelector('#sandboxMaximizeBtn');
+  const closeBtn = _modal?.querySelector('#sandboxCloseBtn');
+  const refreshPreviewBtn = _modal?.querySelector('#sandboxRefreshPreviewBtn');
+  const mdSyncBtn = _modal?.querySelector('#mdPreviewSyncBtn');
+  const previewFullscreenBtn = _modal?.querySelector('#previewFullscreenBtn');
+
+  if (minBtn) minBtn.addEventListener('click', () => {
+    if (Date.now() - _openTimestamp < 300) return;
+    _windowInstance?.minimize();
+  });
+  if (maxBtn) maxBtn.addEventListener('click', () => _windowInstance?.toggleMaximize());
+  if (closeBtn) closeBtn.addEventListener('click', () => closeHtmlSandboxEditor());
+  if (refreshPreviewBtn) refreshPreviewBtn.addEventListener('click', () => runPreview(true));
+  if (mdSyncBtn) mdSyncBtn.addEventListener('click', () => _renderMarkdownPreview());
+  if (previewFullscreenBtn) previewFullscreenBtn.addEventListener('click', () => _togglePreviewFullscreen());
+
+  // 快捷键事件（由 Monaco 派发）
+  document.addEventListener('sandbox-save', () => saveHtmlSource());
+  document.addEventListener('sandbox-run', () => runPreview(true));
+  document.addEventListener('sandbox-close-tab', () => {
+    if (_monacoEditor && _fileTabs) {
+      const path = _monacoEditor.getCurrentFilePath();
+      if (path) _onTabClose(path);
+    }
+  });
+  document.addEventListener('sandbox-toggle-console', () => _toggleBottomPanel());
+  document.addEventListener('sandbox-new-terminal', () => _newTerminal());
+  document.addEventListener('sandbox-global-search', () => _toggleSearch());
+  document.addEventListener('sandbox-quick-open', () => _showQuickOpen());
+  document.addEventListener('sandbox-command-palette', () => _showCommandPalette());
+
+  // 点击模态框自动置顶
+  if (window.WindowManager && _modal) {
+    window.WindowManager.registerElement(_modal);
+  }
+
+  // 拖拽打开文件
+  _initDragOpen();
+}
+
 // ════════════════════════════════════════════════════════════
 //  真实文件系统操作（打开电脑任意文件夹）
 // ════════════════════════════════════════════════════════════
@@ -1579,6 +1644,9 @@ async function _openRealFolder() {
   try {
     _workspacePath = folderPath;
     _isRealFS = true;
+    _ctx.workspacePath = folderPath;
+    _ctx.isRealFS = true;
+    _ctx.reloadWorkspace = () => _openFolderAtPath(folderPath);
 
     // 更新标题栏
     const folderName = folderPath.split(/[\\/]/).pop();
@@ -1644,6 +1712,9 @@ async function _openFolderAtPath(folderPath) {
   try {
     _workspacePath = folderPath;
     _isRealFS = true;
+    _ctx.workspacePath = folderPath;
+    _ctx.isRealFS = true;
+    _ctx.reloadWorkspace = () => _openFolderAtPath(folderPath);
 
     // 更新标题栏
     const folderName = folderPath.split(/[\\/]/).pop();
@@ -1877,6 +1948,8 @@ export function destroyIdeContainer() {
   _lastAutoSavePath = null;
   _workspacePath = null;
   _isRealFS = false;
+  _ctx.workspacePath = null;
+  _ctx.isRealFS = false;
   if (_nodeName) _nodeName.textContent = '';
 
   // 3. 清除 modal 的 id

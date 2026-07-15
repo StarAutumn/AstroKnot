@@ -239,6 +239,12 @@ contextBridge.exposeInMainWorld('api', {
   // 同步写入 preferences.json（退出落盘用）
   flushPreferencesSync: (data) => ipcRenderer.sendSync('flush-preferences-sync', data),
 
+  // ── SystemStorage 文件化键值存储（替代 localStorage）──
+  systemStorageReadSync: (key) => ipcRenderer.sendSync('system-storage-read-sync', key),
+  systemStorageWriteSync: (key, value) => ipcRenderer.sendSync('system-storage-write-sync', key, value),
+  systemStorageRemoveSync: (key) => ipcRenderer.sendSync('system-storage-remove-sync', key),
+  systemStorageKeysSync: () => ipcRenderer.sendSync('system-storage-keys-sync'),
+
   // ── 文件管理器（仅限 AstroKnot-Data 目录）──
   fmReadDirTree: () => ipcRenderer.invoke('fm-read-dir-tree'),
   fmReadDir: (relPath) => ipcRenderer.invoke('fm-read-dir', relPath),
@@ -259,4 +265,17 @@ contextBridge.exposeInMainWorld('api', {
   ideRenameItem: (filePath, newName) => ipcRenderer.invoke('ide-rename-item', filePath, newName),
   ideGetNodeSandboxPath: (node, projectFolderPath) => ipcRenderer.invoke('ide-get-node-sandbox-path', node, projectFolderPath),
   ideSyncSandboxToNode: (sandboxDir) => ipcRenderer.invoke('ide-sync-sandbox-to-node', sandboxDir),
+
+  // ── Git 克隆 ──
+  gitCloneAndRead: (repoUrl) => ipcRenderer.invoke('git-clone-and-read', repoUrl),
+  gitCloneToDir: (repoUrl, targetDir) => ipcRenderer.invoke('git-clone-to-dir', repoUrl, targetDir),
+  
+  // ── 运行命令 ──
+  runCommand: (command, cwd) => ipcRenderer.invoke('run-command', command, cwd),
+
+  // ── 应用 sandbox 路径 ──
+  getAppSandboxPath: (appId) => ipcRenderer.invoke('get-app-sandbox-path', appId),
+  findAppEntryHtml: (appId) => ipcRenderer.invoke('find-app-entry-html', appId),
+  startAppServer: (appId) => ipcRenderer.invoke('start-app-server', appId),
+  stopAppServer: (appId) => ipcRenderer.invoke('stop-app-server', appId),
 });

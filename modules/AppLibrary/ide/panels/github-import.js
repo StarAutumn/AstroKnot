@@ -168,73 +168,120 @@ export class SandboxGithubImport {
   /** 执行导入 */
   async _onImport() {
     const vfs = this._ctx.vfs;
-    if (!vfs || !this._tree) return;
+    if (!vfs && !this._ctx.isRealFS) return;
 
     const { owner, repo, ref, subPath } = this._parsedRepo;
     const branch = ref || this._repoMeta.defaultBranch;
-    const maxMb = parseInt(this._maxMbEl?.value || '10');
-    const maxFileSize = maxMb * 1024 * 1024;
-
-    // 过滤文件树
-    const { kept, skipped } = this._client.filterTree(this._tree, maxFileSize, subPath);
-    this._log('info', `准备导入 ${kept.length} 个文件（跳过 ${skipped.length} 个）`);
-
-    for (const s of skipped) {
-      if (s.reason === 'too-large') {
-        this._log('warn', `跳过 (超过 ${maxMb}MB): ${s.path}`);
-      }
-    }
 
     this._setState('importing');
     this._abortController = new AbortController();
 
-    let done = 0;
-    const total = kept.length;
+    try {
+      // 1. 检查 API 是否可用
+      this._log('info', '检查 Git 环境...');
+      if (!window.api?.gitCloneAndRead) {
+        throw new Error('Git 克隆功能不可用（请在 Electron 环境中运行）');
+      }
+
+      // 2. 构建仓库 URL
+      const repoUrl = `https://github.com/${owner}/${repo}.git`;
+      this._log('ok', `仓库地址: ${repoUrl}`);
+
+      const workspacePath = this._ctx.workspacePath;
+      const isRealFS = this._ctx.isRealFS;
+
+      if (isRealFS && workspacePath) {
+        // ── 真实文件系统模式：直接 git clone 到 workspace 目录 ──
+        await this._importToRealFS(repoUrl, workspacePath);
+      } else {
+        // ── VFS 模式：克隆到内存 VFS ──
+        await this._importToVFS(vfs, repoUrl);
+      }
+
+    } catch (err) {
+      this._log('error', `导入失败: ${err.message}`);
+      this._setState('ready');
+    }
+  }
+
+  /** 真实文件系统模式导入 */
+  async _importToRealFS(repoUrl, workspacePath) {
+    this._log('info', `开始克隆到工作目录: ${workspacePath}`);
+    this._setProgress(0, 100, '正在克隆...');
+
+    const startTime = Date.now();
+    const result = await window.api.gitCloneToDir(repoUrl, workspacePath);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    if (!result.success) {
+      throw new Error(result.error || '克隆失败');
+    }
+
+    this._log('ok', `克隆完成，${result.fileCount} 个文件，耗时 ${elapsed} 秒`);
+    this._setProgress(100, 100, '完成');
+
+    // 重新从磁盘加载文件树
+    this._log('info', '刷新文件系统...');
+    if (this._ctx.reloadWorkspace) {
+      await this._ctx.reloadWorkspace();
+    }
+
+    // 检测 package.json
+    await this._checkPackageJson(workspacePath);
+
+    this._log('ok', '导入完成');
+    this._setState('done');
+  }
+
+  /** VFS 模式导入 */
+  async _importToVFS(vfs, repoUrl) {
+    // 3. 执行 git clone 并读取文件
+    this._log('info', '开始克隆仓库（使用 git clone --depth 1）...');
+    this._setProgress(0, 100, '正在克隆...');
+
+    const startTime = Date.now();
+    const result = await window.api.gitCloneAndRead(repoUrl);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    this._log('ok', `克隆完成，耗时 ${elapsed} 秒`);
+
+    const files = result.files || [];
+    const total = files.length;
+    this._log('info', `发现 ${total} 个文件`);
+
     let succeeded = 0;
     let failed = 0;
 
-    // 并发拉取并写入 VFS
-    const { succeeded: succ, failed: fail } = await this._client._runPool(
-      kept,
-      async (item) => {
-        if (this._abortController.signal.aborted) return;
+    // 4. 写入 VFS
+    for (let i = 0; i < files.length; i++) {
+      if (this._abortController.signal.aborted) break;
 
-        const { content, isBinary } = await this._client.fetchFile(
-          owner, repo, branch, item.path, this._abortController.signal
-        );
-
-        // 计算目标路径（直接导入 sandbox 根目录，不创建子文件夹）
-        let fullPath = item.path;
-        if (subPath && fullPath.startsWith(subPath + '/')) {
-          fullPath = fullPath.substring(subPath.length + 1);
-        }
-
-        // 确保目录存在
-        const lastSlash = fullPath.lastIndexOf('/');
+      const { path: relativePath, content, isBinary } = files[i];
+      
+      try {
+        const lastSlash = relativePath.lastIndexOf('/');
         if (lastSlash > 0) {
-          _ensureDir(vfs, fullPath.substring(0, lastSlash));
+          _ensureDir(vfs, relativePath.substring(0, lastSlash));
         }
 
-        // 文件名冲突处理
-        let finalPath = fullPath;
-        const fileName = fullPath.split('/').pop();
-        const dirPart = lastSlash > 0 ? fullPath.substring(0, lastSlash) : '';
-        if (vfs.getFile(fullPath)) {
-          let i = 1;
+        const fileName = relativePath.split('/').pop();
+        const dirPart = lastSlash > 0 ? relativePath.substring(0, lastSlash) : '';
+        
+        let finalPath = relativePath;
+        if (vfs.getFile(relativePath)) {
+          let idx = 1;
           const dotIdx = fileName.lastIndexOf('.');
           const base = dotIdx > 0 ? fileName.substring(0, dotIdx) : fileName;
           const ext = dotIdx > 0 ? fileName.substring(dotIdx) : '';
-          let newName = `${base}-${i}${ext}`;
+          let newName = `${base}-${idx}${ext}`;
           let newPath = dirPart ? `${dirPart}/${newName}` : newName;
           while (vfs.getFile(newPath)) {
-            i++;
-            newName = `${base}-${i}${ext}`;
+            idx++;
+            newName = `${base}-${idx}${ext}`;
             newPath = dirPart ? `${dirPart}/${newName}` : newName;
           }
           finalPath = newPath;
         }
 
-        // 创建文件并设置内容
         const finalName = finalPath.split('/').pop();
         const finalDir = finalPath.includes('/') ? finalPath.substring(0, finalPath.lastIndexOf('/')) : '';
         const file = vfs.createFile(finalDir, finalName);
@@ -246,55 +293,193 @@ export class SandboxGithubImport {
           }
           succeeded++;
         }
-      },
-      (d, t, lastPath) => {
-        done = d;
-        this._setProgress(d, t, lastPath);
-        if (done % 5 === 0 || done === total) {
-          this._log('ok', `[${done}/${t}] ${lastPath}`);
+
+        this._setProgress(i + 1, total, relativePath);
+        if ((i + 1) % 10 === 0 || i === 0 || i === files.length - 1) {
+          this._log('ok', `[${i + 1}/${total}] ${relativePath}`);
         }
-      },
-      this._abortController.signal
-    );
+      } catch (err) {
+        failed++;
+        this._log('warn', `跳过文件 ${relativePath}: ${err.message}`);
+      }
+    }
 
-    failed = fail.length;
-
-    // 检查是否被取消
+    // 5. 检查取消状态
     if (this._abortController.signal.aborted) {
       this._log('warn', `用户取消导入（已导入 ${succeeded} / ${total}）`);
     } else {
       this._log('ok', `导入完成: 成功 ${succeeded}，失败 ${failed}`);
     }
 
-    // 同步到磁盘
+    // 6. 同步到磁盘
     this._log('info', '同步到磁盘...');
     const currentNodeId = this._ctx.currentNodeId;
+
     if (currentNodeId) {
       const projectFolderPath = this._getProjectFolderPath();
-      const ok = await vfs.syncAllToDisk(projectFolderPath, currentNodeId);
-      if (ok) {
-        const node = appState.nodeMap.get(currentNodeId);
-        if (node) node.fileSystem = vfs.toJSON();
-        this._log('ok', '磁盘同步完成');
+      const node = appState.nodeMap.get(currentNodeId);
+      
+      if (node) {
+        this._log('info', `节点ID: ${currentNodeId}, 项目路径: ${projectFolderPath || '(临时)'}`);
+        try {
+          const ok = await vfs.syncAllToDisk(projectFolderPath, currentNodeId);
+          if (ok) {
+            node.fileSystem = vfs.toJSON();
+            this._log('ok', '磁盘同步完成');
+          } else {
+            this._log('error', '磁盘同步失败');
+          }
+        } catch (syncErr) {
+          this._log('error', `磁盘同步异常: ${syncErr.message}`);
+        }
+      } else if (currentNodeId === 'ide-app-project') {
+        this._log('info', '内置 IDE 模式，直接写入磁盘...');
+        try {
+          const mockNode = { id: currentNodeId, name: '未命名项目' };
+          const result = await window.api.ideGetNodeSandboxPath(mockNode, projectFolderPath);
+          if (result?.success && result.sandboxPath) {
+            const fileSystem = vfs.toJSON();
+            const syncResult = await window.api.syncSandboxDirectory(projectFolderPath, mockNode, fileSystem);
+            if (syncResult.success) {
+              this._log('ok', '磁盘同步完成');
+            } else {
+              this._log('error', `磁盘同步失败: ${syncResult.error || '未知错误'}`);
+            }
+          } else {
+            this._log('warn', `无法获取沙盒路径，跳过磁盘同步`);
+          }
+        } catch (syncErr) {
+          this._log('error', `磁盘同步异常: ${syncErr.message}`);
+        }
       } else {
-        this._log('error', '磁盘同步失败');
+        this._log('warn', `未找到节点: ${currentNodeId}，跳过磁盘同步`);
       }
+    } else {
+      this._log('warn', '无当前节点，跳过磁盘同步');
     }
 
-    // 刷新文件树
+    // 7. 刷新文件树
     if (this._ctx.fileTree) {
       this._ctx.fileTree.refresh();
     }
     this._ctx.emit('fileSystemChange');
 
-    // 设置最终状态
-    if (this._abortController.signal.aborted) {
-      this._setState('cancelled', { succeeded, failed, total });
-    } else {
-      this._setState('done', { succeeded, failed, total });
+    // 检测 package.json
+    const nodeId = this._ctx.currentNodeId;
+    if (nodeId && nodeId !== 'ide-app-project') {
+      const projectFolderPath = this._getProjectFolderPath();
+      const node = appState.nodeMap.get(nodeId);
+      if (node) {
+        try {
+          const result = await window.api.ideGetNodeSandboxPath(node, projectFolderPath);
+          if (result?.success && result.sandboxPath) {
+            await this._checkPackageJson(result.sandboxPath);
+          }
+        } catch (e) {}
+      }
     }
 
-    this._abortController = null;
+    this._setState('done');
+  }
+
+  /** 检测 package.json 并询问是否安装依赖 */
+  async _checkPackageJson(dirPath) {
+    try {
+      const items = await window.api.ideReadDir(dirPath);
+      const hasPackageJson = items?.some(item => item.name === 'package.json' && item.type === 'file');
+      if (hasPackageJson && !this._abortController?.signal?.aborted) {
+        this._showNpmInstallDialog(dirPath);
+      }
+    } catch (e) {
+      // 忽略检测失败
+    }
+  }
+
+  /** 显示 npm install 对话框 */
+  _showNpmInstallDialog(dirPath) {
+    const dialog = document.createElement('div');
+    dialog.className = 'npm-install-dialog-overlay';
+    dialog.innerHTML = `
+      <div class="npm-install-dialog">
+        <div class="npm-install-dialog-header">
+          <span>📦 检测到 package.json</span>
+        </div>
+        <div class="npm-install-dialog-body">
+          <p>此项目包含 Node.js 依赖配置。</p>
+          <p>是否自动安装依赖并构建项目？</p>
+          <div class="npm-install-options">
+            <label>
+              <input type="checkbox" id="npm-run-build" checked>
+              安装后执行构建 (npm run build)
+            </label>
+          </div>
+        </div>
+        <div class="npm-install-dialog-footer">
+          <button class="btn btn-secondary npm-skip-btn">仅导入代码</button>
+          <button class="btn btn-primary npm-install-btn">安装依赖</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    // 安装依赖
+    dialog.querySelector('.npm-install-btn').addEventListener('click', async () => {
+      const runBuild = dialog.querySelector('#npm-run-build').checked;
+      dialog.remove();
+      await this._runNpmInstall(dirPath, runBuild);
+    });
+
+    // 跳过安装
+    dialog.querySelector('.npm-skip-btn').addEventListener('click', () => {
+      dialog.remove();
+      this._setState('done', {});
+    });
+  }
+
+  /** 执行 npm install */
+  async _runNpmInstall(dirPath, runBuild) {
+    this._setState('installing');
+    this._log('info', '准备安装依赖...');
+
+    try {
+      this._log('info', `工作目录: ${dirPath}`);
+
+      // 执行 npm install
+      this._log('info', '正在安装依赖 (npm install)...');
+      const installResult = await window.api.runCommand('npm install', dirPath);
+      
+      if (installResult.code !== 0) {
+        throw new Error(`npm install 失败: ${installResult.stderr || installResult.stdout}`);
+      }
+      this._log('ok', '依赖安装完成');
+
+      // 执行 npm run build
+      if (runBuild) {
+        this._log('info', '正在构建项目 (npm run build)...');
+        const buildResult = await window.api.runCommand('npm run build', dirPath);
+        
+        if (buildResult.code !== 0) {
+          this._log('warn', `构建失败: ${buildResult.stderr || buildResult.stdout}`);
+        } else {
+          this._log('ok', '项目构建完成');
+        }
+      }
+
+      // 刷新文件树（真实 FS 模式需要重新加载磁盘）
+      if (this._ctx.isRealFS && this._ctx.reloadWorkspace) {
+        await this._ctx.reloadWorkspace();
+      } else if (this._ctx.fileTree) {
+        this._ctx.fileTree.refresh();
+      }
+      this._ctx.emit('fileSystemChange');
+
+      this._log('ok', '全部完成！');
+      this._setState('done', { npmInstalled: true });
+
+    } catch (err) {
+      this._log('error', `安装失败: ${err.message}`);
+      this._setState('done', { npmInstalled: false, npmError: err.message });
+    }
   }
 
   /** 取消导入 */
@@ -409,6 +594,14 @@ export class SandboxGithubImport {
         if (this._importBtn) this._importBtn.disabled = true;
         if (this._cancelBtn) this._cancelBtn.disabled = false;
         if (this._inputEl) this._inputEl.disabled = true;
+        break;
+
+      case 'installing':
+        if (sections.progress) sections.progress.style.display = 'flex';
+        if (sections.actions) sections.actions.style.display = 'flex';
+        if (this._parseBtn) this._parseBtn.disabled = true;
+        if (this._importBtn) this._importBtn.disabled = true;
+        if (this._cancelBtn) this._cancelBtn.disabled = true;
         break;
 
       case 'done':

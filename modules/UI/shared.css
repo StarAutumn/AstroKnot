@@ -179,7 +179,7 @@ input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="
     border: none;
     background: transparent;
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: 20px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -191,8 +191,8 @@ input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="
 }
 
 .caption-btn svg {
-    width: 10px;
-    height: 10px;
+    width: 20px;
+    height: 20px;
     fill: none;
     stroke: var(--text-secondary);
     stroke-width: 1.2;

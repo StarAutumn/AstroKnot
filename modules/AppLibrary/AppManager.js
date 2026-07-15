@@ -170,100 +170,137 @@ export class AppManager {
       }
       log('ok', `仓库: ${parsed.owner}/${parsed.repo}`);
 
-      // 2. 获取仓库元数据
-      log('info', '获取仓库信息...');
-      const meta = await this._client.fetchRepoMeta(parsed.owner, parsed.repo);
-      log('ok', `分支: ${meta.defaultBranch} · 大小: ${(meta.sizeKb / 1024).toFixed(1)}MB`);
-
-      // 3. 获取文件树
-      log('info', '获取文件树...');
-      const ref = parsed.ref || meta.defaultBranch;
-      const tree = await this._client.fetchTree(parsed.owner, parsed.repo, ref);
-      log('ok', `文件树: ${tree.length} 项`);
-
-      // 4. 过滤文件
-      const { kept: filtered, skipped } = this._client.filterTree(tree, 10 * 1024 * 1024, parsed.subPath);
-      log('ok', `过滤后: ${filtered.length} 个文件（跳过 ${skipped.length} 个）`);
-
-      if (filtered.length === 0) {
-        throw new Error('没有可导入的文件');
+      // 2. 检查 git 是否可用
+      log('info', '检查 Git 环境...');
+      if (!window.api?.gitCloneAndRead) {
+        throw new Error('Git 克隆功能不可用（请在 Electron 环境中运行）');
       }
 
-      // 5. 生成 app-id
+      // 3. 获取仓库元数据（用于应用名称和描述）
+      log('info', '获取仓库信息...');
+      const meta = await this._client.fetchRepoMeta(parsed.owner, parsed.repo);
+      log('ok', `仓库: ${meta.name || parsed.repo} · 大小: ${(meta.sizeKb / 1024).toFixed(1)}MB`);
+
+      // 4. 生成 app-id
       const appId = `app_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
 
-      // 6. 构建虚拟文件系统
+      // 5. 构建仓库 URL
+      const cloneUrl = `https://github.com/${parsed.owner}/${parsed.repo}.git`;
+      log('info', `克隆地址: ${cloneUrl}`);
+
+      // 6. 执行 git clone 并读取文件
+      log('info', '开始克隆仓库（使用 git clone --depth 1）...');
+      progress(0, 100, '正在克隆...');
+      
+      const startTime = Date.now();
+      const result = await window.api.gitCloneAndRead(cloneUrl);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      log('ok', `克隆完成，耗时 ${elapsed} 秒`);
+
+      const files = result.files || [];
+      const total = files.length;
+      log('info', `发现 ${total} 个文件`);
+
+      // 7. 写入 VFS
       const vfs = new VirtualFileSystem();
+      let succeeded = 0;
 
-      // 7. 并发下载文件
-      log('info', `开始下载 ${filtered.length} 个文件...`);
+      for (let i = 0; i < files.length; i++) {
+        if (signal.aborted) break;
 
-      const onPoolProgress = (done, total, path) => {
-        progress(done, total, path);
-        if (done % 10 === 0 || done === total) {
-          log('info', `已下载 ${done}/${total}: ${path}`);
-        }
-      };
-
-      await this._client._runPool(filtered, async (item) => {
-        if (signal.aborted) return;
-
-        const { content, isBinary } = await this._client.fetchFile(
-          parsed.owner, parsed.repo, ref, item.path, signal
-        );
-
-        // 计算路径（直接导入 sandbox 根目录）
-        let fullPath = item.path;
-        if (parsed.subPath && fullPath.startsWith(parsed.subPath + '/')) {
-          fullPath = fullPath.substring(parsed.subPath.length + 1);
-        }
-
-        // 确保目录存在
-        const lastSlash = fullPath.lastIndexOf('/');
-        if (lastSlash > 0) {
-          this._ensureDir(vfs, fullPath.substring(0, lastSlash));
-        }
-
-        // 创建文件并设置内容
-        const finalName = fullPath.split('/').pop();
-        const finalDir = lastSlash > 0 ? fullPath.substring(0, lastSlash) : '';
-        const file = vfs.createFile(finalDir, finalName);
-        if (file) {
-          if (isBinary) {
-            vfs.setBinaryFile(fullPath, content);
-          } else {
-            file.content = content;
+        const { path: relativePath, content, isBinary } = files[i];
+        
+        try {
+          const lastSlash = relativePath.lastIndexOf('/');
+          if (lastSlash > 0) {
+            this._ensureDir(vfs, relativePath.substring(0, lastSlash));
           }
+
+          const fileName = relativePath.split('/').pop();
+          const dirPart = lastSlash > 0 ? relativePath.substring(0, lastSlash) : '';
+          const file = vfs.createFile(dirPart, fileName);
+          if (file) {
+            if (isBinary) {
+              vfs.setBinaryFile(relativePath, content);
+            } else {
+              file.content = content;
+            }
+            succeeded++;
+          }
+
+          progress(i + 1, total, relativePath);
+          if ((i + 1) % 20 === 0 || i === 0 || i === files.length - 1) {
+            log('info', `[${i + 1}/${total}] ${relativePath}`);
+          }
+        } catch (err) {
+          log('warn', `跳过文件 ${relativePath}: ${err.message}`);
         }
-      }, onPoolProgress, signal);
+      }
 
       if (signal.aborted) {
         throw new Error('导入已取消');
       }
 
+      log('ok', `读取完成: ${succeeded} 个文件`);
+
       // 8. 写入磁盘
       log('info', '同步到磁盘...');
       const fileSystem = vfs.toJSON();
-      await window.api.syncAppDirectory(appId, fileSystem);
+      const syncResult = await window.api.syncAppDirectory(appId, fileSystem);
 
-      // 9. 创建应用记录
+      // 9. 检测 package.json 并自动安装依赖
+      const hasPackageJson = files.some(f => f.path === 'package.json');
+      if (hasPackageJson && syncResult.success && syncResult.diskPath) {
+        log('info', '检测到 package.json，准备安装依赖...');
+        
+        try {
+          log('info', '正在安装依赖 (npm install)...');
+          const installResult = await window.api.runCommand('npm install', syncResult.diskPath);
+          
+          if (installResult.code !== 0) {
+            log('warn', `npm install 失败: ${installResult.stderr || installResult.stdout}`);
+          } else {
+            log('ok', '依赖安装完成');
+            
+            // 尝试构建
+            log('info', '正在构建项目 (npm run build)...');
+            const buildResult = await window.api.runCommand('npm run build', syncResult.diskPath);
+            
+            if (buildResult.code !== 0) {
+              log('warn', `构建失败（可忽略）: ${buildResult.stderr?.split('\n')[0] || ''}`);
+            } else {
+              log('ok', '项目构建完成');
+            }
+          }
+        } catch (npmErr) {
+          log('warn', `安装依赖异常: ${npmErr.message}`);
+        }
+      }
+
+      // 10. 检测项目图标文件
+      let appIcon = '📦';
+      if (syncResult.success && syncResult.diskPath) {
+        appIcon = await this._detectAppIcon(syncResult.diskPath);
+      }
+
+      // 11. 创建应用记录
       const now = new Date().toISOString();
       const app = {
         id: appId,
         name: meta.name || parsed.repo,
         repo: `${parsed.owner}/${parsed.repo}`,
-        ref: ref,
-        icon: '📦',
+        ref: parsed.ref || meta.defaultBranch,
+        icon: appIcon,
         description: meta.description || '',
         importedAt: now,
         lastUpdated: now,
-        fileCount: filtered.length,
+        fileCount: succeeded,
       };
 
       this._apps.push(app);
       await this._saveAppList();
 
-      log('ok', `导入完成: ${app.name} (${filtered.length} 个文件)`);
+      log('ok', `导入完成: ${app.name} (${succeeded} 个文件)`);
       this._notifyUpdate();
 
       return app;
@@ -282,7 +319,6 @@ export class AppManager {
     const app = this._apps.find(a => a.id === appId);
     if (!app) throw new Error('应用不存在');
 
-    // 复用导入流程，但写入同一个 appId
     const log = (level, msg) => { if (onLog) onLog(level, msg); };
     const progress = (done, total, msg) => { if (onProgress) onProgress(done, total, msg); };
 
@@ -294,60 +330,108 @@ export class AppManager {
       log('info', `更新应用: ${app.name}`);
       log('info', `仓库: ${app.repo}`);
 
-      // 获取文件树
-      log('info', '获取文件树...');
-      const tree = await this._client.fetchTree(owner, repo, app.ref);
-      log('ok', `文件树: ${tree.length} 项`);
+      // 1. 检查 git 是否可用
+      log('info', '检查 Git 环境...');
+      if (!window.api?.gitCloneAndRead) {
+        throw new Error('Git 克隆功能不可用（请在 Electron 环境中运行）');
+      }
 
-      const { kept: filtered, skipped } = this._client.filterTree(tree, 10 * 1024 * 1024);
-      log('ok', `过滤后: ${filtered.length} 个文件（跳过 ${skipped.length} 个）`);
+      // 2. 构建仓库 URL
+      const cloneUrl = `https://github.com/${owner}/${repo}.git`;
+      log('info', `克隆地址: ${cloneUrl}`);
 
-      // 下载文件
+      // 3. 执行 git clone 并读取文件
+      log('info', '开始克隆仓库（使用 git clone --depth 1）...');
+      progress(0, 100, '正在克隆...');
+      
+      const startTime = Date.now();
+      const result = await window.api.gitCloneAndRead(cloneUrl);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      log('ok', `克隆完成，耗时 ${elapsed} 秒`);
+
+      const files = result.files || [];
+      const total = files.length;
+      log('info', `发现 ${total} 个文件`);
+
+      // 4. 写入 VFS
       const vfs = new VirtualFileSystem();
-      log('info', `开始下载 ${filtered.length} 个文件...`);
+      let succeeded = 0;
 
-      const onPoolProgress = (done, total, path) => {
-        progress(done, total, path);
-        if (done % 10 === 0 || done === total) {
-          log('info', `已下载 ${done}/${total}: ${path}`);
-        }
-      };
+      for (let i = 0; i < files.length; i++) {
+        if (signal.aborted) break;
 
-      await this._client._runPool(filtered, async (item) => {
-        if (signal.aborted) return;
-
-        const { content, isBinary } = await this._client.fetchFile(
-          owner, repo, app.ref, item.path, signal
-        );
-
-        let fullPath = item.path;
-        const lastSlash = fullPath.lastIndexOf('/');
-        if (lastSlash > 0) {
-          this._ensureDir(vfs, fullPath.substring(0, lastSlash));
-        }
-
-        // 创建文件并设置内容
-        const finalName = fullPath.split('/').pop();
-        const finalDir = lastSlash > 0 ? fullPath.substring(0, lastSlash) : '';
-        const file = vfs.createFile(finalDir, finalName);
-        if (file) {
-          if (isBinary) {
-            vfs.setBinaryFile(fullPath, content);
-          } else {
-            file.content = content;
+        const { path: relativePath, content, isBinary } = files[i];
+        
+        try {
+          const lastSlash = relativePath.lastIndexOf('/');
+          if (lastSlash > 0) {
+            this._ensureDir(vfs, relativePath.substring(0, lastSlash));
           }
+
+          const fileName = relativePath.split('/').pop();
+          const dirPart = lastSlash > 0 ? relativePath.substring(0, lastSlash) : '';
+          const file = vfs.createFile(dirPart, fileName);
+          if (file) {
+            if (isBinary) {
+              vfs.setBinaryFile(relativePath, content);
+            } else {
+              file.content = content;
+            }
+            succeeded++;
+          }
+
+          progress(i + 1, total, relativePath);
+          if ((i + 1) % 20 === 0 || i === 0 || i === files.length - 1) {
+            log('info', `[${i + 1}/${total}] ${relativePath}`);
+          }
+        } catch (err) {
+          log('warn', `跳过文件 ${relativePath}: ${err.message}`);
         }
-      }, onPoolProgress, signal);
+      }
 
       if (signal.aborted) throw new Error('更新已取消');
 
-      // 写入磁盘
-      log('info', '同步到磁盘...');
-      await window.api.syncAppDirectory(appId, vfs.toJSON());
+      log('ok', `读取完成: ${succeeded} 个文件`);
 
-      // 更新记录
+      // 5. 写入磁盘
+      log('info', '同步到磁盘...');
+      const syncResult = await window.api.syncAppDirectory(appId, vfs.toJSON());
+
+      // 6. 检测 package.json 并自动安装依赖
+      const hasPackageJson = files.some(f => f.path === 'package.json');
+      if (hasPackageJson && syncResult.success && syncResult.diskPath) {
+        log('info', '检测到 package.json，准备安装依赖...');
+        
+        try {
+          log('info', '正在安装依赖 (npm install)...');
+          const installResult = await window.api.runCommand('npm install', syncResult.diskPath);
+          
+          if (installResult.code !== 0) {
+            log('warn', `npm install 失败: ${installResult.stderr || installResult.stdout}`);
+          } else {
+            log('ok', '依赖安装完成');
+            
+            log('info', '正在构建项目 (npm run build)...');
+            const buildResult = await window.api.runCommand('npm run build', syncResult.diskPath);
+            
+            if (buildResult.code !== 0) {
+              log('warn', `构建失败（可忽略）: ${buildResult.stderr?.split('\n')[0] || ''}`);
+            } else {
+              log('ok', '项目构建完成');
+            }
+          }
+        } catch (npmErr) {
+          log('warn', `安装依赖异常: ${npmErr.message}`);
+        }
+      }
+
+      // 7. 更新记录 + 检测图标
       app.lastUpdated = new Date().toISOString();
-      app.fileCount = filtered.length;
+      app.fileCount = succeeded;
+      if (syncResult.success && syncResult.diskPath) {
+        const newIcon = await this._detectAppIcon(syncResult.diskPath);
+        if (newIcon !== '📦') app.icon = newIcon;
+      }
       await this._saveAppList();
 
       log('ok', `更新完成: ${app.name}`);
@@ -527,6 +611,98 @@ export class AppManager {
 
   _notifyUpdate() {
     if (this._onUpdate) this._onUpdate(this._apps);
+  }
+
+  /**
+   * 检测项目中的图标文件
+   * 按优先级搜索：favicon.ico → favicon.png → icon.png → logo.png → 其他图标
+   * @param {string} diskPath - sandbox 磁盘路径
+   * @returns {Promise<string>} 图标路径（相对于 sandbox）或 '📦'
+   * @private
+   */
+  async _detectAppIcon(diskPath) {
+    if (!window.api?.ideReadDir) return '📦';
+
+    // 图标文件优先级列表（相对于 sandbox 根目录）
+    const ICON_PRIORITY = [
+      'favicon.ico', 'favicon.png', 'favicon.svg',
+      'icon.png', 'icon.svg', 'icon.ico',
+      'logo.png', 'logo.svg',
+      'app-icon.png', 'app-icon.svg',
+      'assets/icon.png', 'assets/icon.svg',
+      'assets/logo.png', 'assets/logo.svg',
+      'public/favicon.ico', 'public/favicon.png', 'public/favicon.svg',
+      'public/icon.png', 'public/icon.svg',
+      'static/favicon.ico', 'static/favicon.png',
+      'src/assets/icon.png', 'src/assets/logo.png',
+      'images/icon.png', 'images/logo.png',
+      'img/icon.png', 'img/logo.png',
+    ];
+
+    const toFileUrl = (relPath) => 'file:///' + diskPath.replace(/\\/g, '/') + '/' + relPath;
+
+    try {
+      // 1. 先检查优先级列表中的文件（使用 ideReadDir 避免读取文件内容）
+      const rootItems = await window.api.ideReadDir(diskPath);
+      const rootFileNames = new Set((rootItems || []).filter(i => i.type === 'file').map(i => i.name.toLowerCase()));
+
+      for (const relPath of ICON_PRIORITY) {
+        const parts = relPath.split('/');
+        if (parts.length === 1) {
+          // 根目录文件
+          if (rootFileNames.has(relPath.toLowerCase())) {
+            return toFileUrl(relPath);
+          }
+        } else if (parts.length === 2) {
+          // 一级子目录文件
+          const dirName = parts[0];
+          const fileName = parts[1];
+          try {
+            const subItems = await window.api.ideReadDir(diskPath + '/' + dirName);
+            if (subItems?.some(i => i.type === 'file' && i.name.toLowerCase() === fileName.toLowerCase())) {
+              return toFileUrl(relPath);
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 2. 扫描根目录找图标类文件名
+      if (rootItems) {
+        const iconNames = ['icon', 'logo', 'favicon', 'app', 'brand', 'thumbnail'];
+        const imageExts = ['.png', '.svg', '.ico', '.jpg', '.jpeg', '.webp'];
+
+        for (const item of rootItems) {
+          if (item.type !== 'file') continue;
+          const nameLower = item.name.toLowerCase();
+          const nameNoExt = nameLower.replace(/\.[^.]+$/, '');
+          if (iconNames.some(n => nameNoExt.includes(n)) && imageExts.some(e => nameLower.endsWith(e))) {
+            return toFileUrl(item.name);
+          }
+        }
+
+        // 检查一级子目录
+        for (const item of rootItems) {
+          if (item.type !== 'directory') continue;
+          try {
+            const subItems = await window.api.ideReadDir(diskPath + '/' + item.name);
+            if (subItems) {
+              for (const subItem of subItems) {
+                if (subItem.type !== 'file') continue;
+                const nameLower = subItem.name.toLowerCase();
+                const nameNoExt = nameLower.replace(/\.[^.]+$/, '');
+                if (iconNames.some(n => nameNoExt.includes(n)) && imageExts.some(e => nameLower.endsWith(e))) {
+                  return toFileUrl(item.name + '/' + subItem.name);
+                }
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    } catch (e) {
+      // 忽略检测失败
+    }
+
+    return '📦';
   }
 
   /**

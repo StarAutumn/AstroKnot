@@ -5,9 +5,13 @@
 //    └── ProjectName/               以项目名命名的子文件夹
 //        ├── project.json           程序数据（树、连线、位置、图层、相机等）
 //        ├── project.md             人类可读摘要（自动生成）
+//        ├── .versiongraph/         版本图（类 Git DAG）
+//        │   ├── graph.json         图结构（commits + branches + HEAD）
+//        │   └── blobs/             内容寻址存储（去重）
 //        └── nodes/
 //            └── node_xxx/
 //                ├── content.html    富文本内容
+//                ├── sandbox/        代码沙盒（IDE 编辑）
 //                └── overlays/
 //                    ├── manifest.json  overlay 元数据
 //                    ├── *.png/jpg     原生图片

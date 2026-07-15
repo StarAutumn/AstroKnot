@@ -1604,9 +1604,10 @@
                             <line x1="2" y1="5" x2="8" y2="5" />
                         </svg>
                     </button>
-                    <button id="maximizeModalBtn" class="caption-btn" title="最大化">
-                        <svg viewBox="0 0 10 10">
-                            <rect x="2" y="2" width="6" height="6" rx="0" />
+                    <button id="maximizeModalBtn" class="caption-btn" title="窗口化">
+                        <svg id="maximizeIcon" viewBox="0 0 10 10">
+                            <rect x="0" y="3" width="5" height="5" rx="0"/>
+                            <rect x="3" y="0" width="5" height="5" rx="0"/>
                         </svg>
                     </button>
                     <button id="closeModalBtn" class="caption-btn close" title="关闭">
@@ -1886,9 +1887,10 @@
                             <line x1="2" y1="5" x2="8" y2="5" />
                         </svg>
                     </button>
-                    <button id="sandboxMaximizeBtn" class="caption-btn" title="最大化">
+                    <button id="sandboxMaximizeBtn" class="caption-btn" title="窗口化">
                         <svg id="sandboxMaxIcon" viewBox="0 0 10 10">
-                            <rect x="2" y="2" width="6" height="6" rx="0" />
+                            <rect x="0" y="3" width="5" height="5" rx="0"/>
+                            <rect x="3" y="0" width="5" height="5" rx="0"/>
                         </svg>
                     </button>
                     <button id="sandboxCloseBtn" class="caption-btn close" title="关闭">
@@ -2588,8 +2590,13 @@
 
     <!-- 浏览器兼容层：非 Electron 环境模拟 window.api -->
     <script src="web-api-shim.js"></script>
-    <!-- 系统偏好设置文件化引导（Electron 环境，必须在 AstroKnot.js 之前同步执行） -->
-    <script src="system-storage.js"></script>
+    <!-- SystemStorage：接管应用 localStorage key，持久化到 AstroKnot-Data/system/storage/ -->
+    <script src="modules/systemStorage.js"></script>
+    <script>
+      if (typeof SystemStorage !== 'undefined') {
+        SystemStorage.install();
+      }
+    </script>
     <script type="module" src="AstroKnot.js"></script>
 
     <!-- Web 环境适配：隐藏 Electron 标题栏 -->

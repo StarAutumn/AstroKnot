@@ -156,7 +156,7 @@ AstroKnot/
 ├── main-terminal.js          # Electron 终端进程（node-pty 管理）
 ├── preload.js                # Electron preload 安全桥接
 ├── web-api-shim.js           # Web API 兼容层（Electron 环境补丁）
-├── system-storage.js         # 系统偏好设置文件化引导（localStorage → preferences.json 镜像）
+├── modules/systemStorage.js  # 系统级键值存储（接管应用 localStorage，持久化到 system/storage/）
 ├── data-settings.js          # 数据目录配置管理（首次设置引导、路径 API）
 ├── package.json              # 项目配置 & electron-builder 打包配置
 ├── package-lock.json         # npm 依赖锁定文件
@@ -475,7 +475,7 @@ AstroKnot/
 | 浏览器层 | `AppLibrary/browser/` | 内置浏览器（多标签页、书签、历史、下载、阅读模式、密码管理、网页转节点） |
 | 引导层 | `Guide/` | 新手引导、教程项目 |
 | 视图切换 | `2DView/`, `LayerManager/` | 2D 思维导图、图层管理 |
-| 基础设施 | `hot-update.js`, `StressTest.js`, `DataSetup/`, `system-storage.js`, `tests/` | 开发热更新、性能测试、数据目录设置、系统偏好文件化、自动化测试 |
+| 基础设施 | `hot-update.js`, `StressTest.js`, `DataSetup/`, `modules/systemStorage.js`, `tests/` | 开发热更新、性能测试、数据目录设置、系统级键值存储、自动化测试 |
 
 ## 模块依赖关系
 
@@ -643,15 +643,17 @@ AstroKnot-Data/
         └── nodes/               #     节点数据
 ```
 
-### 系统偏好文件化（preferences.json）
+### 系统级键值存储（system/storage/）
 
-所有应用自有 localStorage 设置（UI 主题、编辑器配置、日历、AIChat、浏览器、项目数据、新手引导等 36 个 key）通过 `system-storage.js` 镜像到 `system/preferences.json` 显式 JSON 文件：
+所有应用自有 localStorage 设置（UI 主题、编辑器配置、日历、AIChat、浏览器、项目数据、新手引导等 36 个 key）通过 `modules/systemStorage.js` 直接持久化到 `AstroKnot-Data/system/storage/*.json`，彻底放弃浏览器 localStorage：
 
-- **启动时**：同步读取文件覆盖 localStorage（文件为权威源）
-- **运行时**：Patch `Storage.prototype` 变更检测 → 1000ms 防抖异步落盘
-- **退出时**：同步原子写入（temp + rename），防止数据丢失
-- **白名单过滤**：仅持久化应用自有 key（`astroknot*`、`knowledge_graph*`、`ai*`、`richEditor*`、`calendar*` 等），第三方库 key（TinyMCE/Monaco）保留在原生 localStorage
-- **跨环境一致**：开发环境（C 盘 localStorage + 文件）和打包环境（`AstroKnot-Data/system/` localStorage + 文件）均生效
+- **文件布局**：每个 key 对应一个 `{base64url(key)}.json` 文件，内容为 `{ key, value, updatedAt }`
+- **启动时**：`SystemStorage.install()` 接管 `Storage.prototype`，应用 key 的 `getItem/setItem/removeItem` 直接走文件读写
+- **运行时**：每次写入都是同步原子写入（temp + rename），无需防抖
+- **退出时**：无需额外 flush，数据已实时落盘
+- **白名单过滤**：仅接管应用自有 key（`astroknot*`、`knowledge_graph*`、`ai*`、`richEditor*`、`calendar*` 等），第三方库 key（TinyMCE/Monaco）保留在原生 localStorage
+- **数据迁移**：首次启动时自动读取旧的 `system/preferences.json`，将其中的应用 key 迁移到 `system/storage/`
+- **Web 降级**：非 Electron 环境自动降级为原生 localStorage
 
 ## 部署版本
 

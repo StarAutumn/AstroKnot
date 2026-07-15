@@ -51,6 +51,9 @@ export class FileManagerApp {
     this._viewMode = 'icon'; // 'icon' | 'list'
     this._selectedItems = new Set();
     this._dirTreeCache = {};
+    this._lastClickedItem = null; // 用于 Shift+点击范围选择
+    this._selectionBox = null; // 拖拽选框元素
+    this._isSelecting = false; // 是否正在拖拽选框
 
     this._buildUI();
     this._bindEvents();
@@ -78,11 +81,13 @@ export class FileManagerApp {
     const headerEl = document.createElement('div');
     headerEl.className = 'rich-modal-header';
     headerEl.innerHTML = `
-      <span class="caption-icon">💾</span>
-      <h2 class="app-runner-title">此 AstroKnot</h2>
+      <div style="display:flex; align-items:center; gap:8px; flex:1;">
+        <span class="caption-icon">💾</span>
+        <h2 class="app-runner-title">此 AstroKnot</h2>
+      </div>
       <div class="caption-btns">
-        <button class="caption-btn app-runner-min" title="最小化">🗕</button>
-        <button class="caption-btn app-runner-max" title="最大化/还原">🗔</button>
+        <button class="caption-btn app-runner-min" title="最小化">⚊</button>
+        <button class="caption-btn app-runner-max" title="窗口化">❐</button>
         <button class="caption-btn app-runner-close" title="关闭">✕</button>
       </div>
     `;
@@ -203,6 +208,11 @@ export class FileManagerApp {
         this._hidePreview();
       }
     });
+
+    // 拖拽框选
+    fileList.addEventListener('mousedown', (e) => this._onSelectionStart(e));
+    document.addEventListener('mousemove', (e) => this._onSelectionMove(e));
+    document.addEventListener('mouseup', (e) => this._onSelectionEnd(e));
   }
 
   // ════════════════════════════════════════════════════════════
@@ -529,20 +539,42 @@ export class FileManagerApp {
 
     const name = item.dataset.name;
 
-    if (e.ctrlKey || e.metaKey) {
+    if (e.shiftKey && this._lastClickedItem) {
+      // Shift+点击：范围选择
+      this._selectRange(this._lastClickedItem, name);
+    } else if (e.ctrlKey || e.metaKey) {
       // 多选
       if (this._selectedItems.has(name)) {
         this._selectedItems.delete(name);
       } else {
         this._selectedItems.add(name);
       }
+      this._lastClickedItem = name;
     } else {
       this._selectedItems.clear();
       this._selectedItems.add(name);
+      this._lastClickedItem = name;
     }
 
     this._updateSelectionUI();
     this._showPreview(name, item.dataset.type);
+  }
+
+  /** 范围选择：选中从 lastItem 到 currentItem 之间的所有项 */
+  _selectRange(lastItem, currentItem) {
+    const fileList = this._content.querySelector('#fmFileList');
+    const items = Array.from(fileList.querySelectorAll('.fm-item'));
+    const lastIndex = items.findIndex(el => el.dataset.name === lastItem);
+    const currentIndex = items.findIndex(el => el.dataset.name === currentItem);
+
+    if (lastIndex === -1 || currentIndex === -1) return;
+
+    const start = Math.min(lastIndex, currentIndex);
+    const end = Math.max(lastIndex, currentIndex);
+
+    for (let i = start; i <= end; i++) {
+      this._selectedItems.add(items[i].dataset.name);
+    }
   }
 
   _onFileListDblClick(e) {
@@ -585,17 +617,20 @@ export class FileManagerApp {
       this._updateSelectionUI();
     }
 
+    const count = this._selectedItems.size;
+    const isMulti = count > 1;
+
     this._showContextMenu(e.clientX, e.clientY, [
-      { label: '📂 打开', action: () => type === 'directory' ? this._navigateTo(this._currentPath ? this._currentPath + '/' + name : name) : this._openFile(name) },
+      { label: '📂 打开', action: () => type === 'directory' ? this._navigateTo(this._currentPath ? this._currentPath + '/' + name : name) : this._openFile(name), disabled: isMulti },
       { type: 'separator' },
-      { label: '📋 复制', action: () => this._copy() },
-      { label: '✂ 剪切', action: () => this._cut() },
+      { label: '📋 复制' + (isMulti ? ` (${count} 项)` : ''), action: () => this._copy() },
+      { label: '✂ 剪切' + (isMulti ? ` (${count} 项)` : ''), action: () => this._cut() },
       { label: '📋 粘贴', action: () => this._paste(), disabled: !this._clipboard },
       { type: 'separator' },
-      { label: '✏ 重命名', action: () => this._renameItem(name, type) },
-      { label: '🗑 删除', action: () => this._deleteItem(name, type) },
+      { label: '✏ 重命名', action: () => this._renameItem(name, type), disabled: isMulti },
+      { label: '🗑 删除' + (isMulti ? ` (${count} 项)` : ''), action: () => isMulti ? this._deleteSelected() : this._deleteItem(name, type) },
       { type: 'separator' },
-      { label: '📋 复制路径', action: () => this._copyPath(this._currentPath ? this._currentPath + '/' + name : name) },
+      { label: '📋 复制路径', action: () => this._copyPath(this._currentPath ? this._currentPath + '/' + name : name), disabled: isMulti },
     ]);
   }
 
@@ -660,6 +695,38 @@ export class FileManagerApp {
       this._refresh();
     } catch (e) {
       this._showToast('删除失败: ' + e.message, 'error');
+    }
+  }
+
+  /** 批量删除选中项 */
+  async _deleteSelected() {
+    if (this._selectedItems.size === 0) return;
+    const count = this._selectedItems.size;
+    const confirmed = await this._showConfirm(
+      `确定删除选中的 ${count} 项吗？`,
+      '此操作不可撤销。'
+    );
+    if (!confirmed) return;
+
+    const items = Array.from(this._selectedItems);
+    let success = 0, failed = 0;
+    for (const name of items) {
+      const el = this._content.querySelector(`.fm-item[data-name="${CSS.escape(name)}"]`);
+      const type = el?.dataset.type || 'file';
+      const relPath = this._currentPath ? this._currentPath + '/' + name : name;
+      try {
+        await window.api.fmDeleteItem(relPath);
+        this._selectedItems.delete(name);
+        success++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    this._refresh();
+    if (failed > 0) {
+      this._showToast(`删除完成：成功 ${success} 项，失败 ${failed} 项`, 'error');
+    } else {
+      this._showToast(`已删除 ${success} 项`);
     }
   }
 
@@ -861,10 +928,7 @@ export class FileManagerApp {
 
   _onKeyDown(e) {
     if (e.key === 'Delete') {
-      for (const name of this._selectedItems) {
-        const el = this._content.querySelector(`.fm-item[data-name="${CSS.escape(name)}"]`);
-        if (el) this._deleteItem(name, el.dataset.type);
-      }
+      this._deleteSelected();
     } else if (e.key === 'F2') {
       const [name] = this._selectedItems;
       if (name) {
@@ -919,10 +983,14 @@ export class FileManagerApp {
     const close = (e) => {
       if (!menu.contains(e.target)) {
         this._hideContextMenu();
-        document.removeEventListener('click', close, true);
+        document.removeEventListener('mousedown', close, true);
+        document.removeEventListener('pointerdown', close, true);
       }
     };
-    setTimeout(() => document.addEventListener('click', close, true), 0);
+    setTimeout(() => {
+      document.addEventListener('mousedown', close, true);
+      document.addEventListener('pointerdown', close, true);
+    }, 0);
   }
 
   _hideContextMenu() {
@@ -1014,11 +1082,120 @@ export class FileManagerApp {
   }
 
   // ════════════════════════════════════════════════════════════
+  //  拖拽框选
+  // ════════════════════════════════════════════════════════════
+
+  _onSelectionStart(e) {
+    // 只在空白区域或按住 Ctrl 时启动框选
+    if (e.target.closest('.fm-item') && !e.ctrlKey && !e.shiftKey) return;
+    if (e.button !== 0) return; // 只响应左键
+
+    const fileList = this._content.querySelector('#fmFileList');
+    const rect = fileList.getBoundingClientRect();
+    this._isSelecting = true;
+    this._selectionStart = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      clientX: e.clientX,
+      clientY: e.clientY
+    };
+
+    // 如果不是 Ctrl 多选模式，清空现有选择
+    if (!e.ctrlKey && !e.shiftKey) {
+      this._selectedItems.clear();
+      this._updateSelectionUI();
+    }
+
+    // 创建选框元素
+    const box = document.createElement('div');
+    box.className = 'fm-selection-box';
+    box.style.left = this._selectionStart.x + 'px';
+    box.style.top = this._selectionStart.y + 'px';
+    box.style.width = '0';
+    box.style.height = '0';
+    fileList.appendChild(box);
+    this._selectionBox = box;
+
+    e.preventDefault();
+  }
+
+  _onSelectionMove(e) {
+    if (!this._isSelecting || !this._selectionBox) return;
+
+    const fileList = this._content.querySelector('#fmFileList');
+    const rect = fileList.getBoundingClientRect();
+
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+
+    const left = Math.min(this._selectionStart.x, currentX);
+    const top = Math.min(this._selectionStart.y, currentY);
+    const width = Math.abs(currentX - this._selectionStart.x);
+    const height = Math.abs(currentY - this._selectionStart.y);
+
+    this._selectionBox.style.left = left + 'px';
+    this._selectionBox.style.top = top + 'px';
+    this._selectionBox.style.width = width + 'px';
+    this._selectionBox.style.height = height + 'px';
+
+    // 实时选中框内的项目
+    this._selectItemsInBox(left, top, width, height, e.ctrlKey);
+  }
+
+  _onSelectionEnd(e) {
+    if (!this._isSelecting) return;
+    this._isSelecting = false;
+
+    if (this._selectionBox) {
+      this._selectionBox.remove();
+      this._selectionBox = null;
+    }
+
+    this._updateSelectionUI();
+  }
+
+  /** 选中框内的所有项目 */
+  _selectItemsInBox(boxLeft, boxTop, boxWidth, boxHeight, isCtrl) {
+    const fileList = this._content.querySelector('#fmFileList');
+    const items = fileList.querySelectorAll('.fm-item');
+    const fileListRect = fileList.getBoundingClientRect();
+
+    // 如果不是 Ctrl 多选，先清空
+    if (!isCtrl) {
+      this._selectedItems.clear();
+    }
+
+    items.forEach(item => {
+      const itemRect = item.getBoundingClientRect();
+      const itemLeft = itemRect.left - fileListRect.left;
+      const itemTop = itemRect.top - fileListRect.top;
+      const itemRight = itemLeft + itemRect.width;
+      const itemBottom = itemTop + itemRect.height;
+
+      // 检测交集
+      const intersects = !(
+        itemRight < boxLeft ||
+        itemLeft > boxLeft + boxWidth ||
+        itemBottom < boxTop ||
+        itemTop > boxTop + boxHeight
+      );
+
+      if (intersects) {
+        this._selectedItems.add(item.dataset.name);
+      }
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════
   //  销毁
   // ════════════════════════════════════════════════════════════
 
   destroy() {
     this._hideContextMenu();
     this._hidePreview();
+    if (this._selectionBox) {
+      this._selectionBox.remove();
+      this._selectionBox = null;
+    }
   }
 }

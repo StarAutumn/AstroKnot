@@ -553,16 +553,18 @@ function showShiftTypeMenu(x, y, typeId) {
     });
   });
   
-  // 点击外部关闭
+  // 点击外部关闭（使用 mousedown + pointerdown + 捕获模式）
   setTimeout(function () {
-    document.addEventListener('click', closeShiftTypeMenu, true);
+    document.addEventListener('mousedown', closeShiftTypeMenu, true);
+    document.addEventListener('pointerdown', closeShiftTypeMenu, true);
   }, 0);
 }
 
 function closeShiftTypeMenu() {
   const menu = document.getElementById('shiftTypeMenu');
   if (menu) menu.remove();
-  document.removeEventListener('click', closeShiftTypeMenu, true);
+  document.removeEventListener('mousedown', closeShiftTypeMenu, true);
+  document.removeEventListener('pointerdown', closeShiftTypeMenu, true);
 }
 
 // ── 自定义输入对话框 ──

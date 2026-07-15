@@ -72,8 +72,8 @@ export class IdeApp {
             <button class="caption-btn app-runner-min" title="最小化">
               <svg viewBox="0 0 10 10"><line x1="2" y1="5" x2="8" y2="5" /></svg>
             </button>
-            <button class="caption-btn app-runner-max" title="最大化">
-              <svg viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" rx="0" /></svg>
+            <button class="caption-btn app-runner-max" title="窗口化">
+              <svg viewBox="0 0 10 10"><rect x="0" y="3" width="5" height="5" rx="0"/><rect x="3" y="0" width="5" height="5" rx="0"/></svg>
             </button>
             <button class="caption-btn app-runner-close" title="关闭">
               <svg viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8" /><line x1="8" y1="2" x2="2" y2="8" /></svg>

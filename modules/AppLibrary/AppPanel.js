@@ -84,7 +84,7 @@ export class AppPanel {
         if (app) this._runApp(app);
       });
 
-      // 右键菜单（应用项 + 空白区域）
+      // 右键菜单（应用项）
       itemsContainer.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -93,9 +93,6 @@ export class AppPanel {
           // 应用项右键菜单
           const app = this._manager.getApps().find(a => a.id === item.dataset.appId);
           if (app) this._showAppContextMenu(e.clientX, e.clientY, app);
-        } else {
-          // 空白区域右键菜单
-          this._showBlankContextMenu(e.clientX, e.clientY);
         }
       });
 
@@ -167,6 +164,8 @@ export class AppPanel {
       this._lastClickedId = null;
       this._lastClickTime = 0;
     };
+    // 暴露删除图标位置方法供 Dock.js 调用（清理外部程序位置）
+    window._removeDesktopIconPosition = _removeDesktopIconPosition;
 
     // 监听布局模式切换
     document.addEventListener('dock-layout-mode-change', () => this._onLayoutModeChange());
@@ -257,9 +256,10 @@ export class AppPanel {
         let left = parseFloat(dragState.icon.style.left) || dragState.origLeft;
         let top = parseFloat(dragState.icon.style.top) || dragState.origTop;
 
-        // 网格布局时最终吸附
+        // 网格布局时最终吸附（带碰撞检测，避免与其他图标重叠）
         if (appState.dockGridMode === 'grid') {
-          const snapped = _snapToGrid(left, top);
+          const key = dragState.source === 'app' ? 'app:' + dragState.appId : 'ext:' + dragState.appId;
+          const snapped = _snapToGridWithCollision(left, top, key);
           left = snapped.left;
           top = snapped.top;
           dragState.icon.style.left = left + 'px';
@@ -509,7 +509,7 @@ export class AppPanel {
     if (apps.length === 0 && !hasExternal) {
       const empty = document.createElement('div');
       empty.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#5a7a8a; font-size:13px; pointer-events:none;';
-      empty.textContent = '右键空白处从 GitHub 导入应用或添加外部程序';
+      empty.textContent = '点击顶部 ➕ 按钮从 GitHub 导入应用';
       container.appendChild(empty);
     }
   }
@@ -588,15 +588,21 @@ export class AppPanel {
     });
 
     // 使用 mousedown 关闭，避免与 click 事件冲突
+    let closed = false;
     const closeHandler = (e) => {
+      if (closed) return;
       if (!menu.contains(e.target)) {
+        closed = true;
         this._closeContextMenu();
       }
     };
     this._currentCloseHandler = closeHandler;
     // 延迟注册，防止当前 contextmenu 事件立即触发关闭
+    // 使用捕获阶段（capture: true）确保即使 3D canvas 等元素阻止冒泡也能捕获到点击
+    // 同时监听 mousedown 和 pointerdown（OrbitControls 使用 pointer 事件）
     setTimeout(() => {
-      document.addEventListener('mousedown', closeHandler);
+      document.addEventListener('mousedown', closeHandler, true);
+      document.addEventListener('pointerdown', closeHandler, true);
     }, 0);
   }
 
@@ -615,53 +621,13 @@ export class AppPanel {
       { type: 'separator' },
       { label: '📁 打开文件所在位置', action: () => this._openInExplorer(app), disabled: isBuiltin },
       { label: '📋 复制', action: () => this._copyApp(app), disabled: isBuiltin },
-      { label: '🗑 删除', action: () => this._deleteApp(app), disabled: isBuiltin },
+      { label: '� 粘贴', action: () => this._pasteApp(), disabled: !this._clipboard },
+      { label: '�🗑 删除', action: () => this._deleteApp(app), disabled: isBuiltin },
       { label: '✏ 重命名', action: () => this._renameApp(app), disabled: isBuiltin },
       { type: 'separator' },
       { label: 'ℹ 属性', action: () => this._showProperties(app) },
     ];
     this._showMenu(x, y, items);
-  }
-
-  /**
-   * 空白区域右键菜单
-   * @private
-   */
-  _showBlankContextMenu(x, y) {
-    const items = [
-      { label: '📦 从 GitHub 导入应用', action: () => this._showImportDialog() },
-      { label: '➕ 添加外部程序', action: () => this._addExternalApp() },
-      { type: 'separator' },
-      {
-        label: '📋 粘贴',
-        action: () => this._pasteApp(),
-        disabled: !this._clipboard
-      },
-      { type: 'separator' },
-      { label: '🔄 刷新列表', action: () => this.refresh() },
-    ];
-    this._showMenu(x, y, items);
-  }
-
-  /**
-   * 添加外部程序（打开文件选择对话框）
-   * @private
-   */
-  async _addExternalApp() {
-    if (!window.__ELECTRON__ || !window.api?.selectExternalApp) {
-      showToast('仅 Electron 环境支持添加外部程序', 3000);
-      return;
-    }
-    try {
-      const result = await window.api.selectExternalApp();
-      if (result.canceled || !result.path) return;
-      // 触发 Dock 模块的外部程序添加流程
-      document.dispatchEvent(new CustomEvent('dock-add-external', { detail: { path: result.path, name: result.name } }));
-      showToast(`已添加: ${result.name}`, 2000);
-    } catch (e) {
-      console.error('[AppPanel] 添加外部程序失败:', e);
-      showToast(`添加失败: ${e.message}`, 3000);
-    }
   }
 
   /**
@@ -672,7 +638,9 @@ export class AppPanel {
     const existing = document.querySelector('.dock-context-menu');
     if (existing) existing.remove();
     if (this._currentCloseHandler) {
-      document.removeEventListener('mousedown', this._currentCloseHandler);
+      // 移除时也要使用 capture: true（与添加时一致）
+      document.removeEventListener('mousedown', this._currentCloseHandler, true);
+      document.removeEventListener('pointerdown', this._currentCloseHandler, true);
       this._currentCloseHandler = null;
     }
   }
@@ -719,6 +687,9 @@ export class AppPanel {
       );
       if (!confirmed) return;
       await this._manager.deleteApp(app.id);
+      // 清理该应用的桌面图标位置数据
+      const key = 'app:' + app.id;
+      _removeDesktopIconPosition(key);
       showToast(`已删除: ${app.name}`, 2000);
     } catch (e) {
       console.error('[AppPanel] 删除应用失败:', e);
@@ -994,6 +965,32 @@ export class AppPanel {
   // ════════════════════════════════════════════════════════════
 
   /**
+   * 添加外部程序
+   * @private
+   */
+  _addExternalApp() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    // Windows 可执行文件和应用快捷方式
+    input.accept = '.exe,.lnk,.bat,.cmd,.ps1';
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      
+      const filePath = file.path;
+      if (!filePath) return;
+      
+      const name = filePath.split(/[/\\]/).pop().replace(/\.[^.]+$/, '');
+      
+      // 通知 Dock 添加外部程序
+      document.dispatchEvent(new CustomEvent('dock-add-external', {
+        detail: { path: filePath, name }
+      }));
+    });
+    input.click();
+  }
+
+  /**
    * 显示导入弹窗
    * @param {Object} [opts] - { updateAppId, prefillUrl }
    * @private
@@ -1166,6 +1163,15 @@ function _saveDesktopIconPosition(key, pos) {
   localStorage.setItem(DESKTOP_POS_KEY, JSON.stringify(all));
 }
 
+/** 删除单个图标位置 */
+function _removeDesktopIconPosition(key) {
+  const all = _loadDesktopPositions();
+  if (all[key]) {
+    delete all[key];
+    localStorage.setItem(DESKTOP_POS_KEY, JSON.stringify(all));
+  }
+}
+
 /** 清除所有图标位置 */
 function _clearDesktopPositions() {
   localStorage.removeItem(DESKTOP_POS_KEY);
@@ -1269,22 +1275,65 @@ function _createDesktopIconElement(name, iconText, id, source) {
 
 /** 网格吸附：将任意坐标吸附到最近的格子中心 */
 function _snapToGrid(left, top) {
-  const CELL_WIDTH = 84;  // 80px 图标 + 4px 间距（高密度）
-  const CELL_HEIGHT = 84; // 80px 图标 + 4px 间距（高密度）
+  const CELL_WIDTH = 84;
+  const CELL_HEIGHT = 84;
   const START_X = 8;
   const START_Y = 8;
 
-  // 计算最近的格子索引
   const col = Math.round((left - START_X) / CELL_WIDTH);
   const row = Math.round((top - START_Y) / CELL_HEIGHT);
-
-  // 确保不超出边界（负数）
   const safeCol = Math.max(0, col);
   const safeRow = Math.max(0, row);
 
-  // 返回格子中心坐标
   return {
     left: START_X + safeCol * CELL_WIDTH,
     top: START_Y + safeRow * CELL_HEIGHT
   };
+}
+
+/** 网格吸附（带碰撞检测）：避免与已有图标重叠 */
+function _snapToGridWithCollision(left, top, excludeKey) {
+  const CELL_WIDTH = 84;
+  const CELL_HEIGHT = 84;
+  const START_X = 8;
+  const START_Y = 8;
+
+  const targetCol = Math.max(0, Math.round((left - START_X) / CELL_WIDTH));
+  const targetRow = Math.max(0, Math.round((top - START_Y) / CELL_HEIGHT));
+
+  // 获取所有已占用的格子
+  const occupiedCells = new Set();
+  const allPositions = _loadDesktopPositions();
+  for (const [key, pos] of Object.entries(allPositions)) {
+    if (key === excludeKey) continue;
+    const col = Math.round((pos.left - START_X) / CELL_WIDTH);
+    const row = Math.round((pos.top - START_Y) / CELL_HEIGHT);
+    if (col >= 0 && row >= 0) {
+      occupiedCells.add(`${col},${row}`);
+    }
+  }
+
+  // 检查目标格子是否可用
+  const targetKey = `${targetCol},${targetRow}`;
+  if (!occupiedCells.has(targetKey)) {
+    return { left: START_X + targetCol * CELL_WIDTH, top: START_Y + targetRow * CELL_HEIGHT };
+  }
+
+  // 螺旋搜索最近的空闲格子
+  for (let radius = 1; radius <= 50; radius++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+        const col = targetCol + dx;
+        const row = targetRow + dy;
+        if (col < 0 || row < 0) continue;
+        const key = `${col},${row}`;
+        if (!occupiedCells.has(key)) {
+          return { left: START_X + col * CELL_WIDTH, top: START_Y + row * CELL_HEIGHT };
+        }
+      }
+    }
+  }
+
+  return { left: START_X + targetCol * CELL_WIDTH, top: START_Y + targetRow * CELL_HEIGHT };
 }

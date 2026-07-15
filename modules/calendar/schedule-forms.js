@@ -476,8 +476,14 @@ slotMenu.addEventListener('click', function (e) {
   }
 });
 
-// 点击外部关闭右键菜单
-document.addEventListener('click', function () { hideSlotMenu(); });
+// 点击外部关闭右键菜单（使用捕获模式确保 3D canvas 点击也能关闭）
+const slotMenuCloseHandler = function (e) {
+  if (slotMenu.style.display !== 'none' && !slotMenu.contains(e.target)) {
+    hideSlotMenu();
+  }
+};
+document.addEventListener('mousedown', slotMenuCloseHandler, true);
+document.addEventListener('pointerdown', slotMenuCloseHandler, true);
 document.addEventListener('contextmenu', function (e) {
   if (!slotMenu.contains(e.target) && !state.calPopup.contains(e.target)) hideSlotMenu();
 });

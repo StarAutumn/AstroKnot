@@ -76,11 +76,13 @@ export class TrashApp {
     const headerEl = document.createElement('div');
     headerEl.className = 'rich-modal-header';
     headerEl.innerHTML = `
-      <span class="caption-icon">♻️</span>
-      <h2 class="app-runner-title">回收站</h2>
+      <div style="display:flex; align-items:center; gap:8px; flex:1;">
+        <span class="caption-icon">♻️</span>
+        <h2 class="app-runner-title">回收站</h2>
+      </div>
       <div class="caption-btns">
-        <button class="caption-btn app-runner-min" title="最小化">🗕</button>
-        <button class="caption-btn app-runner-max" title="最大化/还原">🗖</button>
+        <button class="caption-btn app-runner-min" title="最小化">⚊</button>
+        <button class="caption-btn app-runner-max" title="窗口化">❐</button>
         <button class="caption-btn app-runner-close" title="关闭">✕</button>
       </div>
     `;

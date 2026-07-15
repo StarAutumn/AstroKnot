@@ -149,6 +149,7 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@opencode-ai/sdk": "^1.17.20",
     "@soundtouchjs/audio-worklet": "^2.0.3",
     "@univerjs/preset-sheets-advanced": "^0.25.0",
     "@univerjs/preset-sheets-conditional-formatting": "^0.25.0",
