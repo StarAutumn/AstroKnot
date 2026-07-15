@@ -96,13 +96,35 @@ export class SandboxAutoRun {
     if (!currentNodeId || !vfs || !monacoEditor) return;
     if (!this._lastAutoSavePath) return;
 
-    const node = appState.nodeMap.get(currentNodeId);
-    if (!node) return;
-
     // 同步 Monaco 内容到 VFS
     monacoEditor.syncAllToFS(vfs);
     // 同步第二编辑器（分屏模块未迁移时通过事件通知）
     this.ctx.emit('syncSplitEditor', vfs);
+
+    // isRealFS 模式：直接写入真实磁盘文件
+    const isRealFS = this.ctx.isRealFS;
+    const workspacePath = this.ctx.workspacePath;
+    if (isRealFS && workspacePath && window.api?.ideWriteFile) {
+      const filePath = this._lastAutoSavePath;
+      const file = vfs.getFile(filePath);
+      if (file) {
+        try {
+          const sep = workspacePath.endsWith('/') || workspacePath.endsWith('\\') ? '' : '/';
+          const absPath = workspacePath + sep + filePath;
+          await window.api.ideWriteFile(absPath, file.content);
+          file.isDirty = false;
+          console.log(`[自动保存] ${filePath} 已写入磁盘`);
+          this.ctx.setStatus('已自动保存到磁盘 ✓');
+        } catch (err) {
+          console.warn(`[自动保存] ${filePath} 写入失败:`, err);
+        }
+      }
+      return;
+    }
+
+    // 非 isRealFS 模式：通过 VFS 磁盘同步（仅当节点在 nodeMap 中时）
+    const node = appState.nodeMap.get(currentNodeId);
+    if (!node) return;
 
     // 获取项目文件夹路径
     const proj = appState.projects?.find(p => p.id === appState.currentProjectId);

@@ -155,6 +155,19 @@ function initHtmlSandboxWindow() {
       if (_currentNodeId && _monacoEditor && _vfs) {
         _monacoEditor.syncAllToFS(_vfs);
         if (_splitEditorModule && _splitEditorModule.monacoEditor2) _splitEditorModule.monacoEditor2.syncAllToFS(_vfs);
+
+        if (_isRealFS && _workspacePath && window.api?.ideWriteFile) {
+          // isRealFS 模式：保存脏文件到真实磁盘
+          for (const filePath of _vfs.getFilePaths()) {
+            const file = _vfs.getFile(filePath);
+            if (file && file.isDirty) {
+              const sep = _workspacePath.endsWith('/') || _workspacePath.endsWith('\\') ? '' : '/';
+              const absPath = _workspacePath + sep + filePath;
+              window.api.ideWriteFile(absPath, file.content).catch(() => {});
+            }
+          }
+        }
+
         const node = appState.nodeMap.get(_currentNodeId);
         if (node) {
           node.fileSystem = _vfs.toJSON();
@@ -1516,7 +1529,7 @@ async function _createNewFileInWelcome() {
     if (file) _openFileInEditor(file.path);
     // 实时同步到磁盘
     const currentNodeId = _ctx.currentNodeId;
-    if (currentNodeId) {
+    if (currentNodeId && appState.nodeMap.get(currentNodeId)) {
       const projectFolderPath = _getProjectFolderPath();
       _vfs.writeSingleFileToDisk(projectFolderPath, currentNodeId, file.path).then((ok) => {
         if (ok) console.log('[实时同步] 已创建磁盘文件:', file.path);
@@ -1683,6 +1696,7 @@ async function _openRealFolder() {
       });
       _fileTree.render();
     }
+    _ctx.fileTree = _fileTree;
 
     // 关闭所有已打开的标签
     if (_fileTabs) {
@@ -1750,6 +1764,7 @@ async function _openFolderAtPath(folderPath) {
       });
       _fileTree.render();
     }
+    _ctx.fileTree = _fileTree;
 
     // 关闭所有已打开的标签
     if (_fileTabs) _fileTabs.closeAll();
@@ -1840,53 +1855,10 @@ async function _realSaveFile(filePath, content) {
 
 /**
  * 真实文件系统的文件操作（创建/删除/重命名）
- * 直接代理到 _fileOpsModule 或通过 ide IPC
+ * 已迁移到 file-ops.js 中处理，此处不再重复绑定
  */
 function _bindRealFileOps() {
-  // 覆盖 VFS 的创建文件/文件夹逻辑 — 通过监听文件树操作
-  _ctx.on('createFile', async ({ parentPath, name, type }) => {
-    if (!_isRealFS || !_workspacePath) return;
-    const sep = _workspacePath.endsWith('/') || _workspacePath.endsWith('\\') ? '' : '/';
-    const absPath = _workspacePath + sep + parentPath;
-    await window.api.ideCreateItem(absPath, name, type);
-    // 添加到 VFS
-    if (type === 'directory') {
-      _vfs.createDirectory(parentPath, name);
-    } else {
-      _vfs.createFile(parentPath, name);
-    }
-    _vfs.expandAll();
-    _fileTree?.render();
-    _updateStatusBar();
-  });
-
-  _ctx.on('deleteFile', async ({ filePath }) => {
-    if (!_isRealFS || !_workspacePath) return;
-    const sep = _workspacePath.endsWith('/') || _workspacePath.endsWith('\\') ? '' : '/';
-    const absPath = _workspacePath + sep + filePath;
-    await window.api.ideDeleteItem(absPath);
-    const file = _vfs.getFile(filePath);
-    if (file) {
-      _vfs.deleteFile(filePath);
-    } else {
-      _vfs.deleteDirectory(filePath);
-    }
-    _vfs.expandAll();
-    _fileTree?.render();
-    _updateStatusBar();
-  });
-
-  _ctx.on('renameFile', async ({ oldPath, newPath }) => {
-    if (!_isRealFS || !_workspacePath) return;
-    const sep = _workspacePath.endsWith('/') || _workspacePath.endsWith('\\') ? '' : '/';
-    const absOldPath = _workspacePath + sep + oldPath;
-    const newName = newPath.split('/').pop();
-    await window.api.ideRenameItem(absOldPath, newName);
-    _vfs.rename(oldPath, newPath);
-    _vfs.expandAll();
-    _fileTree?.render();
-    _updateStatusBar();
-  });
+  // 文件操作已由 SandboxFileOps 根据 ctx.isRealFS 统一处理
 }
 
 /**

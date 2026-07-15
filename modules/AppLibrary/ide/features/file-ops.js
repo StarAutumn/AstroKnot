@@ -227,11 +227,10 @@ class SandboxFileOps {
 
     if (!vfs) return;
 
+    // 1. 先从 VFS 内存中移除（同步，UI 立即更新）
     if (isDirectory) {
-      // 删除目录前，先关闭该目录下所有文件的 Monaco models 和标签页
       const prefix = path + '/';
       if (monacoEditor || fileTabs) {
-        // 收集要关闭的文件路径（快照，避免迭代中修改）
         const filesToClose = [];
         for (const [fPath] of vfs._files) {
           if (fPath.startsWith(prefix)) {
@@ -250,24 +249,46 @@ class SandboxFileOps {
       if (fileTabs) fileTabs.closeTab(path);
     }
 
+    // 2. 刷新文件树（同步）
     if (fileTree) fileTree.refresh();
     this._ctx.emit('statusChange', '已删除: ' + path.split('/').pop());
 
-    // 自动运行预览
+    // 3. 自动运行预览
     const autoRun = this._ctx.getModule('autoRun');
     if (autoRun && autoRun.autoRunEnabled) {
       this._ctx.emit('autoRunPreview');
     }
 
-    // 实时同步到磁盘：删除对应文件/目录
+    // 4. 异步同步到磁盘（失败不影响 UI）
+    this._syncDeleteToDisk(path);
+  }
+
+  /**
+   * 异步同步删除操作到磁盘
+   */
+  _syncDeleteToDisk(path) {
+    const isRealFS = this._ctx.isRealFS;
+    const workspacePath = this._ctx.workspacePath;
     const currentNodeId = this._ctx.currentNodeId;
-    if (currentNodeId) {
+    const vfs = this._ctx.vfs;
+
+    // isRealFS 模式：通过 IPC 删除真实磁盘文件
+    if (isRealFS && workspacePath && window.api?.ideDeleteItem) {
+      const sep = workspacePath.endsWith('/') || workspacePath.endsWith('\\') ? '' : '/';
+      const absPath = workspacePath + sep + path;
+      window.api.ideDeleteItem(absPath).catch(err => {
+        console.error('[实时同步] 磁盘删除失败:', err);
+      });
+      return;
+    }
+
+    // 节点模式：通过 VFS 磁盘同步（仅当节点在 nodeMap 中时）
+    if (currentNodeId && appState.nodeMap.get(currentNodeId)) {
       const projectFolderPath = this._getProjectFolderPath();
       vfs.deleteSingleFileFromDisk(projectFolderPath, currentNodeId, path).then((ok) => {
         if (ok) {
           const node = appState.nodeMap.get(currentNodeId);
           if (node) node.fileSystem = vfs.toJSON();
-          console.log(`[实时同步] 已从磁盘删除: ${path}`);
         }
       });
     }
@@ -286,25 +307,48 @@ class SandboxFileOps {
 
     if (!vfs) return;
 
+    // 1. 先在 VFS 内存中重命名（同步，UI 立即更新）
     const newPath = vfs.rename(path, newName);
-    if (newPath) {
-      if (monacoEditor) monacoEditor.renameFile(path, newPath, newName);
-      if (fileTabs) fileTabs.renamePath(path, newPath, newName);
-      if (fileTree) fileTree.refresh();
-      this._ctx.emit('statusChange', '已重命名: ' + newName);
+    if (!newPath) return;
 
-      // 实时同步到磁盘：重命名对应文件/目录
-      const currentNodeId = this._ctx.currentNodeId;
-      if (currentNodeId) {
-        const projectFolderPath = this._getProjectFolderPath();
-        vfs.renameSingleFileOnDisk(projectFolderPath, currentNodeId, path, newPath).then((ok) => {
-          if (ok) {
-            const node = appState.nodeMap.get(currentNodeId);
-            if (node) node.fileSystem = vfs.toJSON();
-            console.log(`[实时同步] 已重命名磁盘文件: ${path} → ${newPath}`);
-          }
-        });
-      }
+    if (monacoEditor) monacoEditor.renameFile(path, newPath, newName);
+    if (fileTabs) fileTabs.renamePath(path, newPath, newName);
+    if (fileTree) fileTree.refresh();
+    this._ctx.emit('statusChange', '已重命名: ' + newName);
+
+    // 2. 异步同步到磁盘（失败不影响 UI）
+    this._syncRenameToDisk(path, newPath);
+  }
+
+  /**
+   * 异步同步重命名操作到磁盘
+   */
+  _syncRenameToDisk(oldPath, newPath) {
+    const isRealFS = this._ctx.isRealFS;
+    const workspacePath = this._ctx.workspacePath;
+    const currentNodeId = this._ctx.currentNodeId;
+    const vfs = this._ctx.vfs;
+    const newName = newPath.split('/').pop();
+
+    // isRealFS 模式：通过 IPC 重命名真实磁盘文件
+    if (isRealFS && workspacePath && window.api?.ideRenameItem) {
+      const sep = workspacePath.endsWith('/') || workspacePath.endsWith('\\') ? '' : '/';
+      const absOldPath = workspacePath + sep + oldPath;
+      window.api.ideRenameItem(absOldPath, newName).catch(err => {
+        console.error('[实时同步] 磁盘重命名失败:', err);
+      });
+      return;
+    }
+
+    // 节点模式：通过 VFS 磁盘同步（仅当节点在 nodeMap 中时）
+    if (currentNodeId && appState.nodeMap.get(currentNodeId)) {
+      const projectFolderPath = this._getProjectFolderPath();
+      vfs.renameSingleFileOnDisk(projectFolderPath, currentNodeId, oldPath, newPath).then((ok) => {
+        if (ok) {
+          const node = appState.nodeMap.get(currentNodeId);
+          if (node) node.fileSystem = vfs.toJSON();
+        }
+      });
     }
   }
 
@@ -320,38 +364,61 @@ class SandboxFileOps {
 
     if (!vfs) return;
 
+    // 1. 先在 VFS 内存中创建（同步，UI 立即更新）
+    let filePath = null;
     if (type === 'file') {
       const file = vfs.createFile(dirPath || '', name);
-      if (file && fileTree) {
-        fileTree.refresh();
-        this.openFileInEditor(file.path);
-
-        // 实时同步到磁盘：写入新创建的文件
-        const currentNodeId = this._ctx.currentNodeId;
-        if (currentNodeId) {
-          const projectFolderPath = this._getProjectFolderPath();
-          vfs.writeSingleFileToDisk(projectFolderPath, currentNodeId, file.path).then((ok) => {
-            if (ok) {
-              const node = appState.nodeMap.get(currentNodeId);
-              if (node) node.fileSystem = vfs.toJSON();
-              console.log(`[实时同步] 已创建磁盘文件: ${file.path}`);
-            }
-          });
+      if (file) {
+        filePath = file.path;
+        if (fileTree) {
+          fileTree.refresh();
+          this.openFileInEditor(file.path);
         }
       }
     } else {
       vfs.createDirectory(dirPath || '', name);
       if (fileTree) fileTree.refresh();
+    }
+    this._ctx.emit('statusChange', '已创建: ' + name);
 
-      // 创建目录没有单文件 IPC，使用全量同步
-      const currentNodeId = this._ctx.currentNodeId;
-      if (currentNodeId) {
-        const projectFolderPath = this._getProjectFolderPath();
+    // 2. 异步同步到磁盘（失败不影响 UI）
+    this._syncCreateToDisk(dirPath || '', name, type, filePath);
+  }
+
+  /**
+   * 异步同步创建操作到磁盘
+   */
+  _syncCreateToDisk(dirPath, name, type, filePath) {
+    const isRealFS = this._ctx.isRealFS;
+    const workspacePath = this._ctx.workspacePath;
+    const currentNodeId = this._ctx.currentNodeId;
+    const vfs = this._ctx.vfs;
+
+    // isRealFS 模式：通过 IPC 创建真实磁盘文件
+    if (isRealFS && workspacePath && window.api?.ideCreateItem) {
+      const sep = workspacePath.endsWith('/') || workspacePath.endsWith('\\') ? '' : '/';
+      const absDir = workspacePath + sep + dirPath;
+      window.api.ideCreateItem(absDir, name, type).catch(err => {
+        console.error('[实时同步] 磁盘创建失败:', err);
+      });
+      return;
+    }
+
+    // 节点模式：通过 VFS 磁盘同步（仅当节点在 nodeMap 中时）
+    if (currentNodeId && appState.nodeMap.get(currentNodeId)) {
+      const projectFolderPath = this._getProjectFolderPath();
+      if (type === 'file' && filePath) {
+        vfs.writeSingleFileToDisk(projectFolderPath, currentNodeId, filePath).then((ok) => {
+          if (ok) {
+            const node = appState.nodeMap.get(currentNodeId);
+            if (node) node.fileSystem = vfs.toJSON();
+          }
+        });
+      } else {
         vfs.syncAllToDisk(projectFolderPath, currentNodeId).then((ok) => {
           if (ok) {
             const node = appState.nodeMap.get(currentNodeId);
             if (node) node.fileSystem = vfs.toJSON();
-            console.log(`[实时同步] 已创建磁盘目录: ${name}`);
           }
         });
       }
@@ -366,6 +433,9 @@ class SandboxFileOps {
     const currentNodeId = this._ctx.currentNodeId;
     const vfs = this._ctx.vfs;
     if (!currentNodeId || !vfs) return;
+
+    // 仅当节点在 nodeMap 中时才同步（'ide-app-project' 不在 nodeMap 中）
+    if (!appState.nodeMap.get(currentNodeId)) return;
 
     const projectFolderPath = this._getProjectFolderPath();
     vfs.syncAllToDisk(projectFolderPath, currentNodeId).then((ok) => {
@@ -392,15 +462,10 @@ class SandboxFileOps {
       return;
     }
 
-    const node = appState.nodeMap.get(currentNodeId);
-    if (!node) {
-      showToast('节点不存在');
-      return;
-    }
-
     const vfs = this._ctx.vfs;
     const monacoEditor = this._ctx.monacoEditor;
-    const history = this._ctx.history;
+    const isRealFS = this._ctx.isRealFS;
+    const workspacePath = this._ctx.workspacePath;
 
     // 同步 Monaco 内容到 VFS
     if (monacoEditor && vfs) {
@@ -412,16 +477,46 @@ class SandboxFileOps {
         editor2.syncAllToFS(vfs);
         editor2.markAllSaved();
       }
-      // 序列化 VFS 到节点
-      node.fileSystem = vfs.toJSON();
-      // 标记所有文件已保存
       monacoEditor.markAllSaved();
+    }
+
+    // isRealFS 模式：保存脏文件到真实磁盘
+    if (isRealFS && workspacePath && vfs && window.api?.ideWriteFile) {
+      let savedCount = 0;
+      for (const filePath of vfs.getFilePaths()) {
+        const file = vfs.getFile(filePath);
+        if (file && file.isDirty) {
+          const sep = workspacePath.endsWith('/') || workspacePath.endsWith('\\') ? '' : '/';
+          const absPath = workspacePath + sep + filePath;
+          window.api.ideWriteFile(absPath, file.content).then(() => {
+            file.isDirty = false;
+          }).catch(err => {
+            console.error('[保存] 写入失败:', filePath, err);
+          });
+          savedCount++;
+        }
+      }
+      showToast('✅ 代码已保存');
+      this._ctx.emit('statusChange', '已保存 ✓');
+      return;
+    }
+
+    // 非 isRealFS 模式：通过节点保存
+    const node = appState.nodeMap.get(currentNodeId);
+    if (!node) {
+      showToast('节点不存在');
+      return;
+    }
+
+    if (monacoEditor && vfs) {
+      node.fileSystem = vfs.toJSON();
     }
 
     // 标记为代码模式
     node.activeMode = 'code';
 
     // 记录历史快照
+    const history = this._ctx.history;
     if (history) {
       history.recordAllFiles(vfs, 'manual');
       history.saveToNode(node);
