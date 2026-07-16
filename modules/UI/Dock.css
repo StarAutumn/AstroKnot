@@ -471,6 +471,15 @@
     flex: 1;
 }
 
+/* 标题栏图标（图片形式，用于 GitHub 导入应用自动检测到的图标） */
+.caption-icon-img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 3px;
+}
+
 /* ===== 内置浏览器样式已拆分至 browser/browser.css ===== */
 
 /* ===== 应用导入进度弹窗 ===== */
@@ -510,6 +519,50 @@
     padding: 16px;
     overflow-y: auto;
     flex: 1;
+}
+.app-import-tool-warning {
+    background: rgba(255, 170, 0, 0.12);
+    border: 1px solid rgba(255, 170, 0, 0.4);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.8;
+    flex: 1;
+}
+.app-import-tool-warning a {
+    text-decoration: underline;
+}
+.app-import-tool-warning .tool-ok {
+    color: #6fdc8c;
+}
+.app-import-tool-warning .tool-miss {
+    color: #ff8866;
+}
+.app-import-tool-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.app-import-tool-btn {
+    flex-shrink: 0;
+    background: #0a151d;
+    border: 1px solid #1a3a4a;
+    color: #8ab4dc;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+}
+.app-import-tool-btn:hover:not(:disabled) {
+    border-color: #3a6a8a;
+    color: #aef0ff;
+}
+.app-import-tool-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 .app-import-input-group {
     display: flex;

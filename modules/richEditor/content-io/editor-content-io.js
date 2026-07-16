@@ -71,7 +71,7 @@ function _applySandboxUI(nodeId) {
     if (!sandboxIframe) {
       sandboxIframe = document.createElement('iframe');
       sandboxIframe.id = 'sandboxPreviewIframe';
-      sandboxIframe.style.cssText = 'width:100%;height:100%;border:none;background:#fff;position:absolute;top:0;left:0;z-index:5;';
+      sandboxIframe.style.cssText = 'width:100%;height:100%;border:none;background:#0d1b23;position:absolute;top:0;left:0;z-index:5;';
       sandboxIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups');
       ckEl.style.position = 'relative';
       ckEl.appendChild(sandboxIframe);
@@ -318,6 +318,18 @@ export function saveCurrentContentCK() {
         node.overlayImages = getOverlayImagesData();
         node.drawData = getDrawData();
       }
+      // 外部节点：直接写回原文件，不保存到当前项目
+      if (node._foreignFilePath) {
+        if (window.api && window.api.ideWriteFile) {
+          window.api.ideWriteFile(node._foreignFilePath, htmlContent).then(function () {
+            showSavedToast();
+          }).catch(function (err) {
+            showToast('保存到外部文件失败: ' + err.message);
+          });
+        }
+        state.tinyInitialContent = htmlContent;
+        return;
+      }
       showSavedToast();
       saveCurrentProjectData();
     }
@@ -554,6 +566,13 @@ export function closeModalCK() {
       tabs.length = 0;
       setActiveTabKey(null);
       if (window.Taskbar) window.Taskbar.removeEditor('rich');
+      // 清理外部临时节点
+      if (appState.currentEditNodeId) {
+        const node = appState.nodeMap.get(appState.currentEditNodeId);
+        if (node && node._foreignFilePath) {
+          appState.nodeMap.delete(appState.currentEditNodeId);
+        }
+      }
       appState.currentEditNodeId = null;
       appState.currentQuickNoteId = null;
       window._closeRichEditor = closeModalCK;

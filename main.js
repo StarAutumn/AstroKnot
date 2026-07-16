@@ -92,6 +92,9 @@ function createWindow() {
   mainWindow.on('leave-full-screen', () => mainWindow.webContents.send('fullscreen-change', false));
 }
 
+// ── HMR 开关（开发模式）──
+let _hmrEnabled = true;  // HMR 开关（可通过标题栏滑动按钮控制）
+
 // ── IPC：窗口控制 ──
 function bindWindowIPC() {
   ipcMain.on('win-minimize', (event) => {
@@ -114,6 +117,15 @@ function bindWindowIPC() {
     const w = BrowserWindow.fromWebContents(event.sender);
     if (w) w.setFullScreen(!w.isFullScreen());
   });
+
+  // HMR 开关（仅开发版）
+  ipcMain.handle('hmr-toggle', (event, enabled) => {
+    _hmrEnabled = !!enabled;
+    console.log(`[HMR] 热更新已${_hmrEnabled ? '开启' : '关闭'}`);
+    return _hmrEnabled;
+  });
+  ipcMain.handle('hmr-get-enabled', () => _hmrEnabled);
+  ipcMain.handle('is-dev', () => !app.isPackaged);
 }
 
 // ── 热更新：文件监听（仅开发模式） ──
@@ -127,6 +139,7 @@ function startHMR() {
 
   function sendHMR(filePath, type) {
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!_hmrEnabled) return;  // HMR 已关闭
     console.log('[HMR] 文件变更:', filePath);
     mainWindow.webContents.send('hot-update', { type, filePath });
   }
@@ -183,6 +196,7 @@ function startHMR() {
     try {
       fs.watch(fullPath, () => {
         if (_restarting) return;
+        if (!_hmrEnabled) return;  // HMR 已关闭
         _restarting = true;
         console.log(`[HMR] 主进程文件变更: ${file}，正在重启...`);
         // 延迟 300ms 避免连续多次触发（如编辑器保存）
@@ -1531,6 +1545,35 @@ function bindFileIPC() {
     return null;
   });
 
+  // ── 检测 .env.example 并创建空 .env ──
+  ipcMain.handle('env-check-and-create', async (event, dirPath) => {
+    if (!dirPath || !fs.existsSync(dirPath)) return { created: false };
+    const envFile = path.join(dirPath, '.env');
+    // 已存在 .env 则不覆盖
+    if (fs.existsSync(envFile)) return { created: false, reason: 'exists' };
+    // 查找模板文件
+    const templates = ['.env.example', '.env.sample', '.env.template'];
+    let templatePath = null;
+    for (const t of templates) {
+      const p = path.join(dirPath, t);
+      if (fs.existsSync(p)) { templatePath = p; break; }
+    }
+    try {
+      if (templatePath) {
+        // 从模板复制
+        const content = fs.readFileSync(templatePath, 'utf-8');
+        fs.writeFileSync(envFile, content, 'utf-8');
+        return { created: true, source: path.basename(templatePath) };
+      } else {
+        // 无模板，创建空 .env
+        fs.writeFileSync(envFile, '# AstroKnot 自动创建的环境变量文件\n', 'utf-8');
+        return { created: true, source: 'empty' };
+      }
+    } catch (e) {
+      return { created: false, error: e.message };
+    }
+  });
+
   // 查找应用入口 HTML 文件
   ipcMain.handle('find-app-entry-html', async (event, appId) => {
     const appsDir = dataSettings.getAppsDir();
@@ -1538,7 +1581,16 @@ function bindFileIPC() {
     if (!fs.existsSync(sandboxDir)) return null;
 
     // 按优先级查找入口文件
-    const candidates = ['index.html', 'dist/index.html', 'build/index.html', 'public/index.html'];
+    const candidates = [
+      'index.html',
+      'dist/index.html',
+      'build/index.html',
+      'out/index.html',
+      '.output/public/index.html',
+      'www/index.html',
+      'public/index.html',
+      'docs/index.html',
+    ];
     for (const c of candidates) {
       const fullPath = path.join(sandboxDir, c);
       if (fs.existsSync(fullPath)) return fullPath;
@@ -1594,7 +1646,7 @@ function bindFileIPC() {
     const server = http.createServer((req, res) => {
       const parsedUrl = url.parse(req.url);
       let filePath = path.join(sandboxDir, parsedUrl.pathname === '/' ? 'index.html' : parsedUrl.pathname);
-      
+
       // 安全检查：确保路径在 sandboxDir 内
       const resolved = path.resolve(filePath);
       if (!resolved.startsWith(path.resolve(sandboxDir))) {
@@ -1602,19 +1654,34 @@ function bindFileIPC() {
         res.end('Forbidden');
         return;
       }
-      
+
+      // 统一的 headers（含 COOP/COEP，支持 SharedArrayBuffer / WASM 多线程）
+      const securityHeaders = {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      };
+
       if (!fs.existsSync(resolved) || fs.statSync(resolved).isDirectory()) {
         // 尝试 index.html
         const indexPath = path.join(resolved, 'index.html');
         if (fs.existsSync(indexPath)) {
           filePath = indexPath;
         } else {
-          res.writeHead(404);
-          res.end('Not Found');
-          return;
+          // history fallback：非静态资源路径回退到 sandbox 根的 index.html（支持前端路由）
+          const fallbackPath = path.join(sandboxDir, 'index.html');
+          const distFallback = path.join(sandboxDir, 'dist', 'index.html');
+          if (fs.existsSync(fallbackPath)) {
+            filePath = fallbackPath;
+          } else if (fs.existsSync(distFallback)) {
+            filePath = distFallback;
+          } else {
+            res.writeHead(404, securityHeaders);
+            res.end('Not Found');
+            return;
+          }
         }
       }
-      
+
       try {
         const ext = path.extname(filePath).toLowerCase();
         const mimeTypes = {
@@ -1634,10 +1701,13 @@ function bindFileIPC() {
         };
         const contentType = mimeTypes[ext] || 'application/octet-stream';
         const data = fs.readFileSync(filePath);
-        res.writeHead(200, { 'Content-Type': contentType + (ext === '.html' ? '; charset=utf-8' : '') });
+        res.writeHead(200, {
+          'Content-Type': contentType + (ext === '.html' ? '; charset=utf-8' : ''),
+          ...securityHeaders,
+        });
         res.end(data);
       } catch (err) {
-        res.writeHead(500);
+        res.writeHead(500, securityHeaders);
         res.end('Internal Server Error');
       }
     });
@@ -2583,6 +2653,36 @@ function bindFileIPC() {
     return { success: true };
   });
 
+  // ── 解析相对路径为绝对路径（供文件管理器"通过IDE打开"使用）──
+  ipcMain.handle('fm-resolve-path', async (event, relPath) => {
+    const absPath = _fmResolve(relPath);
+    return absPath || null;
+  });
+
+  // ── 根据文件夹路径查找已注册的 AstroKnot 应用 ──
+  ipcMain.handle('fm-find-app-by-path', async (event, relPath) => {
+    try {
+      const normalized = (relPath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+      const parts = normalized.split('/');
+      if (parts.length < 2) return null;
+      const appsDir = dataSettings.getAppsDir();
+      const appsDirName = path.basename(appsDir);
+      if (parts[0] !== appsDirName) return null;
+      const appId = parts[1];
+      const appsDirParent = path.dirname(appsDir);
+      const indexPath = path.join(appsDir, 'index.json');
+      if (!fs.existsSync(indexPath)) return null;
+      const appList = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+      const app = (appList.apps || []).find(a => a.id === appId);
+      if (!app) return null;
+      const sandboxDir = path.join(appsDir, appId, 'sandbox');
+      if (!fs.existsSync(sandboxDir)) return null;
+      return { ...app, sandboxPath: sandboxDir };
+    } catch (e) {
+      return null;
+    }
+  });
+
   // ════════════════════════════════════════════════════════════
   //  IDE 真实文件系统 IPC（无路径限制，操作电脑任意文件夹）
   // ════════════════════════════════════════════════════════════
@@ -2769,6 +2869,23 @@ function bindFileIPC() {
     if (fs.existsSync(newPath)) throw new Error('目标名称已存在: ' + newName);
     fs.renameSync(filePath, newPath);
     return { success: true };
+  });
+
+  // ── 检测系统工具（git / npm）是否可用 ──
+  ipcMain.handle('check-tools', async () => {
+    const { execSync } = require('child_process');
+    const tools = { git: false, npm: false, gitVersion: '', npmVersion: '' };
+    try {
+      const out = execSync('git --version', { windowsHide: true, timeout: 5000 }).toString().trim();
+      tools.git = true;
+      tools.gitVersion = out;
+    } catch (e) {}
+    try {
+      const out = execSync('npm --version', { windowsHide: true, timeout: 5000 }).toString().trim();
+      tools.npm = true;
+      tools.npmVersion = 'npm v' + out;
+    } catch (e) {}
+    return tools;
   });
 
   // ── Git 克隆到临时目录并读取文件 ──

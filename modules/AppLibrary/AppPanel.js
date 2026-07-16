@@ -535,6 +535,35 @@ export class AppPanel {
     await this._runner.open(app);
   }
 
+  /**
+   * 通过 IDE 打开 GitHub 应用
+   * @private
+   */
+  async _openAppInIDE(app) {
+    try {
+      showToast(`正在以 IDE 打开 ${app.name}...`, 1500);
+      // 获取应用的 sandbox 目录路径
+      const sandboxPath = await window.api?.getAppSandboxPath?.(app.id);
+      if (!sandboxPath) {
+        showToast('无法获取应用文件路径', 3000);
+        return;
+      }
+      // 构建 IDE 类型的 app 对象，传入 sandboxPath
+      // 使用不同的 id 避免与普通运行窗口冲突
+      const ideApp = {
+        ...app,
+        id: `ide-${app.id}`,
+        type: 'ide',
+        name: `IDE - ${app.name}`,
+        sandboxPath: sandboxPath,
+      };
+      await this._runner.open(ideApp);
+    } catch (e) {
+      console.error('[AppPanel] IDE 打开失败:', e);
+      showToast(`IDE 打开失败: ${e.message}`, 3000);
+    }
+  }
+
   // ════════════════════════════════════════════════════════════
   //  右键菜单
   // ════════════════════════════════════════════════════════════
@@ -612,20 +641,22 @@ export class AppPanel {
    */
   _showAppContextMenu(x, y, app) {
     const isBuiltin = app.builtin === true;
+    const isGitHub = !isBuiltin && !!app.repo;
     const items = [
       { label: '📂 打开', action: () => this._runApp(app) },
+      { label: '💻 通过 IDE 打开', action: () => this._openAppInIDE(app), disabled: !isGitHub },
       { type: 'separator' },
-      { label: '📋 插入为节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
-      { label: '🔗 创建应用节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
-      { label: '🔄 从 GitHub 更新', action: () => this._updateApp(app), disabled: isBuiltin },
+      { label: '插入为节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
+      { label: '创建应用节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
+      { label: '从 GitHub 更新', action: () => this._updateApp(app), disabled: isBuiltin },
       { type: 'separator' },
-      { label: '📁 打开文件所在位置', action: () => this._openInExplorer(app), disabled: isBuiltin },
-      { label: '📋 复制', action: () => this._copyApp(app), disabled: isBuiltin },
-      { label: '� 粘贴', action: () => this._pasteApp(), disabled: !this._clipboard },
-      { label: '�🗑 删除', action: () => this._deleteApp(app), disabled: isBuiltin },
-      { label: '✏ 重命名', action: () => this._renameApp(app), disabled: isBuiltin },
+      { label: '打开文件所在位置', action: () => this._openInExplorer(app), disabled: isBuiltin },
+      { label: '复制', action: () => this._copyApp(app), disabled: isBuiltin },
+      { label: '粘贴', action: () => this._pasteApp(), disabled: !this._clipboard },
+      { label: '删除', action: () => this._deleteApp(app), disabled: isBuiltin },
+      { label: '重命名', action: () => this._renameApp(app), disabled: isBuiltin },
       { type: 'separator' },
-      { label: 'ℹ 属性', action: () => this._showProperties(app) },
+      { label: '属性', action: () => this._showProperties(app) },
     ];
     this._showMenu(x, y, items);
   }
@@ -1009,6 +1040,10 @@ export class AppPanel {
           <button class="caption-btn" id="appImportCloseBtn">✕</button>
         </div>
         <div class="app-import-body">
+          <div class="app-import-tool-row">
+            <button class="app-import-tool-btn" id="appImportToolBtn">🔍 检测环境</button>
+            <div class="app-import-tool-warning" id="appImportToolWarning" style="display:none;"></div>
+          </div>
           <div class="app-import-input-group">
             <input type="text" id="appImportUrlInput" placeholder="owner/repo 或 GitHub URL" value="${opts.prefillUrl || ''}" ${isUpdate ? 'disabled' : ''} />
             ${!isUpdate ? '<button id="appImportParseBtn">解析</button>' : ''}
@@ -1037,6 +1072,45 @@ export class AppPanel {
     const parseBtn = overlay.querySelector('#appImportParseBtn');
     const startBtn = overlay.querySelector('#appImportStartBtn');
     const urlInput = overlay.querySelector('#appImportUrlInput');
+    const toolWarning = overlay.querySelector('#appImportToolWarning');
+    const toolBtn = overlay.querySelector('#appImportToolBtn');
+
+    // ── 检测系统工具（git / npm）── 点击按钮触发
+    let _tools = { git: true, npm: true }; // 默认假定可用，未检测也不阻断
+    if (toolBtn) {
+      toolBtn.addEventListener('click', async () => {
+        if (!window.api?.checkTools) {
+          toolWarning.innerHTML = '⚠️ 当前环境不支持检测';
+          toolWarning.style.display = 'block';
+          return;
+        }
+        toolBtn.disabled = true;
+        toolBtn.textContent = '🔍 检测中...';
+        try {
+          const tools = await window.api.checkTools();
+          _tools = tools;
+          // git 行
+          let gitLine;
+          if (tools.git) {
+            gitLine = '<div class="tool-ok">✅ Git ' + (tools.gitVersion || '') + '</div>';
+          } else {
+            gitLine = '<div class="tool-miss">❌ 未检测到 Git — 导入必需 · <a href="https://git-scm.com/downloads" target="_blank" style="color:#5ab4dc;">下载 Git</a></div>';
+          }
+          // node.js 行
+          let npmLine;
+          if (tools.npm) {
+            npmLine = '<div class="tool-ok">✅ Node.js ' + (tools.npmVersion || '') + '</div>';
+          } else {
+            npmLine = '<div class="tool-miss">❌ 未检测到 Node.js — npm install 需要 · <a href="https://nodejs.org/" target="_blank" style="color:#5ab4dc;">下载 Node.js</a></div>';
+          }
+          toolWarning.innerHTML = gitLine + npmLine;
+          toolWarning.style.display = 'block';
+        } finally {
+          toolBtn.disabled = false;
+          toolBtn.textContent = '🔍 检测环境';
+        }
+      });
+    }
 
     const close = () => {
       this._manager.cancel();
@@ -1084,6 +1158,18 @@ export class AppPanel {
 
     if (startBtn) {
       startBtn.addEventListener('click', async () => {
+        // git 不可用时直接拦截
+        if (!_tools.git) {
+          const logEl = overlay.querySelector('#appImportLog');
+          if (logEl) {
+            logEl.classList.add('visible');
+            const line = document.createElement('div');
+            line.className = 'app-import-log-line app-import-log-error';
+            line.textContent = '❌ 未检测到 Git，无法从 GitHub 导入。请先安装 Git：https://git-scm.com/downloads';
+            logEl.appendChild(line);
+          }
+          return;
+        }
         startBtn.disabled = true;
         const progressEl = overlay.querySelector('#appImportProgress');
         const progressFill = overlay.querySelector('#appImportProgressFill');

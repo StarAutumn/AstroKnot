@@ -758,7 +758,7 @@ export class VirtualFileSystem {
 <html>
 <head>
   <meta charset="UTF-8">
-  <style>${_escapeInlineContent(css, 'style')}</style>
+  <style>html,body{margin:0;padding:0;background:#0d1b23;}${_escapeInlineContent(css, 'style')}</style>
 </head>
 <body>
   <script>${_escapeInlineContent(js, 'script')}</script>${moduleScript}

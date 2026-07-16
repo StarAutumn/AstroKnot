@@ -169,6 +169,9 @@ contextBridge.exposeInMainWorld('api', {
   onHotUpdate: (callback) => {
     ipcRenderer.on('hot-update', (_event, data) => callback(data));
   },
+  hmrToggle: (enabled) => ipcRenderer.invoke('hmr-toggle', enabled),
+  hmrGetEnabled: () => ipcRenderer.invoke('hmr-get-enabled'),
+  isDev: () => ipcRenderer.invoke('is-dev'),
 
   // ── 应急备份（崩溃兑底）──
   emergencySave: (payload) => ipcRenderer.invoke('emergency-save', payload),
@@ -253,6 +256,8 @@ contextBridge.exposeInMainWorld('api', {
   fmDeleteItem: (relPath) => ipcRenderer.invoke('fm-delete-item', relPath),
   fmRenameItem: (relPath, newName) => ipcRenderer.invoke('fm-rename-item', relPath, newName),
   fmCopyItem: (srcRelPath, destRelDir, destName, isMove) => ipcRenderer.invoke('fm-copy-item', srcRelPath, destRelDir, destName, isMove),
+  fmResolvePath: (relPath) => ipcRenderer.invoke('fm-resolve-path', relPath),
+  fmFindAppByPath: (relPath) => ipcRenderer.invoke('fm-find-app-by-path', relPath),
 
   // ── IDE 真实文件系统（无路径限制）──
   ideSelectFolder: () => ipcRenderer.invoke('ide-select-folder'),
@@ -269,6 +274,12 @@ contextBridge.exposeInMainWorld('api', {
   // ── Git 克隆 ──
   gitCloneAndRead: (repoUrl) => ipcRenderer.invoke('git-clone-and-read', repoUrl),
   gitCloneToDir: (repoUrl, targetDir) => ipcRenderer.invoke('git-clone-to-dir', repoUrl, targetDir),
+
+  // ── 检测系统工具（git / npm）──
+  checkTools: () => ipcRenderer.invoke('check-tools'),
+
+  // ── 检测 .env.example 并创建空 .env ──
+  envCheckAndCreate: (dirPath) => ipcRenderer.invoke('env-check-and-create', dirPath),
   
   // ── 运行命令 ──
   runCommand: (command, cwd) => ipcRenderer.invoke('run-command', command, cwd),

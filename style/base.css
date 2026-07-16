@@ -320,6 +320,58 @@ body.light-mode #appTitleBar.no-rainbow::before {
     color: #fff !important;
 }
 
+/* HMR 开关（开发版标题栏） */
+.hmr-toggle-wrap {
+    -webkit-app-region: no-drag;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 8px;
+    height: 28px;
+}
+.hmr-toggle-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    user-select: none;
+}
+.hmr-switch {
+    position: relative;
+    display: inline-block;
+    width: 28px;
+    height: 14px;
+}
+.hmr-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.hmr-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.15);
+    border-radius: 7px;
+    transition: 0.2s;
+}
+.hmr-slider::before {
+    content: "";
+    position: absolute;
+    height: 10px;
+    width: 10px;
+    left: 2px;
+    bottom: 2px;
+    background: #888;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+.hmr-switch input:checked + .hmr-slider {
+    background: rgba(76, 175, 80, 0.5);
+}
+.hmr-switch input:checked + .hmr-slider::before {
+    transform: translateX(14px);
+    background: #4CAF50;
+}
+
 /* 标题栏右键菜单 */
 .titlebar-context-menu {
     position: fixed;

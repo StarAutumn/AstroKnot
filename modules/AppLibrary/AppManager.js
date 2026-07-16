@@ -277,6 +277,18 @@ export class AppManager {
         }
       }
 
+      // 9.5 检测 .env.example 并创建 .env
+      if (syncResult.success && syncResult.diskPath && window.api?.envCheckAndCreate) {
+        try {
+          const envResult = await window.api.envCheckAndCreate(syncResult.diskPath);
+          if (envResult.created) {
+            log('ok', envResult.source === 'empty'
+              ? '已创建空 .env 文件（请按需填写环境变量）'
+              : `已从 ${envResult.source} 创建 .env 文件`);
+          }
+        } catch (e) { /* 忽略 .env 创建失败 */ }
+      }
+
       // 10. 检测项目图标文件
       let appIcon = '📦';
       if (syncResult.success && syncResult.diskPath) {
@@ -423,6 +435,18 @@ export class AppManager {
         } catch (npmErr) {
           log('warn', `安装依赖异常: ${npmErr.message}`);
         }
+      }
+
+      // 6.5 检测 .env.example 并创建 .env
+      if (window.api?.envCheckAndCreate) {
+        try {
+          const envResult = await window.api.envCheckAndCreate(syncResult.diskPath);
+          if (envResult.created) {
+            log('ok', envResult.source === 'empty'
+              ? '已创建空 .env 文件（请按需填写环境变量）'
+              : `已从 ${envResult.source} 创建 .env 文件`);
+          }
+        } catch (e) { /* 忽略 */ }
       }
 
       // 7. 更新记录 + 检测图标

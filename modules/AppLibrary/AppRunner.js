@@ -575,11 +575,16 @@ export class AppRunner {
     const modal = document.createElement('div');
     modal.className = 'rich-modal app-runner-modal';
     modal.style.display = 'none';
+    // 图标：图片路径用 <img>，否则按 emoji/文本渲染
+    const iconStr = app.icon || '📦';
+    const iconHtml = _isImagePath(iconStr)
+      ? `<img class="caption-icon-img" src="${iconStr}" alt="${app.name || '应用'}" draggable="false">`
+      : `<span class="caption-icon">${iconStr}</span>`;
     modal.innerHTML = `
       <div class="rich-modal-content app-runner-content">
         <div class="rich-modal-header">
           <div style="display:flex; align-items:center; gap:8px; flex:1;">
-            <span class="caption-icon">${app.icon || '📦'}</span>
+            ${iconHtml}
             <h2 class="app-runner-title">${app.name || '应用'}</h2>
           </div>
           <div class="caption-btns">
@@ -941,4 +946,13 @@ async function _syncIdeToNode(nodeId, sandboxPath) {
   } catch (e) {
     console.error('[AppRunner] 同步 sandbox 到节点失败:', e);
   }
+}
+
+/** 检测是否为图片路径（相对路径 / http(s) URL / file URL / data URI） */
+function _isImagePath(icon) {
+  if (!icon || typeof icon !== 'string') return false;
+  return /\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(icon) ||
+         /^https?:\/\//i.test(icon) ||
+         /^file:\/\//i.test(icon) ||
+         /^data:image\//i.test(icon);
 }

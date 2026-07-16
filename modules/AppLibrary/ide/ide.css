@@ -1195,6 +1195,29 @@
     border-bottom: 1px solid #1a3a4a;
     flex-shrink: 0;
 }
+.github-tool-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #1a3a4a;
+    flex-shrink: 0;
+}
+.github-tool-warning {
+    flex: 1;
+    font-size: 11px;
+    line-height: 1.8;
+}
+.github-tool-warning a {
+    color: #5ab4dc;
+    text-decoration: underline;
+}
+.github-tool-warning .tool-ok {
+    color: #6fdc8c;
+}
+.github-tool-warning .tool-miss {
+    color: #ff8866;
+}
 .github-close-btn {
     background: none;
     border: none;
@@ -1204,6 +1227,27 @@
     padding: 2px 6px;
     border-radius: 3px;
     transition: all 0.15s;
+}
+.github-tool-btn {
+    flex-shrink: 0;
+    background: #0a151d;
+    border: 1px solid #1a3a4a;
+    color: #8ab4dc;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    margin-top: 1px;
+}
+.github-tool-btn:hover:not(:disabled) {
+    border-color: #3a6a8a;
+    color: #aef0ff;
+}
+.github-tool-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 .github-close-btn:hover {
     background: #1a3a4a;

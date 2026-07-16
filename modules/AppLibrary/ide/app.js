@@ -211,6 +211,10 @@ export class IdeApp {
                   <span>📦 GitHub 导入</span>
                   <button class="github-close-btn" title="关闭">✕</button>
                 </div>
+                <div class="github-tool-row">
+                  <button id="githubToolBtn" class="github-tool-btn" title="检测 Git 和 Node.js 是否可用">🔍 检测环境</button>
+                  <div id="githubToolWarning" class="github-tool-warning" style="display:none;"></div>
+                </div>
                 <div class="github-input-row">
                   <input type="text" id="githubUrlInput" placeholder="owner/repo 或 GitHub URL" autocomplete="off" />
                   <button id="githubParseBtn" class="github-mini-btn">解析</button>
@@ -282,7 +286,7 @@ export class IdeApp {
                       <button id="sandboxRefreshPreviewBtn" class="sandbox-toolbar-btn" style="padding:2px 8px;font-size:11px;">↻ 刷新</button>
                     </div>
                     <div class="sandbox-preview-viewport">
-                      <iframe id="htmlSandboxPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups" style="width:100%;height:100%;border:none;background:#fff;"></iframe>
+                      <iframe id="htmlSandboxPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups" style="width:100%;height:100%;border:none;background:#0d1b23;"></iframe>
                     </div>
                   </div>
                 </div>

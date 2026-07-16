@@ -1234,7 +1234,7 @@ export function renderSandboxContent(container, nodeId) {
   if (!html) return;
 
   const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'width:100%; height:100%; border:none; background:#fff;';
+  iframe.style.cssText = 'width:100%; height:100%; border:none; background:#0d1b23;';
   iframe.srcdoc = html;
 
   container.innerHTML = '';

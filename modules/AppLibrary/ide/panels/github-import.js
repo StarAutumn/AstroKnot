@@ -31,6 +31,46 @@ export class SandboxGithubImport {
     this._abortController = null;
     this._logLines = [];
     this._rafPending = false;
+    this._tools = { git: true, npm: true }; // 默认假定可用
+  }
+
+  /** 检测系统工具（git / npm）并显示结果 */
+  async _checkTools() {
+    const warnEl = document.getElementById('githubToolWarning');
+    const toolBtn = document.getElementById('githubToolBtn');
+    if (!window.api?.checkTools) {
+      if (warnEl) {
+        warnEl.innerHTML = '⚠️ 当前环境不支持检测';
+        warnEl.style.display = 'block';
+      }
+      return;
+    }
+    if (toolBtn) { toolBtn.disabled = true; toolBtn.textContent = '🔍 检测中...'; }
+    try {
+      const tools = await window.api.checkTools();
+      this._tools = tools;
+      if (!warnEl) return;
+      // git 行
+      let gitLine;
+      if (tools.git) {
+        gitLine = '<div class="tool-ok">✅ Git ' + (tools.gitVersion || '') + '</div>';
+      } else {
+        gitLine = '<div class="tool-miss">❌ 未检测到 Git — 导入必需 · <a href="https://git-scm.com/downloads" target="_blank">下载 Git</a></div>';
+      }
+      // node.js 行
+      let npmLine;
+      if (tools.npm) {
+        npmLine = '<div class="tool-ok">✅ Node.js ' + (tools.npmVersion || '') + '</div>';
+      } else {
+        npmLine = '<div class="tool-miss">❌ 未检测到 Node.js — npm install 需要 · <a href="https://nodejs.org/" target="_blank">下载 Node.js</a></div>';
+      }
+      warnEl.innerHTML = gitLine + npmLine;
+      warnEl.style.display = 'block';
+    } catch (e) {
+      if (warnEl) { warnEl.innerHTML = '⚠️ 检测失败：' + e.message; warnEl.style.display = 'block'; }
+    } finally {
+      if (toolBtn) { toolBtn.disabled = false; toolBtn.textContent = '🔍 检测环境'; }
+    }
   }
 
   /** 初始化模块 */
@@ -48,6 +88,11 @@ export class SandboxGithubImport {
     this._cacheDom();
     this._bindEvents();
     this._renderState();
+    // 检测按钮事件
+    const toolBtn = document.getElementById('githubToolBtn');
+    if (toolBtn) {
+      toolBtn.addEventListener('click', () => this._checkTools());
+    }
   }
 
   /** 销毁模块 */
@@ -169,6 +214,19 @@ export class SandboxGithubImport {
   async _onImport() {
     const vfs = this._ctx.vfs;
     if (!vfs && !this._ctx.isRealFS) return;
+
+    // git 不可用时直接拦截
+    if (this._tools && !this._tools.git) {
+      this._setState('error');
+      const errEl = document.getElementById('githubErrorCard');
+      if (errEl) {
+        errEl.style.display = 'block';
+        errEl.innerHTML = '<div class="github-error-title">❌ 未检测到 Git</div>' +
+          '<div class="github-error-desc">GitHub 导入需要安装 Git。请前往 ' +
+          '<a href="https://git-scm.com/downloads" target="_blank">git-scm.com/downloads</a> 下载安装后重试。</div>';
+      }
+      return;
+    }
 
     const { owner, repo, ref, subPath } = this._parsedRepo;
     const branch = ref || this._repoMeta.defaultBranch;
@@ -430,8 +488,19 @@ export class SandboxGithubImport {
     });
 
     // 跳过安装
-    dialog.querySelector('.npm-skip-btn').addEventListener('click', () => {
+    dialog.querySelector('.npm-skip-btn').addEventListener('click', async () => {
       dialog.remove();
+      // 即使跳过 npm install，也检测 .env
+      if (window.api?.envCheckAndCreate) {
+        try {
+          const envResult = await window.api.envCheckAndCreate(dirPath);
+          if (envResult.created) {
+            this._log('ok', envResult.source === 'empty'
+              ? '已创建空 .env 文件（请按需填写环境变量）'
+              : `已从 ${envResult.source} 创建 .env 文件`);
+          }
+        } catch (e) { /* 忽略 */ }
+      }
       this._setState('done', {});
     });
   }
@@ -457,12 +526,24 @@ export class SandboxGithubImport {
       if (runBuild) {
         this._log('info', '正在构建项目 (npm run build)...');
         const buildResult = await window.api.runCommand('npm run build', dirPath);
-        
+
         if (buildResult.code !== 0) {
           this._log('warn', `构建失败: ${buildResult.stderr || buildResult.stdout}`);
         } else {
           this._log('ok', '项目构建完成');
         }
+      }
+
+      // 检测 .env.example 并创建 .env
+      if (window.api?.envCheckAndCreate) {
+        try {
+          const envResult = await window.api.envCheckAndCreate(dirPath);
+          if (envResult.created) {
+            this._log('ok', envResult.source === 'empty'
+              ? '已创建空 .env 文件（请按需填写环境变量）'
+              : `已从 ${envResult.source} 创建 .env 文件`);
+          }
+        } catch (e) { /* 忽略 */ }
       }
 
       // 刷新文件树（真实 FS 模式需要重新加载磁盘）

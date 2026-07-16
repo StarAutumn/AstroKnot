@@ -384,6 +384,14 @@
   color: #5ee8ff;
 }
 
+/* ── system 目录调暗 ── */
+.fm-item-dimmed {
+  opacity: 0.5;
+}
+.fm-tree-item-dimmed {
+  opacity: 0.5;
+}
+
 /* ── 加载/空状态/错误 ── */
 .fm-loading,
 .fm-empty,

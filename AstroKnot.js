@@ -324,6 +324,24 @@ document.getElementById('modeToggleBtn').addEventListener('click', toggle2DView)
   });
   tbMax?.addEventListener('click', () => api.winMaximize());
 
+  // HMR 开关（仅开发版显示）
+  if (api.isDev && api.hmrToggle && api.hmrGetEnabled) {
+    api.isDev().then((isDev) => {
+      if (!isDev) return;
+      const hmrWrap = document.getElementById('hmrToggle');
+      const hmrCheckbox = document.getElementById('hmrCheckbox');
+      if (!hmrWrap || !hmrCheckbox) return;
+      hmrWrap.style.display = 'flex';
+      // 同步当前状态
+      api.hmrGetEnabled().then((enabled) => {
+        hmrCheckbox.checked = !!enabled;
+      });
+      hmrCheckbox.addEventListener('change', () => {
+        api.hmrToggle(hmrCheckbox.checked);
+      });
+    });
+  }
+
   // 监听最大化状态变化，切换按钮图标
   window.addEventListener('maximize-change', (e) => {
     window.__isMaximized = !!e.detail;
