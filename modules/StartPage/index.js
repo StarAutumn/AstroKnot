@@ -78,6 +78,13 @@ export function showStartPage(withSlideDown = false) {
     bindStartPageEvents();
 }
 
+// 监听磁盘项目列表加载完成事件，刷新开始首页
+window.addEventListener('astroknot-projects-loaded', () => {
+    if (isStartPageVisible) {
+        renderRecentProjects();
+    }
+});
+
 export function hideStartPage() {
     const startPage = document.getElementById('startPage');
     if (!startPage) return;
@@ -199,6 +206,28 @@ function bindStartPageEvents() {
 }
 
 function openProject(projectId) {
+    const proj = appState.projects.find(p => p.id === projectId);
+    if (!proj) return;
+    
+    // 如果项目数据未加载（从磁盘扫描的轻量条目），先从磁盘加载
+    if (!proj.data) {
+        // 通过 IPC 从磁盘读取项目数据
+        window.api?.loadProjectFromFolder?.(proj.folderPath).then(result => {
+            if (result && result.success) {
+                import('../module9_FileIO.js').then(({ applyLoadedData }) => {
+                    applyLoadedData(result.data, proj.name, proj.folderPath);
+                    hideStartPage();
+                    renderProjectList();
+                });
+            } else {
+                showToast('加载项目失败: ' + (result?.error || '未知错误'));
+            }
+        }).catch(err => {
+            showToast('加载项目失败: ' + err.message);
+        });
+        return;
+    }
+    
     hideStartPage();
     loadProject(projectId);
     renderProjectList();

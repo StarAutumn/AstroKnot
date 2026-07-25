@@ -7,8 +7,9 @@ import { updateNodeVisuals, addSingleTreeLine } from './VisualComponents/index.j
 import { showPrompt, showConfirm } from './module4_Confirm.js';
 import { showLineTooltip, hideLineTooltip } from './MoveMode/LineTooltip.js';
 import { clearSelected, setSelectedNode, getPrimarySelectedId, updateSelectionUI, deleteSelectedNodes, toggleChildren, startAddConnectionMode, startRemoveConnectionMode, cancelConnectionMode, showToast } from './module5_SelectAndEdit.js';
-import { withHistory } from './module3_History.js';
+import { withHistory, history } from './module3_History.js';
 import { activateSplitScreen } from './richEditor/content-io/index.js';
+import { removeCardOverlay, removeWebpageOverlay } from './2DView/interaction/index.js';
 
 let contextMenuEventsBound = false;
 
@@ -220,6 +221,19 @@ export function showContextMenu(x, y, nodeId) {
   if (convertRootRow) convertRootRow.style.display = isRoot ? 'none' : 'flex';
   const convertChildRow = document.getElementById('convertChildRow');
   if (convertChildRow) convertChildRow.style.display = isRoot ? 'flex' : 'none';
+
+  // ── 切换"文本显示框"按钮文字 ──
+  const toggleCardBtn = document.getElementById('toggleCardModeBtn');
+  if (toggleCardBtn) {
+    toggleCardBtn.textContent = node.displayMode === 'card' ? '🔁 恢复节点样式' : '📄 显示文本内容';
+  }
+
+  // ── 切换"网页节点"按钮文字 ──
+  const toggleWebpageBtn = document.getElementById('toggleWebpageModeBtn');
+  if (toggleWebpageBtn) {
+    toggleWebpageBtn.textContent = node.displayMode === 'webpage' ? '🔁 恢复节点样式' : '🌐 变为网页节点';
+    toggleWebpageBtn.style.display = (node.displayMode === 'card') ? 'none' : '';
+  }
 
   // ── 模式切换按钮（已移至文本编辑器状态栏）──
   const modeSwitchRow = document.getElementById('modeSwitchRow');
@@ -494,10 +508,10 @@ export function bindContextMenuEvents() {
   }
   if (colorPicker) colorPicker.addEventListener('input', applyContextChanges);
   if (clearColorBtn) {
-    clearColorBtn.addEventListener('click', () => {
+    clearColorBtn.addEventListener('click', withHistory(function () {
       colorPicker.value = '#ffffff';
       applyContextChanges();
-    });
+    }));
   }
   const shapeSelect = document.getElementById('nodeShapeSelect');
   if (shapeSelect) {
@@ -508,9 +522,9 @@ export function bindContextMenuEvents() {
     shape3DSelect.addEventListener('change', applyContextChanges);
   }
   if (resetDefaultsBtn) {
-    resetDefaultsBtn.addEventListener('click', () => {
+    resetDefaultsBtn.addEventListener('click', withHistory(function () {
       if (!appState.contextTargetId) return;
-      
+
       sizeSlider.value = 1;
       document.getElementById('nodeSizeValue').textContent = '1.0';
       speedSlider.value = 1;
@@ -541,12 +555,19 @@ export function bindContextMenuEvents() {
         node.node3DShape = 'sphere';
         updateNodeVisuals(appState.contextTargetId);
       }
-      
+
       saveCurrentProjectData();
       if (appState.refresh2DView) appState.refresh2DView();
       if (appState.refreshTreePanel) appState.refreshTreePanel();
-    });
+    }));
   }
+
+  // 滑块/颜色选择器/形状下拉框：操作开始前记录一次历史
+  // （pointerdown 捕获改前状态，拖动过程中的 input 事件不再重复记录）
+  [sizeSlider, speedSlider, colorPicker, shapeSelect, shape3DSelect].forEach(el => {
+    if (!el) return;
+    el.addEventListener('pointerdown', () => history.record());
+  });
 
   document.addEventListener('click', (e) => {
     // 检查是否点击在其他模态框内，避免误关闭右键菜单
@@ -576,7 +597,7 @@ export function bindContextMenuEvents() {
     }
   });
   
-  document.getElementById('toggleChildrenContextBtn').addEventListener('click', (e) => {
+  document.getElementById('toggleChildrenContextBtn').addEventListener('click', withHistory(function (e) {
     e.stopPropagation();
     e.preventDefault();          // 防止任何默认行为
     const id = appState.contextTargetId;
@@ -590,7 +611,7 @@ export function bindContextMenuEvents() {
       appState.toggle2DCollapse(id);
     }
     toggleChildren();
-  });
+  }));
 
   document.getElementById('addConnectionContextBtn').addEventListener('click', (e) => {
     e.stopPropagation();
@@ -618,6 +639,57 @@ export function bindContextMenuEvents() {
     hideContextMenu();
     activateSplitScreen(id);
   });
+
+  // ── 切换“文本显示框”模式 ──
+  const toggleCardBtn = document.getElementById('toggleCardModeBtn');
+  if (toggleCardBtn) {
+    toggleCardBtn.addEventListener('click', withHistory(function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      const id = appState.contextTargetId;
+      if (!id || id === 'multi') return;
+      const node = appState.nodeMap.get(id);
+      if (!node) return;
+      const wasCard = node.displayMode === 'card';
+      node.displayMode = wasCard ? 'default' : 'card';
+      toggleCardBtn.textContent = node.displayMode === 'card' ? '🔁 恢复节点样式' : '📄 显示文本内容';
+      // 切换回默认模式时移除卡片正文 DOM overlay
+      if (node.displayMode === 'default') {
+        removeCardOverlay(id);
+        removeWebpageOverlay(id);
+      }
+      updateNodeVisuals(id);
+      hideContextMenu();
+      saveCurrentProjectData();
+      if (appState.refresh2DView) appState.refresh2DView();
+      if (appState.refreshTreePanel) appState.refreshTreePanel();
+    }));
+  }
+
+  // ── 切换网页节点模式 ──
+  const toggleWebpageBtn = document.getElementById('toggleWebpageModeBtn');
+  if (toggleWebpageBtn) {
+    toggleWebpageBtn.addEventListener('click', withHistory(function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      const id = appState.contextTargetId;
+      if (!id || id === 'multi') return;
+      const node = appState.nodeMap.get(id);
+      if (!node) return;
+      const wasWebpage = node.displayMode === 'webpage';
+      const wasCard = node.displayMode === 'card';
+      node.displayMode = wasWebpage ? 'default' : 'webpage';
+      if (!wasWebpage && !node.webUrl) node.webUrl = '';
+      toggleWebpageBtn.textContent = node.displayMode === 'webpage' ? '🔁 恢复节点样式' : '🌐 变为网页节点';
+      if (wasCard) removeCardOverlay(id);
+      if (wasWebpage) removeWebpageOverlay(id);
+      updateNodeVisuals(id);
+      hideContextMenu();
+      saveCurrentProjectData();
+      if (appState.refresh2DView) appState.refresh2DView();
+      if (appState.refreshTreePanel) appState.refreshTreePanel();
+    }));
+  }
 
   document.getElementById('openHtmlEditorBtn').addEventListener('click', (e) => {
     e.stopPropagation();

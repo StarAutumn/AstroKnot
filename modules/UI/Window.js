@@ -166,12 +166,26 @@ export function bindFullscreenAndTab() {
 
     const projects = appState.projects || [];
 
-    // 若所有项目都没有节点（未变动 / 新建未创建），直接退出，不弹确认框
-    const hasAnyNode = projects.some(p => {
-      const tree = p?.data?.methodsTree;
-      return tree && Array.isArray(tree.children) && tree.children.length > 0;
+    // 检查是否有未保存的修改：
+    // 1. 新建未保存的项目（没有 folderPath）且有节点
+    // 2. 已保存的项目但有新的操作（undoStack 长度 > 保存时记录的长度）
+    const hasUnsavedChanges = projects.some(p => {
+      // 新建未保存的项目，有节点就需要确认
+      if (!p.folderPath) {
+        const tree = p?.data?.methodsTree;
+        return tree && Array.isArray(tree.children) && tree.children.length > 0;
+      }
+      // 已保存的项目：检查是否有新的操作
+      // 只有当前项目才有历史记录，非当前项目无法判断是否有修改
+      if (p.id === appState.currentProjectId && appState.history) {
+        const savedLength = p._savedUndoLength || 0;
+        const currentLength = appState.history.undoStack.length;
+        return currentLength > savedLength;
+      }
+      return false;
     });
-    if (!hasAnyNode) {
+
+    if (!hasUnsavedChanges) {
       if (window.api?.closeApp) window.api.closeApp();
       return;
     }

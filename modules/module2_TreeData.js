@@ -221,6 +221,33 @@ export function loadProject(projectId) {
 
   let proj = appState.projects.find(p => p.id === projectId);
   if (!proj) return;
+
+  // 延迟加载：如果项目数据未加载（从磁盘扫描的轻量条目），先从磁盘加载
+  if (!proj.data) {
+    if (proj.folderPath && window.api?.loadProjectFromFolder) {
+      window.api.loadProjectFromFolder(proj.folderPath).then(result => {
+        if (result && result.success) {
+          import('./module9_FileIO.js').then(({ applyLoadedData }) => {
+            applyLoadedData(result.data, proj.name, proj.folderPath);
+            renderProjectList();
+          });
+        } else {
+          showToast('加载项目失败: ' + (result?.error || '未知错误'));
+        }
+      }).catch(err => {
+        showToast('加载项目失败: ' + err.message);
+      });
+      return;  // 异步加载，等待完成
+    }
+    // 没有数据且无法加载，清空
+    appState.methodsTree = null;
+    appState.crossEdges = [];
+    appState.rebuildNodeMapFromTree();
+    appState.positions.clear();
+    appState.positions2D.clear();
+    return;
+  }
+
   let data = proj.data;
 
   // 恢复数据
@@ -327,6 +354,9 @@ export function loadProject(projectId) {
 
   // 清空历史记录，防止撤销到旧项目状态
   appState.history.clear();
+  // 初始化保存时的历史记录长度为 0（刚加载的项目被视为"干净"状态）
+  proj._savedUndoLength = 0;
+
   renderProjectList();           // 刷新项目列表 UI
   appState.updateSelectionUI();  // 更新选中显示
   appState.hideContextMenu();    // 关闭右键菜单
@@ -1172,6 +1202,33 @@ export function initProjects() {
   
   // 返回是否有项目加载
   return appState.projects.length > 0;
+}
+
+/**
+ * Electron 环境下从磁盘加载项目列表（仅元数据，不加载完整数据）
+ * 供启动时填充最近项目列表使用
+ */
+export async function loadProjectListFromDisk() {
+  if (!window.__ELECTRON__ || !window.api?.listProjects) return;
+  try {
+    const res = await window.api.listProjects();
+    if (!res || !res.list || res.list.length === 0) return;
+    // 只添加不在 appState.projects 中的项目（按 folderPath 去重）
+    const existingPaths = new Set(appState.projects.filter(p => p.folderPath).map(p => p.folderPath));
+    for (const item of res.list) {
+      if (existingPaths.has(item.folderPath)) continue;
+      appState.projects.push({
+        id: 'disk_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        name: item.name,
+        folderPath: item.folderPath,
+        data: null,  // 延迟加载：点击打开时才从磁盘读取完整数据
+        _savedUndoLength: 0  // 磁盘上的项目视为"干净"状态
+      });
+    }
+    renderProjectList();
+  } catch (e) {
+    console.warn('[项目列表] 从磁盘加载失败:', e);
+  }
 }
 
 /**

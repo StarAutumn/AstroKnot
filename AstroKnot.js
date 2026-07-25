@@ -18,7 +18,7 @@ import { appState } from './modules/module0_AppState.js';
 import { createIrregularGlowTexture } from './modules/module1_Textures.js';
 
 // ---------- 模块2：数据结构&项目管理 ----------
-import { initProjects } from './modules/module2_TreeData.js';
+import { initProjects, loadProjectListFromDisk } from './modules/module2_TreeData.js';
 // ---------- 模块3：历史记录 ----------
 import './modules/module3_History.js';
 import { applyHistoryState } from './modules/module3_History.js';
@@ -115,6 +115,14 @@ initMoveMode();
 
 // 初始化项目并决定是否显示开始首页
 const hasProjects = initProjects();
+
+// Electron 环境：从磁盘加载项目列表（填充最近项目，异步不阻塞）
+loadProjectListFromDisk().then(() => {
+  // 如果磁盘上有项目但内存中没有（首次启动），刷新开始首页
+  if (!hasProjects && appState.projects.length > 0) {
+    window.dispatchEvent(new CustomEvent('astroknot-projects-loaded'));
+  }
+}).catch(() => {});
 
 // ---------- 应急备份初始化 ----------
 initEmergencyBackup();

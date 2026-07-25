@@ -14,18 +14,18 @@ export {
   isNextStepNode
 } from './Layout.js';
 
-export { draw } from './Render.js';
+export { draw } from './render/index.js';
 
 export {
   focusOnNode2D, startMultiNodeMove,
   groupNodes, autoArrangeTreeLayout, computeAutoArrangeTargets,
   zoom2D, reset2DView,
   process2DPanning, get2DKeys, set2DKey
-} from './Interaction.js';
+} from './interaction/index.js';
 
 export {
   groupRects,
   BASE_NODE_WIDTH, BASE_NODE_HEIGHT, H_GAP, V_GAP,
   POLYLINE_PEG_X, POLYLINE_PEG_Y,
-  getNodeAnchors
+  getNodeAnchors, getNodeLayoutSize
 } from './shared.js';

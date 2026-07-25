@@ -8,6 +8,7 @@
 
 import { appState } from '../../module0_AppState.js';
 import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { withHistory } from '../../module3_History.js';
 
 /**
  * 取当前场景中选中的节点 ID 作为父节点（若有），否则返回 null（创建根节点）
@@ -531,7 +532,7 @@ function _convertPageToMarkdown() {
 /**
  * 将解析出的树导入到当前场景
  */
-async function _importTreeToScene(tree, nodeRichContents) {
+const _importTreeToScene = withHistory(async function (tree, nodeRichContents) {
   try {
     if (!appState) return;
     if (!appState.methodsTree) {
@@ -603,7 +604,7 @@ async function _importTreeToScene(tree, nodeRichContents) {
   } catch (e) {
     console.error('[browser-node-clip] 导入树失败:', e);
   }
-}
+});
 
 function _countTreeNodes(tree) {
   var c = 0;

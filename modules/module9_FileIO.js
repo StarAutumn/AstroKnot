@@ -191,6 +191,8 @@ export function applyLoadedData(data, folderName, folderPath) {
 
   // 12. 清空历史记录（避免撤销到加载前的状态）
   appState.history.clear();
+  // 初始化保存时的历史记录长度为 0（刚加载的项目被视为"干净"状态）
+  project._savedUndoLength = 0;
 }
 
 /**
@@ -313,9 +315,17 @@ export async function saveNetworkToFile() {
       // 注意：currentProjectSavePath（保存根目录）只能由用户在设置面板中修改，此处不回填
       if (result.path) {
         const proj = appState.projects.find(p => p.id === appState.currentProjectId);
-        if (proj) proj.folderPath = result.path;
+        if (proj) {
+          proj.folderPath = result.path;
+          // 记录保存时的历史记录长度，用于关闭时判断是否有未保存的修改
+          if (appState.history) {
+            proj._savedUndoLength = appState.history.undoStack.length;
+          }
+        }
       }
       showToast(`项目已保存到: ${result.path}`);
+      // 派发保存事件，供版本图模块监听以自动产生版本站点
+      window.dispatchEvent(new CustomEvent('astroknot-project-saved'));
     } else {
       showToast('保存失败: ' + (result.error || '未知错误'));
     }
@@ -401,6 +411,11 @@ export async function saveAllProjects() {
         // 记录项目实际保存的文件夹路径，供版本图定位 .versiongraph 目录
         if (result.path) {
           proj.folderPath = result.path;
+        }
+        // 记录保存时的历史记录长度，用于关闭时判断是否有未保存的修改
+        // 只有当前项目才更新（因为历史记录只属于当前项目）
+        if (proj.id === appState.currentProjectId && appState.history) {
+          proj._savedUndoLength = appState.history.undoStack.length;
         }
       } else {
         failedCount++;

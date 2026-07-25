@@ -71,6 +71,7 @@ export function initScene() {
   appState.labelRenderer.domElement.style.top = '0px';
   appState.labelRenderer.domElement.style.left = '0px';
   appState.labelRenderer.domElement.style.pointerEvents = 'none';
+  appState.labelRenderer.domElement.style.zIndex = '40';  // 与3D卡片overlay容器同级，使子元素z-index可跨容器比较
   appState.labelRenderer.domElement.classList.add('three-scene-canvas');
   document.body.appendChild(appState.labelRenderer.domElement);
 

@@ -95,6 +95,46 @@ function createWindow() {
 // ── HMR 开关（开发模式）──
 let _hmrEnabled = true;  // HMR 开关（可通过标题栏滑动按钮控制）
 
+/**
+ * 获取 HMR 配置文件路径
+ */
+function getHMRConfigPath() {
+  const systemDir = dataSettings.getSystemDir();
+  if (!systemDir) return null;
+  return path.join(systemDir, 'hmr-config.json');
+}
+
+/**
+ * 从磁盘加载 HMR 开关状态
+ */
+function loadHMREnabled() {
+  const configPath = getHMRConfigPath();
+  if (!configPath || !fs.existsSync(configPath)) return true;  // 默认开启
+  try {
+    const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    return data.enabled !== false;  // 仅当明确设置为 false 时才关闭
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * 保存 HMR 开关状态到磁盘
+ */
+function saveHMREnabled(enabled) {
+  const configPath = getHMRConfigPath();
+  if (!configPath) return;
+  try {
+    const systemDir = dataSettings.getSystemDir();
+    if (!fs.existsSync(systemDir)) {
+      fs.mkdirSync(systemDir, { recursive: true });
+    }
+    fs.writeFileSync(configPath, JSON.stringify({ enabled }, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[HMR] 保存配置失败:', e.message);
+  }
+}
+
 // ── IPC：窗口控制 ──
 function bindWindowIPC() {
   ipcMain.on('win-minimize', (event) => {
@@ -121,6 +161,7 @@ function bindWindowIPC() {
   // HMR 开关（仅开发版）
   ipcMain.handle('hmr-toggle', (event, enabled) => {
     _hmrEnabled = !!enabled;
+    saveHMREnabled(_hmrEnabled);  // 持久化状态
     console.log(`[HMR] 热更新已${_hmrEnabled ? '开启' : '关闭'}`);
     return _hmrEnabled;
   });
@@ -131,6 +172,10 @@ function bindWindowIPC() {
 // ── 热更新：文件监听（仅开发模式） ──
 function startHMR() {
   if (app.isPackaged) return;  // 打包后不监听
+
+  // 加载持久化的 HMR 开关状态
+  _hmrEnabled = loadHMREnabled();
+  console.log(`[HMR] 启动时状态: ${_hmrEnabled ? '开启' : '关闭'}`);
 
   const rootDir = __dirname;
   const watchDirs = ['modules', 'style'];
@@ -1232,6 +1277,37 @@ function bindFileIPC() {
     }
   });
 
+  // ── 列出保存目录中的所有项目（启动时加载最近项目列表）──
+  ipcMain.handle('list-projects', async () => {
+    try {
+      const savePath = dataSettings.getProjectsDir();
+      if (!savePath || !fs.existsSync(savePath)) return { list: [] };
+
+      const list = [];
+      const entries = fs.readdirSync(savePath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const projectJsonPath = path.join(savePath, entry.name, 'project.json');
+        if (!fs.existsSync(projectJsonPath)) continue;
+        try {
+          const data = JSON.parse(fs.readFileSync(projectJsonPath, 'utf-8'));
+          const stat = fs.statSync(projectJsonPath);
+          list.push({
+            name: data.projectName || entry.name,
+            folderPath: path.join(savePath, entry.name),
+            savedAt: stat.mtimeMs
+          });
+        } catch (_) {}
+      }
+      // 按修改时间倒序
+      list.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+      return { list };
+    } catch (err) {
+      console.error('[list-projects] 错误:', err);
+      return { list: [] };
+    }
+  });
+
   // ── 从文件夹加载项目 ──
   ipcMain.handle('load-project', async () => {
     try {
@@ -1272,6 +1348,28 @@ function bindFileIPC() {
       };
     } catch (err) {
       console.error('[load-project] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── 从指定文件夹路径加载项目（无需弹窗选择，供最近项目打开使用）──
+  ipcMain.handle('load-project-from-folder', async (event, folderPath) => {
+    try {
+      if (!folderPath || !fs.existsSync(folderPath)) {
+        return { success: false, error: '文件夹不存在' };
+      }
+      const readResult = _readProjectData(folderPath);
+      if (!readResult.success) {
+        return { success: false, error: readResult.error };
+      }
+      return {
+        success: true,
+        data: readResult.data,
+        folderName: readResult.folderName,
+        folderPath: readResult.folderPath
+      };
+    } catch (err) {
+      console.error('[load-project-from-folder] 错误:', err);
       return { success: false, error: err.message };
     }
   });
@@ -2386,7 +2484,31 @@ function bindFileIPC() {
           }
         }
 
-        // 元数据索引（不含大体积的 content/overlay/drawData）
+        // 写入 mode.json（保存 activeMode，仅当代码模式时）
+        const modePath = path.join(noteDir, 'mode.json');
+        if (note.activeMode === 'code') {
+          fs.writeFileSync(modePath, JSON.stringify({ activeMode: 'code' }), 'utf-8');
+        } else {
+          if (fs.existsSync(modePath)) fs.unlinkSync(modePath);
+        }
+
+        // 写入 filesystem.json（沙盒文件系统，仅当存在时）
+        const fsPath = path.join(noteDir, 'filesystem.json');
+        if (note.fileSystem) {
+          fs.writeFileSync(fsPath, JSON.stringify(note.fileSystem), 'utf-8');
+        } else {
+          if (fs.existsSync(fsPath)) fs.unlinkSync(fsPath);
+        }
+
+        // 写入 sandbox_history.json（沙盒历史快照，仅当存在时）
+        const histPath = path.join(noteDir, 'sandbox_history.json');
+        if (note.sandboxHistory) {
+          fs.writeFileSync(histPath, JSON.stringify(note.sandboxHistory), 'utf-8');
+        } else {
+          if (fs.existsSync(histPath)) fs.unlinkSync(histPath);
+        }
+
+        // 元数据索引（不含大体积的 content/overlay/drawData/filesystem）
         metadata.push({ id: note.id, title: note.title || '' });
       }
 
@@ -2447,6 +2569,31 @@ function bindFileIPC() {
             note.overlayImages = [];
           }
 
+          // 读取 mode.json（activeMode）
+          const modePath = path.join(noteDir, 'mode.json');
+          if (fs.existsSync(modePath)) {
+            try {
+              const mode = JSON.parse(fs.readFileSync(modePath, 'utf-8'));
+              note.activeMode = mode.activeMode || 'text';
+            } catch { note.activeMode = 'text'; }
+          } else {
+            note.activeMode = 'text';
+          }
+
+          // 读取 filesystem.json（沙盒文件系统）
+          const fsPath = path.join(noteDir, 'filesystem.json');
+          if (fs.existsSync(fsPath)) {
+            try { note.fileSystem = JSON.parse(fs.readFileSync(fsPath, 'utf-8')); }
+            catch { note.fileSystem = null; }
+          }
+
+          // 读取 sandbox_history.json（沙盒历史快照）
+          const histPath = path.join(noteDir, 'sandbox_history.json');
+          if (fs.existsSync(histPath)) {
+            try { note.sandboxHistory = JSON.parse(fs.readFileSync(histPath, 'utf-8')); }
+            catch { note.sandboxHistory = null; }
+          }
+
           notes.push(note);
         } catch (noteErr) {
           console.error('[load-quick-notes] 单条笔记加载失败:', entry.id, noteErr);
@@ -2457,6 +2604,122 @@ function bindFileIPC() {
     } catch (err) {
       console.error('[load-quick-notes] 错误:', err);
       return { success: false, error: err.message };
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════
+  //  日记 IPC — 存储在 AstroKnot-Data/diaries/YYYY-MM/YYYY-MM-DD.html
+  // ════════════════════════════════════════════════════════════
+
+  /** 校验日期字符串格式 YYYY-MM-DD，返回 boolean */
+  function _isValidDiaryDate(dateStr) {
+    return typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+  }
+
+  /** 根据 dateStr 计算日记文件绝对路径（diariesDir/YYYY-MM/YYYY-MM-DD.html） */
+  function _getDiaryFilePath(dateStr) {
+    const diariesDir = dataSettings.getDiariesDir();
+    const yearMonth = dateStr.substring(0, 7); // YYYY-MM
+    const monthDir = path.join(diariesDir, yearMonth);
+    return path.join(monthDir, dateStr + '.html');
+  }
+
+  /** 读取日记索引（diaries/diary-index.json） */
+  function _readDiaryIndex() {
+    const diariesDir = dataSettings.getDiariesDir();
+    const indexPath = path.join(diariesDir, 'diary-index.json');
+    if (!fs.existsSync(indexPath)) return [];
+    try {
+      const data = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+      return Array.isArray(data) ? data : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /** 写入日记索引 */
+  function _writeDiaryIndex(index) {
+    const diariesDir = dataSettings.getDiariesDir();
+    fs.mkdirSync(diariesDir, { recursive: true });
+    const indexPath = path.join(diariesDir, 'diary-index.json');
+    fs.writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf-8');
+  }
+
+  // 读取日记内容
+  ipcMain.handle('diary-read', async (event, dateStr) => {
+    try {
+      if (!_isValidDiaryDate(dateStr)) return { success: false, error: 'Invalid date format' };
+      const filePath = _getDiaryFilePath(dateStr);
+      if (!fs.existsSync(filePath)) return { success: true, content: '', exists: false };
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, content, exists: true };
+    } catch (err) {
+      console.error('[diary-read] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 保存日记内容
+  ipcMain.handle('diary-save', async (event, dateStr, content) => {
+    try {
+      if (!_isValidDiaryDate(dateStr)) return { success: false, error: 'Invalid date format' };
+      const filePath = _getDiaryFilePath(dateStr);
+      const monthDir = path.dirname(filePath);
+      fs.mkdirSync(monthDir, { recursive: true });
+      fs.writeFileSync(filePath, content || '', 'utf-8');
+
+      // 更新索引
+      const index = _readDiaryIndex();
+      const entry = index.find(e => e.date === dateStr);
+      const now = new Date().toISOString();
+      // 从内容中提取标题（前 30 个非标记字符）
+      let title = '';
+      try {
+        const text = (content || '').replace(/<[^>]*>/g, '').trim();
+        title = text.substring(0, 30);
+      } catch (_) { title = ''; }
+      if (entry) {
+        entry.title = title;
+        entry.updatedAt = now;
+      } else {
+        index.push({ date: dateStr, title, updatedAt: now, createdAt: now });
+      }
+      _writeDiaryIndex(index);
+
+      return { success: true };
+    } catch (err) {
+      console.error('[diary-save] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 删除日记
+  ipcMain.handle('diary-delete', async (event, dateStr) => {
+    try {
+      if (!_isValidDiaryDate(dateStr)) return { success: false, error: 'Invalid date format' };
+      const filePath = _getDiaryFilePath(dateStr);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+      // 更新索引
+      const index = _readDiaryIndex();
+      const filtered = index.filter(e => e.date !== dateStr);
+      _writeDiaryIndex(filtered);
+
+      return { success: true };
+    } catch (err) {
+      console.error('[diary-delete] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 列出所有日记（索引）
+  ipcMain.handle('diary-list', async () => {
+    try {
+      const index = _readDiaryIndex();
+      return { success: true, diaries: index };
+    } catch (err) {
+      console.error('[diary-list] 错误:', err);
+      return { success: false, error: err.message, diaries: [] };
     }
   });
 
@@ -3350,18 +3613,14 @@ app.whenReady().then(() => {
   // 为浏览器 session 注册 will-download 事件，将下载状态通过 IPC 通知渲染进程
   const browserSession = session.fromPartition('persist:browsersession');
   browserSession.on('will-download', (event, item) => {
-    // 弹出保存对话框让用户选择保存位置
-    const defaultPath = path.join(app.getPath('downloads'), item.getFilename());
-    const savePath = dialog.showSaveDialogSync(mainWindow, {
-      title: '保存文件',
-      defaultPath,
-      filters: [{ name: '所有文件', extensions: ['*'] }],
-    });
-    if (!savePath) {
-      // 用户取消了保存
-      event.preventDefault();
-      return;
+    // 直接保存到配置的下载目录（不弹窗选择）
+    const downloadDir = dataSettings.getDownloadDir();
+    if (downloadDir && !fs.existsSync(downloadDir)) {
+      fs.mkdirSync(downloadDir, { recursive: true });
     }
+    const savePath = downloadDir
+      ? path.join(downloadDir, item.getFilename())
+      : path.join(app.getPath('downloads'), item.getFilename());
     item.setSavePath(savePath);
 
     // 通知渲染进程下载开始
@@ -3398,6 +3657,16 @@ app.whenReady().then(() => {
         total: item.getTotalBytes(),
       });
     });
+  });
+
+  // ── 内置浏览器：下载目录管理 ──
+  ipcMain.handle('browser-get-download-dir', async () => {
+    return dataSettings.getDownloadDir() || '';
+  });
+  ipcMain.handle('browser-set-download-dir', async (_e, dirPath) => {
+    if (!dirPath) return false;
+    dataSettings.setCustomPaths({ downloadDir: dirPath });
+    return true;
   });
 
   // ── 内置浏览器：清除隐私模式数据 ──

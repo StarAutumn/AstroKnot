@@ -30,8 +30,14 @@ contextBridge.exposeInMainWorld('api', {
   // 保存项目到文件夹
   saveProject: (projectData) => ipcRenderer.invoke('save-project', projectData),
   
+  // 列出保存目录中的所有项目（启动时加载最近项目列表）
+  listProjects: () => ipcRenderer.invoke('list-projects'),
+
   // 从文件夹加载项目
   loadProject: () => ipcRenderer.invoke('load-project'),
+
+  // 从指定文件夹路径加载项目（无需弹窗，供最近项目使用）
+  loadProjectFromFolder: (folderPath) => ipcRenderer.invoke('load-project-from-folder', folderPath),
   
   // 选择文件夹
   selectFolder: () => ipcRenderer.invoke('select-folder'),
@@ -190,6 +196,12 @@ contextBridge.exposeInMainWorld('api', {
   saveQuickNotes: (data) => ipcRenderer.invoke('save-quick-notes', data),
   loadQuickNotes: (data) => ipcRenderer.invoke('load-quick-notes', data),
 
+  // ── 日记（按年-月文件系统存储）──
+  readDiary: (dateStr) => ipcRenderer.invoke('diary-read', dateStr),
+  saveDiary: (dateStr, content) => ipcRenderer.invoke('diary-save', dateStr, content),
+  deleteDiary: (dateStr) => ipcRenderer.invoke('diary-delete', dateStr),
+  listDiaries: () => ipcRenderer.invoke('diary-list'),
+
   // ── 版本图（内容寻址存储）──
   versionSaveGraph: (projectId, graph) => ipcRenderer.invoke('version-save-graph', projectId, graph),
   versionLoadGraph: (projectId) => ipcRenderer.invoke('version-load-graph', projectId),
@@ -207,6 +219,9 @@ contextBridge.exposeInMainWorld('api', {
   onBrowserDownloadUpdate: (callback) => {
     ipcRenderer.on('browser-download-update', (_event, data) => callback(data));
   },
+  // 内置浏览器：下载目录管理
+  browserGetDownloadDir: () => ipcRenderer.invoke('browser-get-download-dir'),
+  browserSetDownloadDir: (dirPath) => ipcRenderer.invoke('browser-set-download-dir', dirPath),
   // 内置浏览器：清除隐私模式数据
   browserClearPrivateData: () => ipcRenderer.invoke('browser-clear-private-data'),
   // 内置浏览器：Cookies 管理

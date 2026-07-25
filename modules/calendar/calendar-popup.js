@@ -24,6 +24,8 @@ import { openAddTabForm, hideAddTabForm } from './add-tab-form.js';
 import { openShiftForm, editShiftForm } from './shift-form.js';
 import { getShiftSchedules, getDayShifts, removeShiftSchedule, loadActiveShiftId, saveActiveShiftId } from './shift-store.js';
 import { getNotificationHistory, clearNotificationHistory, removeNotificationItem } from './notification-store.js';
+import { loadDiaryIndex, hasDiary, fmtDiaryDate } from './diary-store.js';
+import { openDiaryMenu, hideDiaryMenu } from './diary-context-menu.js';
 
 const { monthNames, weekHeaders, weekDayNames, weekColOrder } = state;
 
@@ -125,6 +127,11 @@ function renderMonthView() {
       dots.forEach(function (d) { html += '<div style="width:4px;height:4px;border-radius:50%;' + d + '"></div>'; });
       html += '</div>';
     }
+
+    // 日记标记：右上角小书页图标
+    if (hasDiary(dateStr)) {
+      html += '<div style="position:absolute;top:1px;right:2px;font-size:9px;line-height:1;color:#ffb86c;" title="有日记">📔</div>';
+    }
     html += '</div>';
   }
   html += '</div>';
@@ -170,6 +177,7 @@ function renderMonthView() {
   html += '<div style="display:flex;gap:14px;font-size:11px;color:#6a9;flex-wrap:wrap;">';
   html += '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#5ee8ff;vertical-align:middle;margin-right:4px;"></span>\u65E5\u7A0B</span>';
   html += '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#c9a8ff;vertical-align:middle;margin-right:4px;"></span>\u8BFE\u7A0B</span>';
+  html += '<span><span style="font-size:10px;vertical-align:middle;margin-right:4px;color:#ffb86c;">\uD83D\uDCD4</span>\u65E5\u8BB0</span>';
   if (state.activeShiftId) {
     html += '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ffb86c;vertical-align:middle;margin-right:4px;"></span>\u73ED\u8868</span>';
   }
@@ -822,6 +830,19 @@ function bindPopupEvents() {
 
   // 右键时段格 → 弹出菜单
   calPopup.addEventListener('contextmenu', function (e) {
+    // 右键日期格（月视图）→ 弹出日记菜单
+    const dayCell = e.target.closest('.cal-day');
+    if (dayCell && state.calView === 'month') {
+      e.preventDefault();
+      e.stopPropagation();
+      const day = parseInt(dayCell.dataset.day, 10);
+      const date = new Date(state.calViewDate.getFullYear(), state.calViewDate.getMonth(), day);
+      // 先关闭其他菜单
+      if (state.slotMenu && state.slotMenu.style.display === 'block') hideSlotMenu();
+      openDiaryMenu(e.clientX, e.clientY, date);
+      return;
+    }
+
     // 右键排班选项 → 弹出编辑/删除菜单
     const shiftItem = e.target.closest('.shift-schedule-item');
     if (shiftItem && state.shiftDropdownVisible) {
@@ -874,6 +895,7 @@ function bindPopupEvents() {
       if (state.slotTimeOverlay && state.slotTimeOverlay.style.display === 'flex') { hideSlotTimeForm(); return; }
       if (state.firstWeekOverlay && state.firstWeekOverlay.style.display === 'flex') { hideFirstWeekForm(); return; }
       if (state.slotMenu && state.slotMenu.style.display === 'block') { hideSlotMenu(); return; }
+      hideDiaryMenu();
       if (state.eventFormOverlay && state.eventFormOverlay.style.display === 'flex') { hideEventForm(); return; }
       if (state.annFormOverlay && state.annFormOverlay.style.display === 'flex') { hideAnniversaryForm(); return; }
       if (state.calVisible) hideCalendar();
@@ -884,6 +906,11 @@ function bindPopupEvents() {
   window.addEventListener('resize', function () {
     if (state.calVisible) positionCalendar();
   });
+
+  // 注册日记保存后的日历刷新回调
+  window._refreshCalendarAfterDiary = function () {
+    if (state.calVisible) refreshPopup();
+  };
 }
 
 // 时钟 tick
@@ -958,6 +985,11 @@ function openShiftItemMenu(x, y, scheduleId) {
 }
 
 export function initCalendarPopup() {
+  // 加载日记索引（异步，不阻塞日历初始化）
+  loadDiaryIndex().catch(function (err) {
+    console.warn('[calendar] 日记索引加载失败:', err);
+  });
+
   // 创建日历弹窗
   const calPopup = document.createElement('div');
   calPopup.id = 'clockCalendarPopup';

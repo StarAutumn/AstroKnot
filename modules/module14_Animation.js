@@ -5,13 +5,31 @@
 import * as THREE from 'three';
 import { appState } from './module0_AppState.js';
 import { processMovement } from './UI/Keyboard.js';
-import { _bumpRenderFrame, rebuildAllLines } from './VisualComponents/index.js';
+import { _bumpRenderFrame, rebuildAllLines, updateCardBillboards } from './VisualComponents/index.js';
 import { getVersionDecay } from './versionGraph/versionAtmosphere.js';
 import { saveCurrentProjectData } from './module2_TreeData.js';
 import { redraw2DView, mark2DDirty } from './2DView/Core.js';
 
 let tm = 0;
 let _frameSkipCounter = 0;  // HSL 节流用：每 2 帧更新一次非选中节点 HSL 颜色
+
+// ── 帧率控制：锁 90fps，用户空闲 30s 后降至 50fps ──
+const _TARGET_INTERVAL = 1000 / 90;   // 90fps ≈ 11.11ms
+const _IDLE_INTERVAL = 1000 / 50;     // 50fps = 20ms
+const _IDLE_THRESHOLD = 30000;        // 30s 无操作进入空闲
+let _last3DFrameTime = 0;
+let _interactionListenersInited = false;
+
+function _initInteractionListeners() {
+  if (_interactionListenersInited) return;
+  _interactionListenersInited = true;
+  appState.lastInteractionTime = performance.now();
+  const _update = () => { appState.lastInteractionTime = performance.now(); };
+  // 被动监听用户交互，仅更新时间戳（极低开销）
+  for (const evt of ['mousedown', 'mousemove', 'keydown', 'wheel', 'touchstart']) {
+    window.addEventListener(evt, _update, { passive: true });
+  }
+}
 
 // 极简模式颜色常量（避免每帧每节点 new THREE.Color() 造成 GC 压力）
 const _SIMPLE_COL_SEL = new THREE.Color(0xFFD700);
@@ -37,33 +55,75 @@ const _tmpToNode = new THREE.Vector3();
 const _tmpColor = new THREE.Color();
 const _tmpRingColor = new THREE.Color();
 
-// label 视锥裁剪：opacity=0 后延迟 display:none，避免 DOM 仍占布局/渲染开销
-// _labelHideTimers 记录每个节点的延迟隐藏定时器，避免重复调度
+// ── 按距离排序标签 z-index：距离近的 z-index 高，避免远处标签遮挡近处元素 ──
+// Sprite 标签参与深度缓冲，此函数仅用于 DOM 标签（已弃用），保留空实现
+function _updateLabelZIndices() {}
+
+// label 视锥裁剪：Sprite 标签直接设置 visible
 const _labelHideTimers = new Map();
 function _setLabelVisible(obj, shouldShow, borderColor) {
-  const el = obj.label && obj.label.element;
-  if (!el) return;
-  if (shouldShow) {
-    // 取消可能挂起的隐藏定时器
-    const t = _labelHideTimers.get(obj);
-    if (t) { clearTimeout(t); _labelHideTimers.delete(obj); }
-    if (el.style.display === 'none') el.style.display = '';  // 恢复布局
-    obj.label.visible = true;
-    el.style.opacity = '1';
-    if (borderColor !== undefined) el.style.borderColor = borderColor;
-  } else {
-    el.style.opacity = '0';
-    // 延迟 120ms 后 display:none，避免频繁切换 + 给淡出动画时间
-    if (!_labelHideTimers.has(obj)) {
-      const timer = setTimeout(() => {
-        _labelHideTimers.delete(obj);
-        if (obj.label && obj.label.element && obj.label.element.style.opacity === '0') {
-          obj.label.element.style.display = 'none';
-        }
-      }, 120);
-      _labelHideTimers.set(obj, timer);
+  if (!obj.label) return;
+  obj.label.visible = shouldShow;
+  // 选中状态改变标签颜色（重绘 Sprite 纹理）
+  if (shouldShow && borderColor !== undefined && obj.label.material) {
+    const node = appState.nodeMap.get(obj.label.userData._labelNodeId);
+    if (node) {
+      _redrawLabelSprite(obj.label, node.name, borderColor);
     }
   }
+}
+
+// 重绘标签 Sprite 纹理（更新边框颜色）
+function _redrawLabelSprite(sprite, text, borderColor) {
+  const fontSize = 28;
+  const padX = 20;
+  const padY = 8;
+  const bgH = fontSize + padY * 2;
+
+  const tmpCanvas = document.createElement('canvas');
+  const tmpCtx = tmpCanvas.getContext('2d');
+  tmpCtx.font = `${fontSize}px system-ui, sans-serif`;
+  const textWidth = tmpCtx.measureText(text).width;
+  const bgW = Math.max(textWidth + padX * 2, bgH * 2.2);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(bgW);
+  canvas.height = Math.ceil(bgH);
+  const ctx = canvas.getContext('2d');
+
+  const r = bgH / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(bgW - r, 0);
+  ctx.arcTo(bgW, 0, bgW, r, r);
+  ctx.lineTo(bgW, bgH - r);
+  ctx.arcTo(bgW, bgH, bgW - r, bgH, r);
+  ctx.lineTo(r, bgH);
+  ctx.arcTo(0, bgH, 0, bgH - r, r);
+  ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = borderColor || 'rgba(68,68,68,1)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `${fontSize}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, bgW / 2, bgH / 2);
+
+  if (sprite.material.map) sprite.material.map.dispose();
+  sprite.material.map = new THREE.CanvasTexture(canvas);
+  sprite.material.needsUpdate = true;
+
+  // 更新 Sprite 宽高比
+  const aspect = bgW / bgH;
+  const scale = 0.02;
+  sprite.scale.set(scale * aspect, scale, 1);
 }
 
 // 自定义天空球引用缓存（避免每帧 scene.children.find 遍历）
@@ -77,6 +137,18 @@ const _meteorDir = new THREE.Vector3();
 const _meteorDelta = new THREE.Vector3();
 export function animate() {
   requestAnimationFrame(animate);
+  // 帧率控制：锁 90fps，空闲 30s 后降至 30fps
+  _initInteractionListeners();
+  const _now = performance.now();
+  const _idle = (_now - (appState.lastInteractionTime || _now)) > _IDLE_THRESHOLD;
+  const _interval = _idle ? _IDLE_INTERVAL : _TARGET_INTERVAL;
+  const _elapsed = _now - _last3DFrameTime;
+  if (_last3DFrameTime > 0 && _elapsed < _interval) return;
+  // 真实 delta time（秒）：动画速度与帧率解耦，144Hz/60Hz 下速度一致
+  // 首帧用默认 0.016；后续用真实间隔，clamp 到 0.05 避免卡顿后大跳变
+  const _frameDt = _last3DFrameTime > 0 ? Math.min(0.05, _elapsed / 1000) : 0.016;
+  _last3DFrameTime = _now;
+
   if (document.hidden) return;                        // 页面隐藏时跳过渲染，减少 GPU 压力
   _frameSkipCounter = (_frameSkipCounter + 1) & 0x1;  // 0/1 交替
   _bumpRenderFrame();  // 粒子分帧交错用，每帧递增
@@ -88,7 +160,7 @@ export function animate() {
     // 用平方让衰减更陡峭：早期站点速度下降更快
     const _vDecay = getVersionDecay();
     const _speedFactor = 0.005 + _vDecay * _vDecay * 0.995;
-    tm += 0.016 * _speedFactor;
+    tm += _frameDt * _speedFactor;
     appState.tm = tm;
 
     // ========== 连线颜色更新 ==========
@@ -166,21 +238,37 @@ export function animate() {
             obj.mesh.material.emissive.setHex(0x3366DD);
             obj.mesh.material.emissiveIntensity = 1.0 + Math.sin(tm * 6) * 0.5;
           } else if (_frameSkipCounter === 0) {  // HSL 节流：每 2 帧更新一次
-            let hash = 0;
-            for (let i = 0; i < id.length; i++) {
-              hash = ((hash << 5) - hash) + id.charCodeAt(i);
-              hash |= 0;
+            // 复用 obj._colorParams 缓存（与主循环共用）
+            if (!obj._colorParams) {
+              let hash = 0;
+              for (let i = 0; i < id.length; i++) {
+                hash = ((hash << 5) - hash) + id.charCodeAt(i);
+                hash |= 0;
+              }
+              const seed = (hash % 1000 + 1000) % 1000 / 1000;
+              const ringSeed = (seed * 17) % 1;
+              obj._colorParams = {
+                seed,
+                hSpeed: 0.05 + seed * 0.1,
+                sSpeed: 0.04 + seed * 0.06,
+                lSpeed: 0.03 + seed * 0.05,
+                hPhase: seed * Math.PI * 2,
+                sPhase: (seed * 3.7) % 1 * Math.PI * 2,
+                lPhase: (seed * 7.3) % 1 * Math.PI * 2,
+                ringSeed,
+                ringHSpeed: 0.06 + ringSeed * 0.08,
+                ringSSpeed: 0.05 + ringSeed * 0.05,
+                ringLSpeed: 0.04 + ringSeed * 0.04,
+                ringHPhase: ringSeed * Math.PI * 2,
+                ringSPhase: (ringSeed * 5.3) % 1 * Math.PI * 2,
+                ringLPhase: (ringSeed * 11.7) % 1 * Math.PI * 2,
+                ringPhaseOffset: ringSeed * 20,
+              };
             }
-            const seed = (hash % 1000 + 1000) % 1000 / 1000;
-            const hSpeed = 0.05 + seed * 0.1;
-            const sSpeed = 0.04 + seed * 0.06;
-            const lSpeed = 0.03 + seed * 0.05;
-            const hPhase = seed * Math.PI * 2;
-            const sPhase = (seed * 3.7) % 1 * Math.PI * 2;
-            const lPhase = (seed * 7.3) % 1 * Math.PI * 2;
-            const hue = (tm * hSpeed + hPhase) % 1;
-            const saturation = 0.5 + 0.5 * (Math.sin(tm * sSpeed + sPhase) * 0.5 + 0.5);
-            const lightness = 0.3 + 0.3 * (Math.sin(tm * lSpeed + lPhase) * 0.5 + 0.3);
+            const p = obj._colorParams;
+            const hue = (tm * p.hSpeed + p.hPhase) % 1;
+            const saturation = 0.5 + 0.5 * (Math.sin(tm * p.sSpeed + p.sPhase) * 0.5 + 0.5);
+            const lightness = 0.3 + 0.3 * (Math.sin(tm * p.lSpeed + p.lPhase) * 0.5 + 0.3);
             _tmpColor.setHSL(hue, saturation, lightness);
             obj.mesh.material.color.copy(_tmpColor);
             obj.mesh.material.emissive.copy(_tmpColor);
@@ -201,6 +289,8 @@ export function animate() {
 
     // ========== 渲染 ==========
     try {
+      updateCardBillboards(tm);
+      _updateLabelZIndices();
       appState.controls.update();
       appState.effectComposer.render();
       appState.labelRenderer.render(appState.scene, appState.camera);
@@ -217,12 +307,12 @@ export function animate() {
   // 用平方让衰减更陡峭：早期站点速度下降更快
   const _vDecay = getVersionDecay();
   const _speedFactor = 0.005 + _vDecay * _vDecay * 0.995;
-  tm += 0.016 * _speedFactor;
+  tm += _frameDt * _speedFactor;
   appState.tm = tm;
 
   // ========== 过渡动画更新（极简 → 华丽） ==========
   if (appState.transitionActive) {
-    const dt = 0.016;
+    const dt = _frameDt;
     const speed = dt / appState.transitionDuration;
     const oldProgress = appState.transitionProgress;
     const dir = appState.transitionTarget - oldProgress;
@@ -447,6 +537,16 @@ export function animate() {
     const isConnected = !isSel && (appState.connectedNodeIds ? appState.connectedNodeIds.has(id) : false);
     const isConnectedStep = !isSel && !isConnected && (appState.connectedStepNodeIds ? appState.connectedStepNodeIds.has(id) : false);
 
+    // 视锥裁剪：计算节点到相机的向量（复用于 LOD 和 label），屏外节点跳过全部计算
+    _tmpToNode.subVectors(obj.mesh.position, appState.camera.position);
+    const _camDist = _tmpToNode.length();
+    const _dotCam = _tmpToNode.dot(_camForward);
+    if (_dotCam < 0 || _camDist > 80) {
+      // 节点在相机背后或超远 → 隐藏 label 并跳过（回视野时下帧自动恢复）
+      if (obj.label) _setLabelVisible(obj, false);
+      continue;
+    }
+
 if (!appState.simple3D) {
       const factor = node ? (node.ringSpeedFactor ?? 1) : 1;
       const ringSpeed = appState.ringRotationSpeed ?? 1;
@@ -454,9 +554,9 @@ if (!appState.simple3D) {
       const _ringDecay = getVersionDecay();
       const _ringFactor = 0.005 + _ringDecay * _ringDecay * 0.995;
       if (obj.ring) {
-        obj.ring.rotation.x += 0.016 * obj.ringSpeed.rx * factor * ringSpeed * _ringFactor;
-        obj.ring.rotation.y += 0.016 * obj.ringSpeed.ry * factor * ringSpeed * _ringFactor;
-        obj.ring.rotation.z += 0.016 * obj.ringSpeed.rz * factor * ringSpeed * _ringFactor;
+        obj.ring.rotation.x += _frameDt * obj.ringSpeed.rx * factor * ringSpeed * _ringFactor;
+        obj.ring.rotation.y += _frameDt * obj.ringSpeed.ry * factor * ringSpeed * _ringFactor;
+        obj.ring.rotation.z += _frameDt * obj.ringSpeed.rz * factor * ringSpeed * _ringFactor;
         if (obj.glowRing) {
           obj.glowRing.rotation.copy(obj.ring.rotation);
         }
@@ -515,11 +615,9 @@ if (!appState.simple3D) {
         obj.mesh.material.emissive.copy(col);
         obj.mesh.material.emissiveIntensity = 0.6;
       }
-      if (obj.label && obj.label.element) {
-        const nodePos = obj.mesh.position;
-        _tmpToNode.subVectors(nodePos, appState.camera.position);
-        const camDist2 = _tmpToNode.length();
-        const shouldShow = camDist2 < 35 && _tmpToNode.dot(_camForward) > 0;
+      if (obj.label && obj.label.isSprite) {
+        // 复用顶部计算的 _camDist/_dotCam，避免重复 Vector3 运算
+        const shouldShow = _camDist < 35 && _dotCam > 0;
         const border = isSel ? '#FFD700' : isConnectedStep ? '#AA44FF' : isConnected ? '#4488FF' : '#aaddff';
         _setLabelVisible(obj, shouldShow, border);
       }
@@ -567,21 +665,37 @@ if (!appState.simple3D) {
           if (obj.glowRing) obj.glowRing.material.color.setHex(0x4488FF);
           if (obj.surfaceGlowSphere) obj.surfaceGlowSphere.material.color.setHex(0x4488FF);
         } else if (_frameSkipCounter === 0) {  // HSL 节流：每 2 帧更新一次
-          let hash = 0;
-          for (let i = 0; i < id.length; i++) {
-            hash = ((hash << 5) - hash) + id.charCodeAt(i);
-            hash |= 0;
+          // HSL 参数仅依赖 id，缓存到 obj._colorParams 避免每 2 帧重复字符串哈希
+          if (!obj._colorParams) {
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) {
+              hash = ((hash << 5) - hash) + id.charCodeAt(i);
+              hash |= 0;
+            }
+            const seed = (hash % 1000 + 1000) % 1000 / 1000;
+            const ringSeed = (seed * 17) % 1;
+            obj._colorParams = {
+              seed,
+              hSpeed: 0.05 + seed * 0.1,
+              sSpeed: 0.04 + seed * 0.06,
+              lSpeed: 0.03 + seed * 0.05,
+              hPhase: seed * Math.PI * 2,
+              sPhase: (seed * 3.7) % 1 * Math.PI * 2,
+              lPhase: (seed * 7.3) % 1 * Math.PI * 2,
+              ringSeed,
+              ringHSpeed: 0.06 + ringSeed * 0.08,
+              ringSSpeed: 0.05 + ringSeed * 0.05,
+              ringLSpeed: 0.04 + ringSeed * 0.04,
+              ringHPhase: ringSeed * Math.PI * 2,
+              ringSPhase: (ringSeed * 5.3) % 1 * Math.PI * 2,
+              ringLPhase: (ringSeed * 11.7) % 1 * Math.PI * 2,
+              ringPhaseOffset: ringSeed * 20,
+            };
           }
-          const seed = (hash % 1000 + 1000) % 1000 / 1000;
-          const hSpeed = 0.05 + seed * 0.1;
-          const sSpeed = 0.04 + seed * 0.06;
-          const lSpeed = 0.03 + seed * 0.05;
-          const hPhase = seed * Math.PI * 2;
-          const sPhase = (seed * 3.7) % 1 * Math.PI * 2;
-          const lPhase = (seed * 7.3) % 1 * Math.PI * 2;
-          const hue = (tm * hSpeed + hPhase) % 1;
-          const saturation = 0.5 + 0.5 * (Math.sin(tm * sSpeed + sPhase) * 0.5 + 0.5);
-          const lightness = 0.3 + 0.3 * (Math.sin(tm * lSpeed + lPhase) * 0.5 + 0.3);
+          const p = obj._colorParams;
+          const hue = (tm * p.hSpeed + p.hPhase) % 1;
+          const saturation = 0.5 + 0.5 * (Math.sin(tm * p.sSpeed + p.sPhase) * 0.5 + 0.5);
+          const lightness = 0.3 + 0.3 * (Math.sin(tm * p.lSpeed + p.lPhase) * 0.5 + 0.3);
           _tmpColor.setHSL(hue, saturation, lightness);
           obj.mesh.material.color.copy(_tmpColor);
           obj.mesh.material.emissive.copy(_tmpColor);
@@ -590,29 +704,21 @@ if (!appState.simple3D) {
           if (obj.surfaceGlowSphere) obj.surfaceGlowSphere.material.color.copy(_tmpColor);
 
           if (obj.ring) {
-            const ringSeed = (seed * 17) % 1;
-            const ringHSpeed = 0.06 + ringSeed * 0.08;
-            const ringSSpeed = 0.05 + ringSeed * 0.05;
-            const ringLSpeed = 0.04 + ringSeed * 0.04;
-            const ringHPhase = ringSeed * Math.PI * 2;
-            const ringSPhase = (ringSeed * 5.3) % 1 * Math.PI * 2;
-            const ringLPhase = (ringSeed * 11.7) % 1 * Math.PI * 2;
-            const ringHue = (tm * ringHSpeed + ringHPhase) % 1;
-            const ringSat = 0.5 + 0.5 * (Math.sin(tm * ringSSpeed + ringSPhase) * 0.5 + 0.5);
-            const ringLight = 0.2 + 0.4 * (Math.sin(tm * ringLSpeed + ringLPhase) * 0.5 + 0.5);
+            const ringHue = (tm * p.ringHSpeed + p.ringHPhase) % 1;
+            const ringSat = 0.5 + 0.5 * (Math.sin(tm * p.ringSSpeed + p.ringSPhase) * 0.5 + 0.5);
+            const ringLight = 0.2 + 0.4 * (Math.sin(tm * p.ringLSpeed + p.ringLPhase) * 0.5 + 0.5);
             _tmpRingColor.setHSL(ringHue, ringSat, ringLight);
             obj.ring.material.color.copy(_tmpRingColor);
             obj.ring.material.emissive.copy(_tmpRingColor);
-            obj.ring.material.emissiveIntensity = 1.2 + Math.sin(tm * 0.6 + ringSeed * 20) * 0.4;
+            obj.ring.material.emissiveIntensity = 1.2 + Math.sin(tm * 0.6 + p.ringPhaseOffset) * 0.4;
             if (obj.glowRing) obj.glowRing.material.color.copy(_tmpRingColor);
           }
         }
       }
 
       // 🎯 远距离节点 LOD：基于相机距离分级显示子对象，减少 draw call
-      // camDist 在下方 label 部分也会用到，提前计算复用
-      _tmpToNode.subVectors(obj.mesh.position, appState.camera.position);
-      const camDist = _tmpToNode.length();
+      // 复用顶部计算的 _camDist，避免重复 Vector3 运算
+      const camDist = _camDist;
       // LOD 阈值：<25 完整效果；25-50 简化（隐藏 glow/glowRing）；>50 仅主球+ring
       const showFullEffects = camDist < 25;
       const showReducedEffects = camDist < 50;
@@ -639,13 +745,9 @@ if (!appState.simple3D) {
     }
 
     // 🏷️ 相机视锥 LOD：距离超 35 或在相机后方时渐隐标签
-    // camDist 已在上方 LOD 计算时求出，复用 _tmpToNode
+    // 复用顶部计算的 _camDist/_dotCam，避免重复 Vector3 运算
     if (obj.label) {
-      // _tmpToNode 在上方 LOD 分支已计算（华丽模式）；极简模式分支独立计算 camDist2
-      // 为保证两分支都能用，这里统一重新计算（一次 Vector3 运算开销可忽略）
-      _tmpToNode.subVectors(obj.mesh.position, appState.camera.position);
-      const camDistLabel = _tmpToNode.length();
-      const shouldShow = camDistLabel < 35 && _tmpToNode.dot(_camForward) > 0;
+      const shouldShow = _camDist < 35 && _dotCam > 0;
       const border = isSel ? "#FFD700" : isConnectedStep ? "#AA44FF" : isConnected ? "#4488FF" : `hsl(${(tm * 0.08 * 360 + (id.charCodeAt(0) || 0) * 20) % 360},80%,65%)`;
       _setLabelVisible(obj, shouldShow, border);
     }
@@ -696,7 +798,7 @@ if (!appState.simple3D) {
 
   // ========== 相机动画 ==========
   if (appState.cameraAnimActive && appState.cameraAnimTarget) {
-    const dt = 0.016;
+    const dt = _frameDt;
     const speed = dt / appState.cameraAnimDuration;
     appState.cameraAnimProgress = Math.min(1, appState.cameraAnimProgress + speed);
     const t = appState.cameraAnimProgress;
@@ -721,7 +823,7 @@ if (!appState.simple3D) {
 
   // ========== 3D 排列动画 ==========
   if (appState.arrangeAnimActive) {
-    const dt = 0.016;
+    const dt = _frameDt;
 
     if (appState.arrangeAnimPhase === 'fadeOut') {
       const speed = dt / appState.arrangeAnimFadeOutDuration;
@@ -889,7 +991,7 @@ if (!appState.simple3D) {
 
   // ========== 2D 排列动画 ==========
   if (appState.arrangeAnim2DActive) {
-    const dt2D = 0.016;
+    const dt2D = _frameDt;
 
     if (appState.arrangeAnim2DPhase === 'fadeOut') {
       const speed = dt2D / appState.arrangeAnim2DFadeOutDuration;
@@ -1005,13 +1107,13 @@ if (!appState.simple3D) {
         }
         return;
       }
-      meteor.life += 0.016;
+      meteor.life += _frameDt;
       if (meteor.life >= meteor.maxLife) {
         meteor.active = false;
         meteor.group.visible = false;
         return;
       }
-      const dt = 0.016;
+      const dt = _frameDt;
       _meteorDelta.copy(meteor.velocity).multiplyScalar(dt);
       meteor.position.add(_meteorDelta);
       meteor.group.position.copy(meteor.position);
@@ -1073,6 +1175,8 @@ if (!appState.simple3D) {
 
   // ========== 渲染 ==========
   try {
+    updateCardBillboards(tm);
+    _updateLabelZIndices();  // 按距离排序标签 z-index，避免远处标签遮挡近处元素
     appState.controls.update();
     appState.effectComposer.render();
     appState.labelRenderer.render(appState.scene, appState.camera);

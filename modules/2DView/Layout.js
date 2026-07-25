@@ -5,8 +5,8 @@
 
 import { appState } from '../module0_AppState.js';
 import {
-  BASE_NODE_WIDTH, BASE_NODE_HEIGHT, H_GAP, V_GAP,
-  POLYLINE_PEG_X, POLYLINE_PEG_Y, getNodeWidth
+  H_GAP, V_GAP,
+  POLYLINE_PEG_X, POLYLINE_PEG_Y, getNodeLayoutSize
 } from './shared.js';
 
 // -------- 判断是否为步骤节点（仅通过 isStepFlow 属性判断，与节点命名完全独立） --------
@@ -18,8 +18,7 @@ export function isNextStepNode(node) {
 function layoutTraditionalTree(node) {
   const children = node.children || [];
   const scale = node.sizeScale || 1;
-  const nodeWidth = getNodeWidth(node, scale);
-  const nodeHeight = BASE_NODE_HEIGHT * scale;
+  const { width: nodeWidth, height: nodeHeight } = getNodeLayoutSize(node, scale);
 
   const layout = {
     node,
@@ -96,8 +95,7 @@ function layoutTraditionalTree(node) {
 function layoutStepTree(node) {
   const children = node.children || [];
   const scale = node.sizeScale || 1;
-  const nodeWidth = getNodeWidth(node, scale);
-  const nodeHeight = BASE_NODE_HEIGHT * scale;
+  const { width: nodeWidth, height: nodeHeight } = getNodeLayoutSize(node, scale);
 
   const layout = {
     node,
@@ -173,8 +171,7 @@ function layoutStepTree(node) {
 // -------- 分配传统坐标 --------
 function assignTraditionalCoordinates(layout, x, y) {
   const scale = layout.node.sizeScale || 1;
-  const nodeWidth = getNodeWidth(layout.node, scale);
-  const nodeHeight = BASE_NODE_HEIGHT * scale;
+  const { width: nodeWidth, height: nodeHeight } = getNodeLayoutSize(layout.node, scale);
   const offset = layout.offset || 0;
   const parentYOffset = layout.parentYOffset || 0;
   layout.x = x + offset;
@@ -227,8 +224,7 @@ function assignTraditionalCoordinates(layout, x, y) {
 // -------- 分配步骤流坐标 --------
 function assignStepCoordinates(layout, x, y) {
   const scale = layout.node.sizeScale || 1;
-  const nodeWidth = getNodeWidth(layout.node, scale);
-  const nodeHeight = BASE_NODE_HEIGHT * scale;
+  const { width: nodeWidth, height: nodeHeight } = getNodeLayoutSize(layout.node, scale);
   const offset = layout.offset || 0;
   const parentYOffset = layout.parentYOffset || 0;
   layout.x = x + offset;
@@ -350,15 +346,13 @@ export function resolveNodeOverlaps(positionMap, existingIds) {
       let nodeA = appState.nodeMap.get(idA);
       if (!nodeA) continue;
       let scaleA = nodeA.sizeScale || 1;
-      let wA = getNodeWidth(nodeA, scaleA);
-      let hA = BASE_NODE_HEIGHT * scaleA;
+      let { width: wA, height: hA } = getNodeLayoutSize(nodeA, scaleA);
       for (let j = i + 1; j < entries.length; j++) {
         let idB = entries[j][0], posB = entries[j][1];
         let nodeB = appState.nodeMap.get(idB);
         if (!nodeB) continue;
         let scaleB = nodeB.sizeScale || 1;
-        let wB = getNodeWidth(nodeB, scaleB);
-        let hB = BASE_NODE_HEIGHT * scaleB;
+        let { width: wB, height: hB } = getNodeLayoutSize(nodeB, scaleB);
         let overlapX = Math.max(0, Math.min(posA.x + wA, posB.x + wB) - Math.max(posA.x, posB.x));
         let overlapY = Math.max(0, Math.min(posA.y + hA, posB.y + hB) - Math.max(posA.y, posB.y));
         if (overlapX > 0 && overlapY > 0) {
@@ -468,7 +462,7 @@ export function resolveNodeLineOverlaps(positionMap, layout, existingIds) {
       let node = appState.nodeMap.get(id);
       if (!node) continue;
       let sc = node.sizeScale || 1;
-      let w = BASE_NODE_WIDTH * sc, h = BASE_NODE_HEIGHT * sc;
+      let { width: w, height: h } = getNodeLayoutSize(node, sc);
       for (let li = 0; li < lines.length; li++) {
         let ln = lines[li];
         if (ln.parentId === id || ln.childId === id) continue;

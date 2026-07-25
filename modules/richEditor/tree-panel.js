@@ -9,7 +9,7 @@ import {
   isNextStepNode, groupRects,
   BASE_NODE_WIDTH, BASE_NODE_HEIGHT, H_GAP, V_GAP,
   POLYLINE_PEG_X, POLYLINE_PEG_Y,
-  getNodeAnchors
+  getNodeAnchors, getNodeLayoutSize
 } from '../2DView/index.js';
 
 const PAN_SPEED = 6;
@@ -146,6 +146,19 @@ export function initSidebar2DViewForTarget(containerId, canvasId) {
       worldPos.y >= area.y && worldPos.y <= area.y + area.height
     );
     if (hit?.id) {
+      const node = appState.nodeMap.get(hit.id);
+      // 网页节点双击 → 打开内置浏览器加载页面
+      if (node && node.displayMode === 'webpage') {
+        if (window.AppRunner) {
+          let url = node.webUrl || '';
+          // URL智能识别：不含协议前缀时补 https://
+          if (url && !/^https?:\/\//i.test(url) && !url.startsWith('file://') && !url.startsWith('data:')) {
+            url = (url.includes('.') && !url.includes(' ')) ? 'https://' + url : 'https://www.bing.com/search?q=' + encodeURIComponent(url);
+          }
+          window.AppRunner.open({ id: 'webpage-' + hit.id, name: node.name || '网页', type: 'browser', defaultUrl: url || undefined });
+        }
+        return;
+      }
       // 如果双击的是当前正在编辑的节点，弹出提示而非重新打开
       if (hit.id === appState.currentEditNodeId) {
         showToast('该节点已在编辑中');
@@ -192,16 +205,29 @@ export function initSidebar2DViewForTarget(containerId, canvasId) {
   // 启动持续刷新循环，确保树形面板 2D 视图实时同步主视图的颜色变化
   if (!window._sidebarRefreshStarted) {
     window._sidebarRefreshStarted = true;
-    let _frameCount = 0;
+    // 帧率控制：与 3D 主循环一致，锁 90fps，空闲 30s 后降至 50fps
+    const _TARGET_INTERVAL = 1000 / 90;
+    const _IDLE_INTERVAL = 1000 / 50;
+    const _IDLE_THRESHOLD = 30000;
+    let _lastSidebarFrame = 0;
     function sidebarRefreshLoop() {
+      requestAnimationFrame(sidebarRefreshLoop);
+      const _now = performance.now();
+      const _idle = (_now - (appState.lastInteractionTime || _now)) > _IDLE_THRESHOLD;
+      const _interval = _idle ? _IDLE_INTERVAL : _TARGET_INTERVAL;
+      if (_now - _lastSidebarFrame < _interval) return;
+      _lastSidebarFrame = _now;
       try {
         for (const [_, inst] of instances) {
-          if (inst.visible) drawSidebar2D(inst);
+          if (!inst.visible) continue;
+          // 容器零尺寸时跳过绘制（编辑器关闭/面板折叠时 canvas 无可见区域）
+          // 用 offsetWidth/Height 避免强制布局重排
+          if (inst.canvas.offsetWidth === 0 || inst.canvas.offsetHeight === 0) continue;
+          drawSidebar2D(inst);
         }
       } catch (e) {
         // 避免单个绘制错误中断循环
       }
-      requestAnimationFrame(sidebarRefreshLoop);
     }
     requestAnimationFrame(sidebarRefreshLoop);
   }
@@ -236,8 +262,158 @@ function canvasToWorld(canvasX, canvasY, s) {
   };
 }
 
+// ── HTML 转纯文本（用于卡片正文摘要） ──
+function _sidebarHtmlToPlain(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+// ── 绘制卡片节点（树状面板版，只显示标题+摘要，不渲染富文本HTML） ──
+function drawSidebarNodeCard(x, y, node, s, selected, alpha, highlighted, connected, connectedStep, isCurrentlyEditing) {
+  const scale = node.sizeScale || 1;
+  const { width: w, height: h } = getNodeLayoutSize(node, scale);
+  const padding = 4 * scale;
+  const fontSize = Math.max(8, 11 * scale);
+  const titleFontSize = fontSize + 1;
+  const titleAreaH = titleFontSize + 6;
+  const bodyH = Math.max(0, h - padding - titleAreaH - padding);
+
+  let borderColor = '#5a8a9a';
+  if (node.id) {
+    const obj = appState.nodeMeshes.get(node.id);
+    if (obj?.mesh?.material?.color) borderColor = '#' + obj.mesh.material.color.getHexString();
+    else if (node.fixedColor) borderColor = node.fixedColor;
+  }
+
+  // 检测跨图层连接
+  const hasCrossEdges = node.id && appState.crossEdges && appState.crossEdges.some(e => {
+    if (e.source !== node.id && e.target !== node.id) return false;
+    const srcLayer = appState.getLayerForNode ? appState.getLayerForNode(e.source) : null;
+    const tgtLayer = appState.getLayerForNode ? appState.getLayerForNode(e.target) : null;
+    return !srcLayer || !tgtLayer || srcLayer.id !== tgtLayer.id;
+  });
+
+  const ctx = s.ctx;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+
+  // 跨图层呼吸外圈
+  if (hasCrossEdges && !highlighted) {
+    const breath = Math.sin(performance.now() * 0.003) * 0.5 + 0.8;
+    const gap = 3 + breath * 4;
+    const outerAlpha = 0.6 + breath * 0.4;
+    ctx.save();
+    ctx.globalAlpha = alpha * outerAlpha;
+    ctx.strokeStyle = isCurrentlyEditing ? '#00cc66' : borderColor;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = isCurrentlyEditing ? '#00cc66' : borderColor;
+    ctx.shadowBlur = 4 + breath * 6;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-gap, -gap, w + gap * 2, h + gap * 2, (6 + gap) * scale);
+    else ctx.rect(-gap, -gap, w + gap * 2, h + gap * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 卡片背景（状态颜色与普通节点一致）
+  if (isCurrentlyEditing) {
+    const pulse = 0.6 + 0.4 * Math.sin(performance.now() * 0.003);
+    ctx.shadowColor = '#00cc66';
+    ctx.shadowBlur = 10 + pulse * 6;
+    ctx.fillStyle = '#0a3a1a';
+    ctx.strokeStyle = '#00cc66';
+    ctx.lineWidth = 2.5;
+  } else if (selected) {
+    ctx.fillStyle = '#3a3520';
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 2.5;
+  } else if (highlighted) {
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = '#0a2a3a';
+    ctx.strokeStyle = '#00ffff';
+    ctx.lineWidth = 2.5;
+  } else if (connectedStep) {
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
+    ctx.shadowColor = '#AA44FF';
+    ctx.shadowBlur = 14 + pulse * 8;
+    ctx.fillStyle = '#2a1a3a';
+    ctx.strokeStyle = '#AA44FF';
+    ctx.lineWidth = 2.5;
+  } else if (connected) {
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 14 + pulse * 8;
+    ctx.fillStyle = '#2a4a5a';
+    ctx.strokeStyle = '#00ffff';
+    ctx.lineWidth = 2.5;
+  } else {
+    ctx.fillStyle = '#0d1820';
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1.5;
+  }
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(0, 0, w, h, 6 * scale);
+  else ctx.rect(0, 0, w, h);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+
+  // 标题
+  ctx.fillStyle = isCurrentlyEditing ? '#00ff88' : selected ? '#FFD700' : highlighted ? '#00ffff' : connectedStep ? '#CCAAFF' : connected ? '#00ffff' : '#0ff';
+  ctx.font = `bold ${titleFontSize}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const titleMaxChars = Math.max(5, Math.floor((w - padding * 2) / (titleFontSize * 0.6)));
+  const titleText = (node.name || '').slice(0, titleMaxChars);
+  ctx.fillText('📄 ' + titleText, padding, padding);
+
+  // 分隔线
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding + titleFontSize + 2);
+  ctx.lineTo(w - padding, padding + titleFontSize + 2);
+  ctx.stroke();
+
+  // 正文摘要（纯文本多行，不渲染 HTML）
+  if (bodyH > 0) {
+    const plainText = _sidebarHtmlToPlain(node.richContent || node.desc || '');
+    if (plainText) {
+      ctx.fillStyle = '#9bb';
+      ctx.font = `${fontSize}px system-ui, sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      const charPerLine = Math.max(1, Math.floor((w - padding * 2) / (fontSize * 0.55)));
+      const lineHeight = fontSize * 1.3;
+      const maxLines = Math.max(1, Math.floor(bodyH / lineHeight));
+      let remaining = plainText;
+      for (let i = 0; i < maxLines && remaining.length > 0; i++) {
+        const line = remaining.slice(0, charPerLine);
+        remaining = remaining.slice(charPerLine);
+        ctx.fillText(line, padding, padding + titleAreaH + i * lineHeight);
+      }
+      if (remaining.length > 0) {
+        // 最后一行加省略号
+        const lastY = padding + titleAreaH + (maxLines - 1) * lineHeight;
+        ctx.fillText('…', padding + charPerLine * fontSize * 0.55, lastY);
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
 // ── 绘制基础元素 ──
 function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted = false, connected = false, connectedStep = false, isCurrentlyEditing = false) {
+  // 卡片/网页模式走独立绘制路径（与主 2D 视图一致）
+  if (node.displayMode === 'card' || node.displayMode === 'webpage') {
+    return drawSidebarNodeCard(x, y, node, s, selected, alpha, highlighted, connected, connectedStep, isCurrentlyEditing);
+  }
   const scale = node.sizeScale || 1;
   const w = BASE_NODE_WIDTH * scale;
   const h = BASE_NODE_HEIGHT * scale;
@@ -694,24 +870,29 @@ function drawSidebarCrossEdges(positionMap, s, layerNodeIds = null) {
     if (!sourcePos || !targetPos) continue;
     const sourceScale = appState.nodeMap.get(edge.source)?.sizeScale || 1;
     const targetScale = appState.nodeMap.get(edge.target)?.sizeScale || 1;
+    // 卡片模式使用卡片尺寸，普通节点使用基础尺寸
+    const srcNode = appState.nodeMap.get(edge.source);
+    const tgtNode = appState.nodeMap.get(edge.target);
+    const srcSize = getNodeLayoutSize(srcNode, sourceScale);
+    const tgtSize = getNodeLayoutSize(tgtNode, targetScale);
     // 锚点支持
     let x1, y1, x2, y2;
     if (edge.sourceAnchor) {
-      const srcAnchors = getNodeAnchors(sourcePos.x, sourcePos.y, sourceScale * BASE_NODE_WIDTH, sourceScale * BASE_NODE_HEIGHT);
+      const srcAnchors = getNodeAnchors(sourcePos.x, sourcePos.y, srcSize.width, srcSize.height);
       const sa = srcAnchors[edge.sourceAnchor];
-      x1 = sa ? sa.x : sourcePos.x + sourceScale * BASE_NODE_WIDTH / 2;
-      y1 = sa ? sa.y : sourcePos.y + sourceScale * BASE_NODE_HEIGHT;
+      x1 = sa ? sa.x : sourcePos.x + srcSize.width / 2;
+      y1 = sa ? sa.y : sourcePos.y + srcSize.height;
     } else {
-      x1 = sourcePos.x + sourceScale * BASE_NODE_WIDTH / 2;
-      y1 = sourcePos.y + sourceScale * BASE_NODE_HEIGHT;
+      x1 = sourcePos.x + srcSize.width / 2;
+      y1 = sourcePos.y + srcSize.height;
     }
     if (edge.targetAnchor) {
-      const tgtAnchors = getNodeAnchors(targetPos.x, targetPos.y, targetScale * BASE_NODE_WIDTH, targetScale * BASE_NODE_HEIGHT);
+      const tgtAnchors = getNodeAnchors(targetPos.x, targetPos.y, tgtSize.width, tgtSize.height);
       const ta = tgtAnchors[edge.targetAnchor];
-      x2 = ta ? ta.x : targetPos.x + targetScale * BASE_NODE_WIDTH / 2;
+      x2 = ta ? ta.x : targetPos.x + tgtSize.width / 2;
       y2 = ta ? ta.y : targetPos.y;
     } else {
-      x2 = targetPos.x + targetScale * BASE_NODE_WIDTH / 2;
+      x2 = targetPos.x + tgtSize.width / 2;
       y2 = targetPos.y;
     }
     const isCrossSourceConnected = appState.connectedNodeIds && appState.connectedNodeIds.has(edge.source);
@@ -879,7 +1060,9 @@ export function drawSidebar2D(s) {
     const node = appState.nodeMap.get(id);
     if (node) {
       const scale = node.sizeScale || 1;
-      s.nodeHitAreas.push({ id, x: pos.x, y: pos.y, width: BASE_NODE_WIDTH * scale, height: BASE_NODE_HEIGHT * scale });
+      // 卡片模式使用卡片尺寸，普通节点使用基础尺寸
+      const { width: nw, height: nh } = getNodeLayoutSize(node, scale);
+      s.nodeHitAreas.push({ id, x: pos.x, y: pos.y, width: nw, height: nh });
     }
   }
 
@@ -938,8 +1121,10 @@ export function centerOnNode(nodeId) {
   if (!pos || !s || !s.canvas) return false;
   const node = appState.nodeMap.get(nodeId);
   const scale = node?.sizeScale || 1;
-  const nodeCX = pos.x + BASE_NODE_WIDTH * scale / 2;
-  const nodeCY = pos.y + BASE_NODE_HEIGHT * scale / 2;
+  // 卡片模式使用卡片尺寸居中，普通节点使用基础尺寸
+  const { width: nw, height: nh } = getNodeLayoutSize(node, scale);
+  const nodeCX = pos.x + nw / 2;
+  const nodeCY = pos.y + nh / 2;
   // 如果是当前正在编辑的节点，不设置 highlightedNodeId（已有绿色高亮）
   if (nodeId !== appState.currentEditNodeId) {
     s.highlightedNodeId = nodeId;

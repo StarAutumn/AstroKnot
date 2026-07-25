@@ -2,7 +2,7 @@
 //  模块6 子模块：场景构建 (从树数据构建完整 3D 场景)
 // ============================================================
 import { appState } from '../module0_AppState.js';
-import { createNodeMesh, destroyNodeMesh, generateRandomPosition } from './Nodes.js';
+import { createNodeMesh, destroyNodeMesh, generateRandomPosition } from './nodes/index.js';
 import { rebuildAllLines } from './LineManager.js';
 
 export function buildSceneFromTree() {

@@ -873,7 +873,7 @@ export function toggleChildren() {
 }
 
 // ==================== 展开全部节点（一次性按钮） ====================
-export function expandAllNodes() {
+export const expandAllNodes = withHistory(function () {
   // 收集所有已折叠的父节点（有子节点且第一个子节点不可见）
   let collapsedParents = [];
   for (let [id, node] of appState.nodeMap) {
@@ -1033,4 +1033,4 @@ export function expandAllNodes() {
     requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
-}
+});

@@ -162,6 +162,7 @@ export class BrowserApp {
       <div class="app-browser-settings-item" data-action="reader">📖 阅读模式 <span class="app-browser-settings-toggle">关</span></div>
       <div class="app-browser-settings-item" data-action="dark">🌙 暗色模式 <span class="app-browser-settings-toggle">关</span></div>
       <div class="app-browser-settings-divider"></div>
+      <div class="app-browser-settings-item" data-action="download">📁 下载地址 <span class="app-browser-settings-download-path">默认</span></div>
       <div class="app-browser-settings-item app-browser-settings-ua-trigger" data-action="ua">📱 User-Agent <span class="app-browser-settings-ua-current">${getUserAgent().name}</span> <span class="app-browser-settings-arrow">▸</span></div>
       <div class="app-browser-settings-item" data-action="cookies">🍪 Cookies 管理</div>
       <div class="app-browser-settings-item" data-action="password">🔑 密码管理</div>
@@ -273,6 +274,9 @@ export class BrowserApp {
       downloadBtn,
       downloadPanel,
     });
+
+    // 异步初始化下载路径显示
+    this._initDownloadPathDisplay(settingsDropdown);
 
     const contextMenu = new BrowserContextMenu({
       content,
@@ -628,6 +632,13 @@ export class BrowserApp {
   /** 获取标题栏 */
   get header() { return this._headerEl; }
 
+  /** 导航到指定URL（供 AppRunner 在浏览器已打开时调用） */
+  navigate(input) {
+    if (this._tabs) {
+      this._tabs.navigate(input);
+    }
+  }
+
   /** 销毁所有资源 */
   destroy() {
     this._closeDevTools();
@@ -676,6 +687,9 @@ export class BrowserApp {
         break;
       case 'dark':
         this._toggleDark(itemEl);
+        break;
+      case 'download':
+        this._changeDownloadDir(itemEl);
         break;
       case 'cookies':
         this._showCookiesPanel();
@@ -846,6 +860,42 @@ export class BrowserApp {
     const on = await this._reader.toggleDark(tabId);
     const toggle = itemEl.querySelector('.app-browser-settings-toggle');
     if (toggle) toggle.textContent = on ? '开' : '关';
+  }
+
+  /** 修改下载目录 */
+  async _changeDownloadDir(itemEl) {
+    if (window.api && window.api.selectFolder) {
+      const result = await window.api.selectFolder();
+      if (result && !result.canceled && result.path) {
+        const newPath = result.path;
+        if (window.api.browserSetDownloadDir) {
+          await window.api.browserSetDownloadDir(newPath);
+        }
+        const label = itemEl.querySelector('.app-browser-settings-download-path');
+        if (label) {
+          const parts = newPath.replace(/\\/g, '/').split('/');
+          label.textContent = parts.slice(-2).join('/');
+          label.title = newPath;
+        }
+      }
+    }
+  }
+
+  /** 初始化下载路径显示 */
+  async _initDownloadPathDisplay(settingsDropdown) {
+    try {
+      if (window.api && window.api.browserGetDownloadDir) {
+        const dir = await window.api.browserGetDownloadDir();
+        if (dir) {
+          const label = settingsDropdown.querySelector('.app-browser-settings-download-path');
+          if (label) {
+            const parts = dir.replace(/\\/g, '/').split('/');
+            label.textContent = parts.slice(-2).join('/');
+            label.title = dir;
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   /** 网页截图 */

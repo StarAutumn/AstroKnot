@@ -646,7 +646,6 @@ export class AppPanel {
       { label: '📂 打开', action: () => this._runApp(app) },
       { label: '💻 通过 IDE 打开', action: () => this._openAppInIDE(app), disabled: !isGitHub },
       { type: 'separator' },
-      { label: '插入为节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
       { label: '创建应用节点', action: () => this._insertAsNode(app), disabled: isBuiltin },
       { label: '从 GitHub 更新', action: () => this._updateApp(app), disabled: isBuiltin },
       { type: 'separator' },

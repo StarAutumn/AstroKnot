@@ -7,7 +7,7 @@
 export { _bumpRenderFrame, SpiralFlowLine, PolylineFlowLine } from './FlowLines.js';
 
 // ── 节点网格 + 动画 ──
-export { generateRandomPosition, animateDeleteNode, createNodeMesh, updateNodeVisuals, destroyNodeMesh, destroyNodeMeshImmediate } from './Nodes.js';
+export { generateRandomPosition, animateDeleteNode, createNodeMesh, updateNodeVisuals, destroyNodeMesh, destroyNodeMeshImmediate, updateCardTexture, updateCardBillboards, removeCardOverlay3D, clearAllCardOverlays3D, fadeCardOverlays3D, setViewTransitioning } from './nodes/index.js';
 
 // ── 连线管理 ──
 export { addSingleTreeLine, removeLinesForNodes, rebuildAllLines, updateLinesForNodes, updateLinesVis } from './LineManager.js';

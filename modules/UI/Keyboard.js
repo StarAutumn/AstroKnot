@@ -8,7 +8,7 @@ import { processSidebar2DPanning, setSidebar2DKey, isSidebar2DFocused } from '..
 import { keyboardEventBound, setKeyboardEventBound, keys2D, keys, toggleFullscreen, isInputActive } from './shared.js';
 import { toggleSimple3DMode } from './Theme.js';
 import { hideWindow } from './Window.js';
-import { copySelectedNodes, pasteNodes } from '../MoveMode/MoveCore.js';
+import { copySelectedNodes, pasteNodes } from '../MoveMode/move-mode/index.js';
 
 //=========== 获取 DOM 元素引用 ==========
 const contextMenu = document.getElementById('nodeContextMenu');

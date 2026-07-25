@@ -32,7 +32,9 @@ const SUBDIR_NAMES = {
   projects: 'projects',       // 用户项目（默认）
   quicknotes: 'quicknotes',   // 快速笔记（默认）
   apps: 'apps',               // 全局应用库（GitHub 克隆的应用）
-  trash: 'trash'              // 回收站（已删除项目的暂存目录）
+  trash: 'trash',             // 回收站（已删除项目的暂存目录）
+  download: 'download',       // 内置浏览器下载目录
+  diaries: 'diaries'          // 日记（按年-月子目录组织）
 };
 
 /**
@@ -93,6 +95,7 @@ function init(appRoot) {
         // 已有配置，迁移到新格式（添加相对路径字段）
         _settings = migrateSettings(legacySettings, appRoot);
         console.log('[data-settings] 迁移旧配置:', _settings.dataRoot);
+        try { ensureDirectories(); } catch (_) {}
         return _settings;
       }
     } catch (e) {
@@ -107,6 +110,7 @@ function init(appRoot) {
       // 检查应用是否被移动，自动重新定位
       _settings = relocateIfNeeded(loadedSettings, appRoot);
       console.log('[data-settings] 使用新配置:', _settings.dataRoot);
+      try { ensureDirectories(); } catch (_) {}
       return _settings;
     } catch (e) {
       console.warn('[data-settings] 读取新配置失败:', e);
@@ -124,11 +128,14 @@ function init(appRoot) {
     quicknotesDir: path.join(defaultDataRoot, SUBDIR_NAMES.quicknotes),
     appsDir: path.join(defaultDataRoot, SUBDIR_NAMES.apps),
     trashDir: path.join(defaultDataRoot, SUBDIR_NAMES.trash),
+    downloadDir: path.join(defaultDataRoot, SUBDIR_NAMES.download),
+    diariesDir: path.join(defaultDataRoot, SUBDIR_NAMES.diaries),
     initialized: false,
     lastProjectPath: null
   };
 
   console.log('[data-settings] 使用默认配置:', _settings.dataRoot);
+  try { ensureDirectories(); } catch (_) {}
   return _settings;
 }
 
@@ -156,7 +163,9 @@ function migrateSettings(oldSettings, appRoot) {
     projectsDir: oldSettings.projectsDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.projects),
     quicknotesDir: oldSettings.quicknotesDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.quicknotes),
     appsDir: oldSettings.appsDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.apps),
-    trashDir: oldSettings.trashDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.trash)
+    trashDir: oldSettings.trashDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.trash),
+    downloadDir: oldSettings.downloadDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.download),
+    diariesDir: oldSettings.diariesDir || path.join(oldSettings.dataRoot, SUBDIR_NAMES.diaries)
   };
 }
 
@@ -190,7 +199,9 @@ function relocateIfNeeded(settings, currentAppRoot) {
           projectsDir: path.join(newDataRoot, SUBDIR_NAMES.projects),
           quicknotesDir: path.join(newDataRoot, SUBDIR_NAMES.quicknotes),
           appsDir: path.join(newDataRoot, SUBDIR_NAMES.apps),
-          trashDir: path.join(newDataRoot, SUBDIR_NAMES.trash)
+          trashDir: path.join(newDataRoot, SUBDIR_NAMES.trash),
+          downloadDir: path.join(newDataRoot, SUBDIR_NAMES.download),
+          diariesDir: path.join(newDataRoot, SUBDIR_NAMES.diaries)
         };
         // 临时设置 _settings 以便 saveSettings 能工作
         _settings = relocated;
@@ -228,7 +239,9 @@ function relocateIfNeeded(settings, currentAppRoot) {
         projectsDir: path.join(defaultPath, SUBDIR_NAMES.projects),
         quicknotesDir: path.join(defaultPath, SUBDIR_NAMES.quicknotes),
         appsDir: path.join(defaultPath, SUBDIR_NAMES.apps),
-        trashDir: path.join(defaultPath, SUBDIR_NAMES.trash)
+        trashDir: path.join(defaultPath, SUBDIR_NAMES.trash),
+        downloadDir: path.join(defaultPath, SUBDIR_NAMES.download),
+        diariesDir: path.join(defaultPath, SUBDIR_NAMES.diaries)
       };
     }
     settings.initialized = false;
@@ -341,6 +354,22 @@ function getAppsDir() {
 }
 
 /**
+ * 获取内置浏览器下载目录
+ */
+function getDownloadDir() {
+  if (!_settings) return '';
+  return _settings.downloadDir || path.join(_settings.dataRoot, SUBDIR_NAMES.download);
+}
+
+/**
+ * 获取日记目录
+ */
+function getDiariesDir() {
+  if (!_settings) return '';
+  return _settings.diariesDir || path.join(_settings.dataRoot, SUBDIR_NAMES.diaries);
+}
+
+/**
  * 获取应急备份目录
  */
 function getEmergencyBackupsDir() {
@@ -442,6 +471,8 @@ function setDataRoot(dataRoot) {
     quicknotesDir: path.join(dataRoot, SUBDIR_NAMES.quicknotes),
     appsDir: path.join(dataRoot, SUBDIR_NAMES.apps),
     trashDir: path.join(dataRoot, SUBDIR_NAMES.trash),
+    downloadDir: path.join(dataRoot, SUBDIR_NAMES.download),
+    diariesDir: path.join(dataRoot, SUBDIR_NAMES.diaries),
     initialized: true,
     lastProjectPath: null
   };
@@ -478,6 +509,8 @@ function setCustomPaths(paths) {
   if (paths.quicknotesDir) _settings.quicknotesDir = paths.quicknotesDir;
   if (paths.appsDir) _settings.appsDir = paths.appsDir;
   if (paths.trashDir) _settings.trashDir = paths.trashDir;
+  if (paths.downloadDir) _settings.downloadDir = paths.downloadDir;
+  if (paths.diariesDir) _settings.diariesDir = paths.diariesDir;
 
   ensureDirectories();
   saveSettings();
@@ -499,7 +532,9 @@ function ensureDirectories() {
     _settings.projectsDir,
     _settings.quicknotesDir,
     _settings.appsDir || path.join(_settings.dataRoot, SUBDIR_NAMES.apps),
-    _settings.trashDir || path.join(_settings.dataRoot, SUBDIR_NAMES.trash)
+    _settings.trashDir || path.join(_settings.dataRoot, SUBDIR_NAMES.trash),
+    _settings.downloadDir || path.join(_settings.dataRoot, SUBDIR_NAMES.download),
+    _settings.diariesDir || path.join(_settings.dataRoot, SUBDIR_NAMES.diaries)
   ];
 
   for (const dir of dirs) {
@@ -546,6 +581,8 @@ module.exports = {
   getTrashDir,
   getQuicknotesDir,
   getAppsDir,
+  getDownloadDir,
+  getDiariesDir,
   getEmergencyBackupsDir,
   getSandboxTmpDir,
   getVersionGraphsTmpDir,

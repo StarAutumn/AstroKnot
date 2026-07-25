@@ -140,6 +140,17 @@ export function invalidateNodeWidthCache(nodeId) {
   else _nodeWidthCache.clear();
 }
 
+// -------- 节点有效尺寸（布局/连线/裁剪用） --------
+// card 模式返回 cardWidth×cardHeight，普通节点返回 getNodeWidth×BASE_NODE_HEIGHT
+export function getNodeLayoutSize(node, scale) {
+  if (node && (node.displayMode === 'card' || node.displayMode === 'webpage')) {
+    const w = (node.cardWidth || BASE_NODE_WIDTH * 2.6) * scale;
+    const h = (node.cardHeight || BASE_NODE_HEIGHT * 4.2) * scale;
+    return { width: w, height: h };
+  }
+  return { width: getNodeWidth(node, scale), height: BASE_NODE_HEIGHT * scale };
+}
+
 // -------- 命中测试区域 --------
 export let nodeHitAreas = [];
 export let lineHitAreas = [];

@@ -65,7 +65,7 @@
   }
 
   const _electron = _isElectron();
-  const _localStorage = !_electron && _hasLocalStorage();
+  const _localStorage = _hasLocalStorage();
 
   function _encodeKey(key) {
     // URL-safe base64，避免 Windows 文件名非法字符

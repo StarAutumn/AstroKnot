@@ -1055,7 +1055,57 @@ function _getProjectFolderPath() {
 //  打开/关闭编辑器
 // ════════════════════════════════════════════════════════════
 
-export async function openHtmlSandboxEditor(nodeId) {
+export async function openHtmlSandboxEditor(nodeId, isQuickNote) {
+  // 快速笔记分支：从 appState.quickNotes 获取，跳过磁盘路径 IPC
+  if (isQuickNote) {
+    const note = appState.quickNotes.find(n => n.id === nodeId);
+    if (!note) {
+      console.error('[openHtmlSandboxEditor] 快速笔记不存在:', nodeId);
+      return;
+    }
+    // 确保 fileSystem 存在
+    if (!note.fileSystem) {
+      note.fileSystem = migrateHtmlSource(null);
+      note.activeMode = 'code';
+      if (appState.saveQuickNotes) appState.saveQuickNotes();
+    }
+
+    // 回退到旧 IDE（不使用磁盘 sandboxPath）
+    initHtmlSandboxWindow();
+    _initFeatureModules();
+    _currentNodeId = nodeId;
+    _ctx.currentNodeId = nodeId;
+    _openTimestamp = Date.now();
+    if (_nodeName) _nodeName.textContent = note.title || '快速笔记代码编辑器';
+    _clearConsole();
+
+    // 任务栏
+    if (window.Taskbar) {
+      window.Taskbar.addOrUpdateEditor('html-sandbox', {
+        label: note.title || '快速笔记代码编辑器',
+        icon: '💻',
+        active: true,
+        activate: () => {
+          if (!_windowInstance) return;
+          if (_windowInstance.getState() === WindowState.MINIMIZED) {
+            _windowInstance.restore();
+            WindowManager.bringToFront(_windowInstance);
+          } else {
+            _windowInstance.minimize();
+          }
+        },
+        close: () => closeHtmlSandboxEditor()
+      });
+    }
+
+    _windowInstance.open(WindowState.MAXIMIZED);
+    await _initIDEComponents(note);
+    _ctx.activePanel = 'explorer';
+    _ctx.isPreviewTab = false;
+    _updateActivityBarButtons('explorer');
+    return;
+  }
+
   const node = appState.nodeMap.get(nodeId);
   if (!node) {
     console.error('[openHtmlSandboxEditor] 节点不存在:', nodeId);

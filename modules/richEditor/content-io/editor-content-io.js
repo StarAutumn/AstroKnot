@@ -14,6 +14,7 @@ import { getOverlayImagesData, setOverlayImagesData, clearOverlayImages, renderA
 import { stripOverlayBlocksFromHTML } from '../core/overlay/index.js';
 import { getDrawData, setDrawData, clearDrawData } from '../core/toolbar/toolbar-draw.js';
 import { getSandboxHtml } from '../../AppLibrary/ide/index.js';
+import { VirtualFileSystem, migrateHtmlSource } from '../../AppLibrary/ide/core/virtual-fs.js';
 import {
   _makeTabKey, _findTabIndex, _getTabName, _renderEditorTabs, _addTab,
   _tabSwitchTo, _updateModalTitle, initModalTitleRename,
@@ -26,6 +27,7 @@ import {
   getModalWindowState, getPrevModalState, setModalOpenTimestamp, setCloseModalCKFn
 } from './modal-window.js';
 import { deactivateSplitScreen } from './split-screen.js';
+import { withHistory } from '../../module3_History.js';
 
 // ── 注入回调：将内容相关的标签页逻辑绑定到 editor-tabs ──
 setSwitchToTabFn(_switchToTab);
@@ -35,8 +37,22 @@ setCloseModalCKFn(closeModalCK);
 // ── sandbox / 普通笔记 UI 切换辅助函数 ──
 
 function _applySandboxUI(nodeId) {
-  const sandboxContent = getSandboxHtml(nodeId);
+  // 支持快速笔记：当 currentQuickNoteId 匹配时从快速笔记获取沙盒内容
+  let sandboxContent;
+  if (appState.currentQuickNoteId === nodeId) {
+    sandboxContent = _getQuickNoteSandboxHtml(nodeId);
+  } else {
+    sandboxContent = getSandboxHtml(nodeId);
+  }
   if (!sandboxContent) return false;
+
+  // 隐藏 overlay 块和 draw canvas
+  const body = document.querySelector('#ckEditorContainer .mce-content-body');
+  if (body) {
+    body.querySelectorAll('.tmce-overlay-block').forEach(el => { el.style.display = 'none'; });
+    const drawCanvas = body.querySelector('#drawCanvasOverlay');
+    if (drawCanvas) drawCanvas.style.display = 'none';
+  }
 
   const richToolbar = document.getElementById('richToolbar');
   if (richToolbar) richToolbar.style.display = 'none';
@@ -87,6 +103,14 @@ function _applyNormalUI(node) {
   const sandboxIframe = document.getElementById('sandboxPreviewIframe');
   if (sandboxIframe) sandboxIframe.style.display = 'none';
 
+  // 恢复显示 overlay 块和 draw canvas
+  const body = document.querySelector('#ckEditorContainer .mce-content-body');
+  if (body) {
+    body.querySelectorAll('.tmce-overlay-block').forEach(el => { el.style.display = ''; });
+    const drawCanvas = body.querySelector('#drawCanvasOverlay');
+    if (drawCanvas) drawCanvas.style.display = '';
+  }
+
   const richToolbar = document.getElementById('richToolbar');
   if (richToolbar) richToolbar.style.display = '';
   const tocSidebar = document.getElementById('tocSidebar');
@@ -134,6 +158,22 @@ function _isNodeSandbox(node) {
   return false;
 }
 
+// ── 快速笔记沙盒模式辅助函数 ──
+
+function _isQuickNoteSandbox(note) {
+  return !!(note && note.activeMode === 'code');
+}
+
+function _getQuickNoteSandboxHtml(noteId) {
+  const note = appState.quickNotes.find(n => n.id === noteId);
+  if (!note) return null;
+  if (note.fileSystem) {
+    const vfs = new VirtualFileSystem(note.fileSystem);
+    return vfs.buildSimpleHtml();
+  }
+  return null;
+}
+
 // ── 标签页切换（内容感知）──
 
 function _switchToTab(tabKey) {
@@ -176,11 +216,20 @@ function _switchToTab(tabKey) {
 
   if (tab.type === 'quicknote') {
     let note = appState.quickNotes.find(function (n) { return n.id === tab.id; });
-    _applyNormalUI(null);
-    state.tinyEditor.setContent(note ? (note.content || '') : '');
-    setOverlayImagesData(note ? (note.overlayImages || []) : []);
-    requestAnimationFrame(function () { renderAll(); });
-    setDrawData(note ? note.drawData : null);
+    if (_isQuickNoteSandbox(note)) {
+      if (!_applySandboxUI(tab.id)) {
+        _applyNormalUI(null);
+        state.tinyEditor.setContent(note ? (note.content || '') : '');
+      } else {
+        state.tinyInitialContent = _getQuickNoteSandboxHtml(tab.id);
+      }
+    } else {
+      _applyNormalUI(null);
+      state.tinyEditor.setContent(note ? (note.content || '') : '');
+      setOverlayImagesData(note ? (note.overlayImages || []) : []);
+      requestAnimationFrame(function () { renderAll(); });
+      setDrawData(note ? note.drawData : null);
+    }
   } else {
     let node = appState.nodeMap.get(tab.id);
     if (_isNodeSandbox(node)) {
@@ -194,7 +243,10 @@ function _switchToTab(tabKey) {
     }
   }
 
-  if (!_isNodeSandbox(appState.nodeMap.get(tab.id)) || tab.type === 'quicknote') {
+  // 非沙盒模式（含快速笔记非代码模式）才聚焦 TinyMCE
+  const _isQuickSandbox = tab.type === 'quicknote' && _isQuickNoteSandbox(appState.quickNotes.find(n => n.id === tab.id));
+  const _isNodeSb = tab.type === 'node' && _isNodeSandbox(appState.nodeMap.get(tab.id));
+  if (!_isQuickSandbox && !_isNodeSb) {
     state.tinyEditor.focus();
     state.tinyInitialContent = state.tinyEditor.getContent();
   }
@@ -283,6 +335,25 @@ export function saveCurrentContentCK() {
   if (appState.currentQuickNoteId) {
     const note = appState.quickNotes.find(n => n.id === appState.currentQuickNoteId);
     if (note) {
+      // 日记模式：拦截保存，写入日记存储而非快速笔记存储
+      if (note._isDiary) {
+        const diaryDateStr = note._diaryDateStr;
+        if (diaryDateStr) {
+          import('../../calendar/diary-editor.js').then(function (mod) {
+            mod.saveDiaryFromEditor(diaryDateStr, htmlContent);
+          });
+        }
+        showSavedToast();
+        state.tinyInitialContent = htmlContent;
+        return;
+      }
+
+      // 代码模式（沙盒）→ 触发沙盒保存事件，不保存 TinyMCE 内容到 content
+      if (note.activeMode === 'code') {
+        document.dispatchEvent(new CustomEvent('sandbox-save'));
+        showSavedToast();
+        return;
+      }
       note.content = htmlContent;
       note.overlayImages = getOverlayImagesData();
       note.drawData = getDrawData();
@@ -363,12 +434,17 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
         if (typeof window.refreshTreePanel === 'function') window.refreshTreePanel();
       }, 200);
 
-      state.tinyEditor.setContent(note.content || '');
-      setOverlayImagesData(note.overlayImages || []);
-      requestAnimationFrame(function () { renderAll(); });
-      setDrawData(note.drawData || null);
-      state.tinyEditor.focus();
-      state.tinyInitialContent = state.tinyEditor.getContent();
+      // 代码模式（沙盒）→ 应用沙盒 UI；文本模式 → 加载 TinyMCE 内容
+      if (_isQuickNoteSandbox(note) && _applySandboxUI(quickNoteId)) {
+        state.tinyInitialContent = _getQuickNoteSandboxHtml(quickNoteId);
+      } else {
+        state.tinyEditor.setContent(note.content || '');
+        setOverlayImagesData(note.overlayImages || []);
+        requestAnimationFrame(function () { renderAll(); });
+        setDrawData(note.drawData || null);
+        state.tinyEditor.focus();
+        state.tinyInitialContent = state.tinyEditor.getContent();
+      }
       if (window.Taskbar) {
         window.Taskbar.addOrUpdateEditor('rich', {
           label: note.title || '',
@@ -573,6 +649,12 @@ export function closeModalCK() {
           appState.nodeMap.delete(appState.currentEditNodeId);
         }
       }
+      // 清理日记虚拟笔记
+      if (appState.currentQuickNoteId && appState.currentQuickNoteId.startsWith('diary_')) {
+        import('../../calendar/diary-editor.js').then(function (mod) {
+          mod.cleanupDiaryNote();
+        }).catch(function () {});
+      }
       appState.currentEditNodeId = null;
       appState.currentQuickNoteId = null;
       window._closeRichEditor = closeModalCK;
@@ -644,6 +726,14 @@ function _enterSourceMode() {
   // 获取当前 richContent 的原生HTML
   const rawHtml = state.tinyEditor.getContent();
 
+  // 隐藏 overlay 块和 draw canvas
+  const body = document.querySelector('#ckEditorContainer .mce-content-body');
+  if (body) {
+    body.querySelectorAll('.tmce-overlay-block').forEach(el => { el.style.display = 'none'; });
+    const drawCanvas = body.querySelector('#drawCanvasOverlay');
+    if (drawCanvas) drawCanvas.style.display = 'none';
+  }
+
   // 创建/显示 Monaco 容器
   const ckEl = document.getElementById('ckEditorContainer');
   if (!ckEl) return;
@@ -702,6 +792,14 @@ function _exitSourceMode() {
   state.tinyEditor.setContent(newHtml);
   state.tinyEditor.focus();
 
+  // 恢复显示 overlay 块和 draw canvas
+  const body = document.querySelector('#ckEditorContainer .mce-content-body');
+  if (body) {
+    body.querySelectorAll('.tmce-overlay-block').forEach(el => { el.style.display = ''; });
+    const drawCanvas = body.querySelector('#drawCanvasOverlay');
+    if (drawCanvas) drawCanvas.style.display = '';
+  }
+
   const editSourceBtn = document.getElementById('editSourceCodeBtn');
   if (editSourceBtn) editSourceBtn.textContent = '📝 HTML源码模式';
 
@@ -726,6 +824,19 @@ if (_editSourceCodeBtn) {
 const _toggleModeBtn = document.getElementById('toggleModeBtn');
 if (_toggleModeBtn) {
   _toggleModeBtn.addEventListener('click', function () {
+    // 优先处理快速笔记
+    if (appState.currentQuickNoteId) {
+      const note = appState.quickNotes.find(n => n.id === appState.currentQuickNoteId);
+      if (!note) return;
+      const currentMode = note.activeMode || 'text';
+      if (currentMode === 'text') {
+        window.switchQuickNoteToCodeMode(appState.currentQuickNoteId);
+      } else {
+        window.switchQuickNoteToTextMode(appState.currentQuickNoteId);
+      }
+      return;
+    }
+    // 节点模式切换
     const nodeId = appState.currentEditNodeId;
     const node = appState.nodeMap.get(nodeId);
     if (!node) return;
@@ -745,7 +856,7 @@ if (_toggleModeBtn) {
 //  模式切换全局函数（供右键菜单等外部模块通过 window 调用）
 // ════════════════════════════════════════════════════════════
 
-window.switchNodeToCodeMode = async function(nodeId) {
+window.switchNodeToCodeMode = withHistory(async function(nodeId) {
   const node = appState.nodeMap.get(nodeId);
   if (!node) return;
 
@@ -770,9 +881,9 @@ window.switchNodeToCodeMode = async function(nodeId) {
       state.tinyInitialContent = getSandboxHtml(nodeId);
     }
   }
-};
+});
 
-window.switchNodeToTextMode = function(nodeId) {
+window.switchNodeToTextMode = withHistory(function(nodeId) {
   const node = appState.nodeMap.get(nodeId);
   if (!node) return;
 
@@ -786,7 +897,55 @@ window.switchNodeToTextMode = function(nodeId) {
     state.tinyEditor.focus();
     state.tinyInitialContent = state.tinyEditor.getContent();
   }
-};
+});
+
+// ── 快速笔记模式切换 ──
+
+window.switchQuickNoteToCodeMode = withHistory(async function(noteId) {
+  const note = appState.quickNotes.find(n => n.id === noteId);
+  if (!note) return;
+
+  // 保存当前文本内容
+  if (appState.currentQuickNoteId === noteId) {
+    saveCurrentContentCK();
+  }
+
+  // 确保 fileSystem 存在
+  if (!note.fileSystem) {
+    note.fileSystem = migrateHtmlSource(null);
+  }
+
+  note.activeMode = 'code';
+  if (appState.saveQuickNotes) appState.saveQuickNotes();
+  showToast('已切换为代码模式');
+
+  // 如果当前正在编辑此笔记，立即切换UI
+  if (appState.currentQuickNoteId === noteId && appState.editorOpen) {
+    if (_applySandboxUI(noteId)) {
+      state.tinyInitialContent = _getQuickNoteSandboxHtml(noteId);
+    }
+  }
+});
+
+window.switchQuickNoteToTextMode = withHistory(function(noteId) {
+  const note = appState.quickNotes.find(n => n.id === noteId);
+  if (!note) return;
+
+  note.activeMode = 'text';
+  if (appState.saveQuickNotes) appState.saveQuickNotes();
+  showToast('已切换为文本模式');
+
+  // 如果当前正在编辑此笔记，立即切换UI
+  if (appState.currentQuickNoteId === noteId && appState.editorOpen) {
+    _applyNormalUI(null);
+    state.tinyEditor.setContent(note.content || '');
+    setOverlayImagesData(note.overlayImages || []);
+    requestAnimationFrame(function () { renderAll(); });
+    setDrawData(note.drawData || null);
+    state.tinyEditor.focus();
+    state.tinyInitialContent = state.tinyEditor.getContent();
+  }
+});
 
 // ── 全局引用 ──
 window._taskbarOpenEditor = openRichEditorCK;

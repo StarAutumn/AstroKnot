@@ -4,7 +4,7 @@
 // ============================================================
 
 import { appState } from '../module0_AppState.js';
-import { updateLinesVis } from '../VisualComponents/index.js';
+import { updateLinesVis, clearAllCardOverlays3D, fadeCardOverlays3D, setViewTransitioning } from '../VisualComponents/index.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
 import { showToast } from '../module5_SelectAndEdit.js';
 import {
@@ -14,9 +14,9 @@ import {
   setBoxSelecting, clearBoxSelectNodeIds, setHasValidBoxSelection,
   setAnimations, sync2DSettings
 } from './shared.js';
-import { draw, mark2DDirty } from './Render.js';
+import { draw, mark2DDirty } from './render/index.js';
 export { mark2DDirty };
-import { initInteractionEvents } from './Interaction.js';
+import { initInteractionEvents, syncCardOverlays } from './interaction/index.js';
 
 // -------- 初始化 2D 视图 --------
 export function init2DView() {
@@ -84,11 +84,18 @@ export function show2DView(noAnimation) {
   container.style.display = 'block';
   setVisible(true);
   appState.is2DView = true;
+  // 切换到 2D 视图时渐隐 3D 卡片正文 overlay（与2D展开动画同步）
+  fadeCardOverlays3D(0, TRANSITION_DURATION);
+  // 视图过渡期间保留 3D 卡片可见，由 2D canvas clipPath 动画自然覆盖
+  setViewTransitioning(true);
   sync2DSettings();
   resizeCanvas();
   draw();
   updateModeBtnText();
   if (appState.updateGlowBtnText) appState.updateGlowBtnText();
+
+  // 2D overlay 容器跟随渐入
+  const overlay2D = document.getElementById('astroknot-card-overlays');
 
   if (noAnimation) {
     container.style.transition = 'none';
@@ -96,6 +103,8 @@ export function show2DView(noAnimation) {
     container.style.clipPath = '';
     container.style.webkitClipPath = '';
     container._transitioning = false;
+    if (overlay2D) { overlay2D.style.transition = 'none'; overlay2D.style.opacity = '1'; }
+    setViewTransitioning(false);
     return;
   }
 
@@ -104,16 +113,21 @@ export function show2DView(noAnimation) {
   container.style.clipPath = 'circle(0% at 50% 50%)';
   container.style.webkitClipPath = 'circle(0% at 50% 50%)';
   container._transitioning = true;
+  if (overlay2D) { overlay2D.style.transition = 'none'; overlay2D.style.opacity = '0'; }
   void container.offsetHeight;
 
-  container.style.transition = `clip-path ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1), opacity ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1)`;
+  const tr = `clip-path ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1), opacity ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1)`;
+  container.style.transition = tr;
   container.style.opacity = '1';
   container.style.webkitClipPath = `circle(100% at 50% 50%)`;
   container.style.clipPath = `circle(100% at 50% 50%)`;
+  if (overlay2D) { overlay2D.style.transition = `opacity ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1)`; overlay2D.style.opacity = '1'; }
 
   setTimeout(() => {
     container.style.transition = 'none';
     container._transitioning = false;
+    if (overlay2D) overlay2D.style.transition = 'none';
+    setViewTransitioning(false);
   }, TRANSITION_DURATION + 50);
 }
 
@@ -122,18 +136,30 @@ export function hide2DView() {
   if (!container || container._transitioning) return;
   if (!visible) return;
 
+  // 2D overlay 容器跟随渐出
+  const overlay2D = document.getElementById('astroknot-card-overlays');
+
+  // 视图过渡期间保留 3D 卡片可见，由 2D canvas clipPath 动画自然揭示
+  setViewTransitioning(true);
+
   container.style.transition = 'none';
   container.style.opacity = '1';
   container.style.clipPath = 'circle(100% at 50% 50%)';
   container.style.webkitClipPath = 'circle(100% at 50% 50%)';
   container.style.pointerEvents = 'none';
   container._transitioning = true;
+  if (overlay2D) { overlay2D.style.transition = 'none'; overlay2D.style.opacity = '1'; }
   void container.offsetHeight;
 
-  container.style.transition = `clip-path ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1), opacity ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1)`;
+  const tr = `clip-path ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1), opacity ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1)`;
+  container.style.transition = tr;
   container.style.opacity = '0';
   container.style.webkitClipPath = `circle(0% at 50% 50%)`;
   container.style.clipPath = `circle(0% at 50% 50%)`;
+  if (overlay2D) { overlay2D.style.transition = `opacity ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0.0, 0.2, 1)`; overlay2D.style.opacity = '0'; }
+
+  // 3D overlay 容器渐入
+  fadeCardOverlays3D(1, TRANSITION_DURATION);
 
   setTimeout(() => {
     container.style.display = 'none';
@@ -148,10 +174,13 @@ export function hide2DView() {
     setBoxSelecting(false);
     clearBoxSelectNodeIds();
     setHasValidBoxSelection(false);
+    // 隐藏卡片正文 DOM overlay（切换到 3D 时）
+    syncCardOverlays();
     saveCurrentProjectData();
     updateModeBtnText();
     if (appState.updateGlowBtnText) appState.updateGlowBtnText();
     updateLinesVis();
+    setViewTransitioning(false);
   }, TRANSITION_DURATION + 50);
 }
 

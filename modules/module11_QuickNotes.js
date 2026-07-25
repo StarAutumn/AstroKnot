@@ -5,8 +5,10 @@
 // ============================================================
 
 import { appState } from './module0_AppState.js';
-import { escapeHtml, hideItemContextMenu, showItemContextMenu } from './module2_TreeData.js';
+import { escapeHtml, hideItemContextMenu, showItemContextMenu, saveCurrentProjectData } from './module2_TreeData.js';
 import { showConfirm } from './module4_Confirm.js';
+import { showToast } from './module5_SelectAndEdit.js';
+import { withHistory } from './module3_History.js';
 import { openRichEditorCK, initCKEditor } from './richEditor/index.js';
 
 // 从 HTML 内容提取纯文本并获取第一句话（最多20字）
@@ -125,7 +127,7 @@ async function _doSaveQuickNotes() {
     try {
       const result = await window.api.saveQuickNotes({
         savePath: appState.quickNoteSavePath || null,
-        notes: appState.quickNotes
+        notes: appState.quickNotes.filter(n => !n._isDiary) // 排除日记虚拟笔记
       });
       if (!result.success) {
         console.error('[快速笔记保存] 失败:', result.error);
@@ -154,10 +156,11 @@ export function renderQuickNotesList() {
     const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
     const filtered = keyword
         ? appState.quickNotes.filter(n => {
+            if (n._isDiary) return false; // 日记虚拟笔记不显示在列表中
             const title = n.title || getFirstSentence(n.content) || '未命名笔记';
             return title.toLowerCase().includes(keyword);
           })
-        : appState.quickNotes;
+        : appState.quickNotes.filter(n => !n._isDiary);
 
     if (filtered.length === 0) {
         list.innerHTML = '<div style="padding:12px;color:#88aacc;text-align:center;">没有匹配的笔记</div>';
@@ -193,10 +196,46 @@ export function renderQuickNotesList() {
                         title: (orig.title || '未命名笔记') + ' (副本)',
                         content: orig.content || '',
                         overlayImages: orig.overlayImages || [],
-                        drawData: orig.drawData || null
+                        drawData: orig.drawData || null,
+                        activeMode: orig.activeMode || 'text',
+                        fileSystem: orig.fileSystem ? JSON.parse(JSON.stringify(orig.fileSystem)) : null
                     });
                     saveQuickNotes();
                     renderQuickNotesList();
+                }},
+                { label: '📌 添加为节点', action: function () {
+                    if (!note) return;
+                    if (typeof window.createNodeInProject !== 'function') {
+                        showToast('无法创建节点：项目未加载');
+                        return;
+                    }
+                    withHistory(function () {
+                        const displayTitle = note.title || getFirstSentence(note.content) || '未命名笔记';
+                        const newNode = window.createNodeInProject({
+                            name: displayTitle,
+                            desc: note.content ? note.content.replace(/<[^>]*>/g, '').substring(0, 80) : '',
+                            sizeScale: 1.0,
+                            parentId: null,
+                            offsetX: 100, offsetY: 0,
+                        });
+                        if (newNode) {
+                            // 复制笔记内容到节点
+                            newNode.richContent = note.content || '';
+                            newNode.content = note.content || '';
+                            // 代码模式：复制沙盒文件系统
+                            if (note.activeMode === 'code' && note.fileSystem) {
+                                newNode.activeMode = 'code';
+                                newNode.fileSystem = JSON.parse(JSON.stringify(note.fileSystem));
+                                // 同步沙盒到磁盘
+                                const proj = appState.projects ? appState.projects.find(function (p) { return p.id === appState.currentProjectId; }) : null;
+                                if (proj && proj.folderPath && window.api && window.api.syncSandboxDirectory) {
+                                    window.api.syncSandboxDirectory(proj.folderPath, newNode, newNode.fileSystem);
+                                }
+                            }
+                            saveCurrentProjectData();
+                            showToast('已添加为节点: ' + displayTitle);
+                        }
+                    })();
                 }},
                 { label: '✏️ 重命名', action: function () { startQuickNoteRename(item); } },
                 { sep: true },
@@ -367,7 +406,7 @@ export async function initQuickNotes() {
     if (newBtn) {
         newBtn.onclick = function () {
             const noteId = 'qnote_' + Date.now();
-            const newNote = { id: noteId, title: '', content: '' };
+            const newNote = { id: noteId, title: '', content: '', activeMode: 'text' };
             appState.quickNotes.unshift(newNote);
             saveQuickNotes();
             renderQuickNotesList();

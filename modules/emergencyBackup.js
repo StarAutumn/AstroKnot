@@ -73,6 +73,8 @@ async function doBackup() {
  * 退出时同步落盘（before-quit 触发，主进程等 2 秒）
  */
 function flushNow() {
+  // 清除定时器，防止退出期间 doBackup 触发并覆盖 pending=false
+  if (_timer) { clearTimeout(_timer); _timer = null; }
   try {
     // SystemStorage 已实时同步写入文件，无需退出前额外 flush
     // 保留兼容入口（旧 system-storage.js 已废弃）

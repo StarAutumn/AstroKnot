@@ -434,14 +434,21 @@ class SandboxFileOps {
     const vfs = this._ctx.vfs;
     if (!currentNodeId || !vfs) return;
 
-    // 仅当节点在 nodeMap 中时才同步（'ide-app-project' 不在 nodeMap 中）
-    if (!appState.nodeMap.get(currentNodeId)) return;
+    // 快速笔记分支：不在 nodeMap 中，从 quickNotes 获取
+    const node = appState.nodeMap.get(currentNodeId);
+    if (!node) {
+      const note = appState.quickNotes.find(n => n.id === currentNodeId);
+      if (note) {
+        note.fileSystem = vfs.toJSON();
+        if (appState.saveQuickNotes) appState.saveQuickNotes();
+      }
+      return;
+    }
 
     const projectFolderPath = this._getProjectFolderPath();
     vfs.syncAllToDisk(projectFolderPath, currentNodeId).then((ok) => {
       if (ok) {
         // 更新内存中的节点数据
-        const node = appState.nodeMap.get(currentNodeId);
         if (node) node.fileSystem = vfs.toJSON();
         console.log('[实时同步] 文件系统变更已全量同步到磁盘');
       }
@@ -501,10 +508,29 @@ class SandboxFileOps {
       return;
     }
 
-    // 非 isRealFS 模式：通过节点保存
+    // 非 isRealFS 模式：通过节点或快速笔记保存
     const node = appState.nodeMap.get(currentNodeId);
+    // 快速笔记分支：不在 nodeMap 中，从 quickNotes 获取
     if (!node) {
-      showToast('节点不存在');
+      const note = appState.quickNotes.find(n => n.id === currentNodeId);
+      if (!note) {
+        showToast('节点不存在');
+        return;
+      }
+      if (monacoEditor && vfs) {
+        note.fileSystem = vfs.toJSON();
+      }
+      note.activeMode = 'code';
+      // 记录历史快照
+      const history = this._ctx.history;
+      if (history) {
+        history.recordAllFiles(vfs, 'manual');
+        history.saveToNode(note);
+      }
+      // 触发快速笔记保存（无磁盘同步）
+      if (appState.saveQuickNotes) appState.saveQuickNotes();
+      showToast('✅ 代码已保存');
+      this._ctx.emit('statusChange', '已保存 ✓');
       return;
     }
 

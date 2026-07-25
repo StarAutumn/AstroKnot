@@ -6,7 +6,7 @@
 
 import { GithubApiClient } from './ide/core/github-api.js';
 import { VirtualFileSystem } from './ide/core/virtual-fs.js';
-import { createNodeInProject } from '../MoveMode/MoveCore.js';
+import { createNodeInProject } from '../MoveMode/move-mode/index.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
 import { appState } from '../module0_AppState.js';
 

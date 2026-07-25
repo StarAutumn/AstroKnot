@@ -5,11 +5,14 @@ import * as THREE from 'three';
 import { appState } from '../module0_AppState.js';
 
 // 从 raycaster 结果中找到带有 userData.id 的命中对象（向上遍历父级）
+// 也支持标签 Sprite（userData._labelNodeId）
 export function getHitNodeId(hits) {
   for (const hit of hits) {
     let obj = hit.object;
     while (obj) {
       if (obj.userData && obj.userData.id) return obj.userData.id;
+      // 标签 Sprite 命中
+      if (obj.userData && obj.userData._labelNodeId) return obj.userData._labelNodeId;
       obj = obj.parent;
     }
   }
@@ -21,6 +24,17 @@ export let isMoveMode = false;
 export let lastBlankMenuMouse = { x: 0, y: 0 };
 export let moveTargetId = null;
 export let moveInitialPositions3D = null;
+
+// 构建 raycast 目标数组：球体 + 标签 Sprite
+export function getRaycastTargets() {
+  const items = Array.from(appState.nodeMeshes.values());
+  const targets = items.map(v => v.mesh);
+  // 添加标签 Sprite（如果有）
+  for (const v of items) {
+    if (v.label && v.label.isSprite && v.label.visible) targets.push(v.label);
+  }
+  return targets;
+}
 
 export function setIsMoveMode(v) { isMoveMode = v; }
 export function setLastBlankMenuMouse(x, y) { lastBlankMenuMouse.x = x; lastBlankMenuMouse.y = y; }

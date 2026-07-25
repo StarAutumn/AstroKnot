@@ -979,6 +979,18 @@
     font-size: 10px;
     color: #5a7a8a;
 }
+.app-browser-settings-download-path {
+    font-size: 11px;
+    color: #5ee8ff;
+    margin-left: auto;
+    margin-right: 6px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: right;
+}
 .app-browser-ua-submenu {
     margin: 2px 0 4px;
     padding: 3px 0;

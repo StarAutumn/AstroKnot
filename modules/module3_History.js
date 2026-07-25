@@ -6,6 +6,7 @@ import { appState } from './module0_AppState.js';
 import { saveCurrentProjectData, renderProjectList } from './module2_TreeData.js';
 import { buildSceneFromTree } from './VisualComponents/index.js';
 import { hideContextMenu } from './module8_ContextMenu.js';
+import { groupRects, setGroupRects } from './2DView/shared.js';
 
 /**
  * 历史记录管理器
@@ -31,9 +32,38 @@ class HistoryManager {
       crossEdges: JSON.parse(JSON.stringify(appState.crossEdges)),
       positions: this._clonePositions(appState.positions),
       cameraView: {
-        position: { x: appState.camera?.position?.x || 6, y: appState.camera?.position?.y || 4.5, z: appState.camera?.position?.z || 8 },
-        target: { x: appState.controls?.target?.x || 0, y: appState.controls?.target?.y || 0.2, z: appState.controls?.target?.z || 0 }
-      }
+        position: {
+          x: appState.camera?.position?.x ?? 6,
+          y: appState.camera?.position?.y ?? 4.5,
+          z: appState.camera?.position?.z ?? 8
+        },
+        target: {
+          x: appState.controls?.target?.x ?? 0,
+          y: appState.controls?.target?.y ?? 0.2,
+          z: appState.controls?.target?.z ?? 0
+        }
+      },
+      // 图层状态：layers 内的 positions2D/nodeIds 是 Map/Set，需手动序列化
+      layers: (appState.layers || []).map(l => ({
+        id: l.id,
+        name: l.name,
+        order: l.order,
+        nodeIds: Array.from(l.nodeIds || []),
+        positions2D: Object.fromEntries(
+          [...(l.positions2D || [])].map(([k, v]) => [k, { x: v.x, y: v.y }])
+        )
+      })),
+      currentLayerId: appState.currentLayerId || null,
+      layer3DLayout: !!appState.layer3DLayout,
+      layer3DSpacing: appState.layer3DSpacing ?? 4,
+      // 2D 视图状态
+      collapsed2D: new Set(appState.collapsed2D || []),
+      view2DTransform: appState.view2DTransform
+        ? { ...appState.view2DTransform }
+        : null,
+      is2DView: !!appState.is2DView,
+      // 2D 群组矩形（运行时状态，不持久化但需支持撤销）
+      groupRects: JSON.parse(JSON.stringify(groupRects || []))
     };
   }
 
@@ -45,9 +75,15 @@ class HistoryManager {
   _restoreState(state) {
     if (!state) return;
 
-    // 如果处于移动模式，先退出（后退/撤销时自动退出移动模式）
-    if (appState.exitMoveMode) {
-      appState.exitMoveMode(false);
+    // 退出所有特殊模式（移动/连线/转换子节点/编辑）
+    if (appState.exitMoveMode) appState.exitMoveMode(false);
+    appState.connectionMode = null;
+    appState.convertChildMode = null;
+    appState.convertChildSourceId = null;
+    appState.currentEditNodeId = null;
+    // 重置可能残留的 crosshair 光标
+    if (appState.renderer?.domElement) {
+      appState.renderer.domElement.style.cursor = '';
     }
 
     // 恢复核心数据
@@ -56,6 +92,30 @@ class HistoryManager {
     appState.positions.clear();
     for (let [k, v] of state.positions.entries()) appState.positions.set(k, v.clone());
     appState.rebuildNodeMapFromTree();
+
+    // 恢复图层状态（layers 内的 positions2D/nodeIds 需转回 Map/Set）
+    if (state.layers) {
+      appState.layers = state.layers.map(l => ({
+        ...l,
+        nodeIds: new Set(l.nodeIds || []),
+        positions2D: new Map(
+          Object.entries(l.positions2D || {}).map(([k, v]) => [k, { x: v.x, y: v.y }])
+        )
+      }));
+      appState.currentLayerId = state.currentLayerId || null;
+      appState.layer3DLayout = !!state.layer3DLayout;
+      appState.layer3DSpacing = state.layer3DSpacing ?? 4;
+      // 同步当前图层的 positions2D 引用（appState.positions2D 指向当前图层）
+      const curL = appState.layers.find(l => l.id === appState.currentLayerId);
+      if (curL) appState.positions2D = curL.positions2D;
+    }
+
+    // 恢复 2D 视图状态
+    if (state.collapsed2D) appState.collapsed2D = new Set(state.collapsed2D);
+    if (state.view2DTransform && appState.view2DTransform) {
+      Object.assign(appState.view2DTransform, state.view2DTransform);
+    }
+    if (state.groupRects) setGroupRects(JSON.parse(JSON.stringify(state.groupRects)));
 
     // 重建 3D 场景
     buildSceneFromTree();
@@ -68,6 +128,10 @@ class HistoryManager {
     appState.controls.enableDamping = false;
     appState.controls.update();
     appState.controls.enableDamping = true;
+
+    // 刷新 2D 视图（撤销/重做后必须重绘，否则画面不同步）
+    if (appState.refresh2DView) appState.refresh2DView();
+    else if (appState.redraw2DView) appState.redraw2DView();
 
     // 持久化和 UI 更新
     saveCurrentProjectData();
@@ -182,9 +246,14 @@ appState.history = history;
 export function applyHistoryState(state) {
   if (!state) return;
 
-  // 如果处于移动模式，先退出（后退/撤销时自动退出移动模式）
-  if (appState.exitMoveMode) {
-    appState.exitMoveMode(false);
+  // 退出所有特殊模式
+  if (appState.exitMoveMode) appState.exitMoveMode(false);
+  appState.connectionMode = null;
+  appState.convertChildMode = null;
+  appState.convertChildSourceId = null;
+  appState.currentEditNodeId = null;
+  if (appState.renderer?.domElement) {
+    appState.renderer.domElement.style.cursor = '';
   }
 
   appState.methodsTree = state.methodsTree;
@@ -192,6 +261,30 @@ export function applyHistoryState(state) {
   appState.positions.clear();
   for (let [k, v] of state.positions.entries()) appState.positions.set(k, v.clone());
   appState.rebuildNodeMapFromTree();
+
+  // 恢复图层状态
+  if (state.layers) {
+    appState.layers = state.layers.map(l => ({
+      ...l,
+      nodeIds: new Set(l.nodeIds || []),
+      positions2D: new Map(
+        Object.entries(l.positions2D || {}).map(([k, v]) => [k, { x: v.x, y: v.y }])
+      )
+    }));
+    appState.currentLayerId = state.currentLayerId || null;
+    appState.layer3DLayout = !!state.layer3DLayout;
+    appState.layer3DSpacing = state.layer3DSpacing ?? 4;
+    const curL = appState.layers.find(l => l.id === appState.currentLayerId);
+    if (curL) appState.positions2D = curL.positions2D;
+  }
+
+  // 恢复 2D 视图状态
+  if (state.collapsed2D) appState.collapsed2D = new Set(state.collapsed2D);
+  if (state.view2DTransform && appState.view2DTransform) {
+    Object.assign(appState.view2DTransform, state.view2DTransform);
+  }
+  if (state.groupRects) setGroupRects(JSON.parse(JSON.stringify(state.groupRects)));
+
   buildSceneFromTree();
   appState.clearSelected();
   const cv = state.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } };
@@ -200,6 +293,10 @@ export function applyHistoryState(state) {
   appState.controls.enableDamping = false;
   appState.controls.update();
   appState.controls.enableDamping = true;
+
+  if (appState.refresh2DView) appState.refresh2DView();
+  else if (appState.redraw2DView) appState.redraw2DView();
+
   saveCurrentProjectData();
   renderProjectList();
   hideContextMenu();

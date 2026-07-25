@@ -542,6 +542,11 @@ export function initRichEditor() {
 
   // sandbox 模式下"编辑代码"按钮：打开代码编辑器（保持文本编辑器在后台）
   safeClick('editSandboxCodeBtn', () => {
+    // 优先处理快速笔记
+    if (appState.currentQuickNoteId) {
+      if (window.openHtmlSandboxEditor) window.openHtmlSandboxEditor(appState.currentQuickNoteId, true);
+      return;
+    }
     const nodeId = appState.currentEditNodeId;
     if (!nodeId) return;
     // 不关闭文本编辑器，直接打开代码编辑器

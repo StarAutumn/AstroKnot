@@ -27,13 +27,17 @@ export class AppRunner {
    * @param {Object} app - 应用信息 { id, name, icon, type, defaultUrl, ... }
    */
   async open(app) {
-    // 如果已打开，聚焦/恢复
+    // 如果已打开，聚焦/恢复；浏览器类型同时导航到新URL
     if (this._windows.has(app.id)) {
       const win = this._windows.get(app.id);
       if (win.windowInstance.getState() === WindowState.MINIMIZED) {
         win.windowInstance.restore();
       }
       WindowManager.bringToFront(win.windowInstance);
+      // 浏览器类型：如果传入了 defaultUrl，导航到新URL
+      if (app.type === 'browser' && app.defaultUrl && win.browserApp) {
+        win.browserApp.navigate(app.defaultUrl);
+      }
       return;
     }
 

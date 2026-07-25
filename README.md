@@ -47,7 +47,7 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 | **项目类型** | 个人 AI 辅助开发的知识管理桌面应用 |
 | **核心概念** | 将知识节点以 3D 星图/2D 思维导图呈现，每个节点是独立的知识单元 |
 | **技术栈** | Electron 29 + Three.js + TinyMCE 7 + Monaco Editor + esbuild-wasm |
-| **代码规模** | ~212 个源文件，~100,600 行代码（JS + CSS + HTML） |
+| **代码规模** | ~317 个源文件，~118,200 行代码（JS 265 + CSS 32 + HTML 20） |
 | **模块数量** | 30+ 功能模块，80+ IPC 通道 |
 | **部署方式** | Electron 桌面版（完整功能）+ Web 版（浏览器访问，部分受限） |
 | **数据存储** | 集中式 `AstroKnot-Data/` 目录，Markdown + JSON 混合格式 |
@@ -66,14 +66,17 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - 版本控制：类 Git DAG 版本图，自动快照 + 手动提交
 - AI 集成：Chat/Agent 双模式，项目上下文感知，多模型切换
 - 内置浏览器：Electron `<webview>` 多进程隔离，独立 partition 会话，网页内容抓取
-- 系统偏好文件化：localStorage 镜像到 `preferences.json`，启动同步恢复 + 退出原子写入
+- 系统级存储文件化：`SystemStorage` 模块接管应用 localStorage，每个 key 对应 `system/storage/` 下的独立 JSON 文件，实时原子写入
 
 ## 特性
 
 - **开始首页** — 精美的启动界面，飘带光效动画背景，磨砂玻璃面板，项目列表快速切换，新建/打开项目，Windows 锁屏式滑动动画
 - **项目配置持久化** — 自动记忆上次打开的项目和项目列表，重启应用后自动恢复，无需手动选择
 - **3D 知识网络** — Three.js 渲染，螺旋连线、星云粒子、节点光环，支持旋转/缩放/平移
+- **3D 全息卡片** — 选中卡片节点时显示全息广告牌效果，扫描线 + 边缘辉光 + 状态感知动画
 - **2D 思维导图** — 可切换的 2D 视图，自动布局，支持多图层
+- **卡片模式** — 节点可切换为卡片显示，直接在 2D/3D 视图中预览富文本内容，支持自由调整大小
+- **网页节点** — 节点可变为网页模式，内嵌搜索栏 + iframe 预览网页内容，双击打开内置浏览器
 - **富文本编辑器** — 基于 TinyMCE 7，支持字体/段落/样式、图片自由放置、形状、文本框、文件链接、分栏
 - **表格编辑器** — 基于 Univer，完整的电子表格编辑能力
 - **公式编辑器** — LaTeX 语法，常用符号面板，支持拖拽缩放
@@ -86,7 +89,7 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - **标题样式模板** — 内置多套标题样式模板，自定义各级标题字体/间距/缩进
 - **字数统计** — 中英文混合字数统计，实时显示
 - **历史记录** — 完整的撤销/重做，操作原子化
-- **快速笔记** — 独立的富文本笔记列表
+- **快速笔记** — 独立的富文本笔记列表，支持文本模式和代码模式（Web 项目沙盒）切换
 - **项目持久化** — Markdown + JSON 混合格式存储，支持多项目，节点文件夹使用节点名称命名（格式：节点名称_[nodeId前8位]）
 - **节点级磁盘同步** — 节点创建/删除实时同步到磁盘，内容自动保存（3s debounce），沙盒文件增量同步
 - **版本控制** — 版本图系统，支持提交、分支、diff、回滚，类似 Git 的版本管理（已保存项目存储在 `.versiongraph/`，未保存项目临时存储在 `userData/version-graphs-tmp/`）
@@ -94,7 +97,7 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - **GitHub 项目导入** — 从 GitHub 仓库导入前端项目到沙盒 IDE，自动解析文件结构
 - **全局应用库** — 从 GitHub 克隆应用到本地库，支持拖拽插入为节点、独立预览窗口、一键更新
 - **内置浏览器** — 基于 Electron `<webview>` 的完整浏览器，多标签页、书签、历史记录、下载管理、阅读模式、暗色模式、密码管理、搜索引擎切换、User-Agent 切换、隐私模式、开发者工具侧边栏、网页内容抓取为知识节点
-- **系统偏好文件化** — 所有应用设置持久化到 `AstroKnot-Data/system/preferences.json`（显式 JSON 文件），跨开发/打包环境一致，启动时同步恢复，退出时原子写入
+- **系统级存储文件化** — 所有应用设置通过 `SystemStorage` 模块持久化到 `AstroKnot-Data/system/storage/` 目录（每个 key 一个 JSON 文件），替代 localStorage，跨开发/打包环境一致，启动时同步恢复，实时原子写入
 - **启动闪屏** — 应用图标 + 渐变文字 + 地面反光效果
 - **天气时钟** — 任务栏显示实时时钟、农历、节气、天气
 - **日历排班** — 月/周/日三视图，日程管理，四象限事项，排班（上班规律/手动倒班/规律倒班），法定节假日自动识别，纪念日管理，通知提醒
@@ -208,7 +211,7 @@ AstroKnot/
 │   ├── xterm/                #   xterm.js 终端 + addons（fit + web-links）
 │   └── soundtouch-processor.js  # SoundTouch 音频处理
 │
-└── modules/                  # 核心模块（~212 个源文件）
+└── modules/                  # 核心模块（~317 个源文件）
     │
     ├── # 数据层
     ├── module0_AppState.js        # 全局状态管理器（被所有模块依赖）
@@ -222,10 +225,20 @@ AstroKnot/
     ├── module1_Textures.js        # 纹理生成（光晕纹理）
     ├── VisualComponents/          # 3D 可视化组件（原 module6）
     │   ├── index.js               #   入口 & 统一导出
-    │   ├── Nodes.js               #   节点网格创建/销毁/动画
     │   ├── FlowLines.js           #   螺旋连线 & 折线
     │   ├── LineManager.js         #   连线管理（增删改）
-    │   └── SceneBuilder.js        #   场景构建（从树数据批量生成）
+    │   ├── SceneBuilder.js        #   场景构建（从树数据批量生成）
+    │   └── nodes/                 #   节点渲染与交互
+    │       ├── index.js           #     入口 & 统一导出
+    │       ├── mesh.js            #     节点网格创建/销毁
+    │       ├── animations.js      #     节点动画（颜色轮转、状态脉冲）
+    │       ├── interaction.js     #     节点交互（选中、悬停）
+    │       ├── textures.js        #     节点纹理生成
+    │       ├── utils.js           #     工具函数
+    │       ├── card-billboard.js  #     3D 卡片广告牌（全息卡片效果）
+    │       ├── card-canvas.js     #     3D 卡片 Canvas 纹理渲染
+    │       ├── card-label.js      #     3D 卡片标签（文字渲染）
+    │       └── card-overlay.js    #     3D 卡片 HTML overlay
     ├── module7_SceneInit.js       # 场景初始化（Bloom 辉光、后处理）
     ├── module14_Animation.js      # 动画循环（渲染、粒子、HSL 颜色轮转）
     │
@@ -233,9 +246,22 @@ AstroKnot/
     ├── module5_SelectAndEdit.js   # 节点选中/编辑/Toast
     ├── MoveMode/                  # 节点移动模式
     │   ├── index.js               #   入口
-    │   ├── MoveCore.js            #   核心逻辑
     │   ├── LineTooltip.js         #   连线提示
-    │   └── shared.js              #   共享状态
+    │   ├── shared.js              #   共享状态
+    │   └── move-mode/             #   移动模式核心
+    │       ├── index.js           #     入口
+    │       ├── move-core.js       #     核心逻辑（拖拽、选中、连线）
+    │       ├── clipboard.js       #     剪贴板操作
+    │       ├── node-factory.js    #     节点工厂（创建/删除节点）
+    │       ├── shared-internal.js #     内部共享状态
+    │       └── event-bindings/    #     事件绑定
+    │           ├── index.js       #       入口
+    │           ├── click-handlers.js       # 点击事件
+    │           ├── move-controls.js        # 移动控制
+    │           ├── connection-controls.js  # 连线控制
+    │           ├── node-context-menu.js    # 节点右键菜单
+    │           ├── blank-context-menu.js   # 空白区右键菜单
+    │           └── align-buttons.js        # 对齐按钮
     │
     ├── # UI 层
     ├── module4_Confirm.js         # 自定义确认弹窗
@@ -277,7 +303,8 @@ AstroKnot/
     │   │   │   ├── virtual-fs.js  #      虚拟文件系统（多文件管理、HTML 迁移、磁盘同步）
     │   │   │   ├── context.js     #      共享上下文（DOM 引用、事件总线、动作注册）
     │   │   │   ├── bundler.js     #      esbuild-wasm 打包器（模块打包、CSS/JS 热注入）
-    │   │   │   └── github-api.js  #      GitHub API（仓库克隆、文件树解析）
+    │   │   │   ├── github-api.js  #      GitHub API（仓库克隆、文件树解析）
+    │   │   │   └── file-icons.js  #      文件图标映射（VSCode/Material 风格）
     │   │   ├── editors/           #    编辑器组件
     │   │   │   ├── file-tree.js   #      文件树（右键菜单、新建/删除/重命名、拖拽）
     │   │   │   ├── tabs.js        #      文件标签页（拖拽排序、关闭、预览标签保留）
@@ -315,11 +342,31 @@ AstroKnot/
     ├── 2DView/                    # 2D 思维导图视图
     │   ├── index.js               #   入口 & 布局算法
     │   ├── Core.js                #   核心绘制
-    │   ├── Interaction.js         #   交互（拖拽/缩放/双击）
     │   ├── Layout.js              #   树形布局引擎（纯函数，可独立测试）
-    │   ├── Render.js              #   节点/连线渲染
     │   ├── shared.js              #   共享常量
-    │   └── style.css              #   视图样式
+    │   ├── style.css              #   视图样式
+    │   ├── interaction/           #   交互子系统
+    │   │   ├── index.js           #     入口
+    │   │   ├── mouse-events.js    #     鼠标事件（点击/拖拽/双击/滚轮）
+    │   │   ├── hit-tests.js       #     命中检测（节点/连线/卡片区域）
+    │   │   ├── view-controls.js   #     视图控制（平移/缩放/居中）
+    │   │   ├── context-menu.js    #     右键菜单
+    │   │   ├── card-overlays.js   #     卡片 overlay 交互（点击/滚动）
+    │   │   ├── free-draw.js       #     自由绘图
+    │   │   ├── box-select.js      #     框选
+    │   │   ├── auto-layout.js     #     自动布局
+    │   │   ├── align.js           #     对齐操作
+    │   │   ├── group-nodes.js     #     分组操作
+    │   │   └── coordinate-utils.js #    坐标工具
+    │   └── render/                #   渲染子系统
+    │       ├── index.js           #     入口
+    │       ├── draw.js            #     主绘制循环
+    │       ├── node-renderers.js  #     节点渲染（普通/卡片/网页）
+    │       ├── edge-renderers.js  #     连线渲染
+    │       ├── scene-renderers.js #     场景渲染（网格/背景）
+    │       ├── shape-utils.js     #     图形工具（圆角矩形等）
+    │       ├── visibility.js      #     可见性计算（折叠/图层）
+    │       └── frame-state.js     #     帧状态管理
     ├── LayerManager/              # 图层管理
     │   └── index.js               #   图层创建/切换/排序
     │
@@ -469,8 +516,8 @@ AstroKnot/
 |----|------|------|
 | 数据层 | `module0`, `module2`, `module3`, `module9`, `nodeDiskSync.js`, `emergencyBackup.js` | 状态管理、数据持久化、历史记录、文件 IO、节点级磁盘同步、应急备份 |
 | 版本控制层 | `versionGraph/` | 版本图系统（提交、分支、diff、回滚、自动保存） |
-| 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件、场景初始化、动画 |
-| 交互控制层 | `module5`, `MoveMode/` | 节点选中/编辑、拖拽移动 |
+| 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件（含卡片全息效果）、场景初始化、动画 |
+| 交互控制层 | `module5`, `MoveMode/` | 节点选中/编辑、拖拽移动、节点创建/剪贴板/右键菜单事件 |
 | UI 层 | `module4`, `module8`, `module11`, `AIChat/`, `UI/`, `richEditor/`, `taskbar.js`, `StartPage/`, `AppLibrary/` | 弹窗、菜单、AI 对话、编辑器、窗口管理、开始首页、全局应用库 |
 | 浏览器层 | `AppLibrary/browser/` | 内置浏览器（多标签页、书签、历史、下载、阅读模式、密码管理、网页转节点） |
 | 引导层 | `Guide/` | 新手引导、教程项目 |
@@ -491,7 +538,7 @@ AstroKnot/
 | `module3` | `module0`, `module2`, `VisualComponents/`, `module8` | 历史记录 |
 | `module4` | 无 | 独立确认弹窗 |
 | `module5` | `module0`, `module3`, `module4`, `module2`, `VisualComponents/` | 节点编辑 |
-| `VisualComponents/` | `module0` | 3D 组件（节点网格、连线、场景构建） |
+| `VisualComponents/` | `module0` | 3D 组件（节点网格、连线、场景构建、卡片全息效果） |
 | `module7` | `module0`, `module1` | 场景初始化 |
 | `module8` | `module0`, `module2`, `VisualComponents/`, `module5` | 右键菜单 |
 | `module9` | `module0`, `module2`, `VisualComponents/`, `module5` | 文件 IO |
@@ -540,10 +587,20 @@ AstroKnot/
 - **缩放**：鼠标滚轮
 - **平移**：鼠标右键拖拽
 - **选中节点**：左键点击
-- **编辑节点**：双击节点打开富文本编辑器
+- **编辑节点**：双击节点打开富文本编辑器（卡片/网页节点双击行为不同，见下方）
 - **右键菜单**：右键点击节点或空白区域
 - **移动节点**：右键菜单 → 移动，拖拽到目标位置
 - **图层切换**：工具栏图层按钮切换不同图层
+
+### 卡片模式
+
+- **切换为卡片**：右键节点 → "📋 切换为卡片"，节点变为可预览富文本内容的卡片
+- **切换为网页节点**：右键节点 → "变为网页节点"，节点变为网页模式，内嵌搜索栏 + iframe
+- **卡片大小调整**：拖拽卡片四边或四角（8px 边缘区域），光标自动变为调整样式
+- **2D 视图卡片**：正文区域可滚动阅读，滚轮不触发画布缩放；标题栏/边框区域可拖拽移动
+- **3D 视图卡片**：选中卡片节点时显示全息广告牌效果（扫描线 + 辉光），鼠标滚轮可滚动卡片内容
+- **网页节点**：搜索栏自动检测 URL（含 `.` 且无空格自动加 `https://`），否则使用 Bing 搜索
+- **双击网页节点**：打开内置浏览器浏览完整网页（部分网站因 iframe 限制无法在卡片中显示）
 
 ### 富文本编辑器
 
@@ -565,7 +622,7 @@ AstroKnot/
 ### 其他
 
 - **AstroKnot 菜单**：底部任务栏左侧按钮，打开项目面板 & 快速笔记 & 全局应用库
-- **快速笔记**：独立的富文本笔记，支持标签页
+- **快速笔记**：独立的富文本笔记，支持标签页，可在文本模式（TinyMCE）和代码模式（Web 项目沙盒 IDE）之间切换，右键可"📌 添加为节点"
 - **2D 思维导图**：工具栏切换 2D 视图
 - **Dock 快捷启动**：底部 Dock 栏，支持拖放文件/文件夹
 - **天气 & 农历**：任务栏右侧时钟，右键可设置城市
@@ -624,17 +681,18 @@ AstroKnot 将所有用户数据集中存储在 `AstroKnot-Data/` 目录下，支
 AstroKnot-Data/
 ├── system/                      # 系统数据
 │   ├── settings.json            #   数据目录配置（路径、相对位置）
-│   ├── preferences.json         #   应用偏好设置（localStorage 镜像，36 个 key）
+│   ├── storage/                 #   系统级键值存储（替代 localStorage，每个 key 一个 JSON 文件）
 │   ├── emergency-backups/       #   应急备份（崩溃恢复）
 │   ├── sandbox-tmp/             #   未保存项目的临时沙盒
 │   └── version-graphs-tmp/      #   未保存项目的版本图临时数据
 ├── projects/                    # 用户项目（每个项目一个文件夹）
-├── quicknotes/                  # 快速笔记
+├── quicknotes/                  # 快速笔记（每条笔记一个子目录，含 content.html、drawdata.json、filesystem.json、mode.json 等）
 ├── apps/                        # 全局应用库（GitHub 克隆的应用）
 │   ├── index.json               #   应用清单
 │   └── <app-id>/                #   每个应用一个子目录
 │       ├── meta.json            #     应用元数据
 │       └── sandbox/             #     应用文件
+├── download/                    # 下载文件（内置浏览器下载目录）
 └── trash/                       # 回收站（已删除项目，可恢复）
     └── <project-name>/          #   每个已删除项目一个子目录
         ├── .trash-meta.json     #     删除时间、来源等元数据
@@ -652,7 +710,7 @@ AstroKnot-Data/
 - **运行时**：每次写入都是同步原子写入（temp + rename），无需防抖
 - **退出时**：无需额外 flush，数据已实时落盘
 - **白名单过滤**：仅接管应用自有 key（`astroknot*`、`knowledge_graph*`、`ai*`、`richEditor*`、`calendar*` 等），第三方库 key（TinyMCE/Monaco）保留在原生 localStorage
-- **数据迁移**：首次启动时自动读取旧的 `system/preferences.json`，将其中的应用 key 迁移到 `system/storage/`
+- **数据迁移**：首次启动时自动读取旧的 `system/preferences.json`，将其中的应用 key 迁移到 `system/storage/`，迁移完成后旧文件不再使用
 - **Web 降级**：非 Electron 环境自动降级为原生 localStorage
 
 ## 部署版本
