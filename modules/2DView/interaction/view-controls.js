@@ -5,7 +5,7 @@
 import { appState } from '../../module0_AppState.js';
 import {
   canvas, visible, transform,
-  keys2D, PAN_SPEED
+  keys2D
 } from '../shared.js';
 import { draw } from '../render/index.js';
 import { canvasToWorld } from './coordinate-utils.js';
@@ -57,17 +57,22 @@ export function reset2DView() {
   draw();
 }
 
-// 键盘平移
+// 键盘平移（帧率解耦：用 delta time 保证节点多帧率低时速度不下降）
+let _lastPanTime = 0;
+const PAN_PIXELS_PER_SEC = 720; // 目标速度：720px/s（≈90fps × 8px/帧）
 export function process2DPanning() {
   if (!visible || !appState.is2DView) return;
+  const now = performance.now();
+  const dt = _lastPanTime > 0 ? Math.min(0.05, (now - _lastPanTime) / 1000) : 1 / 90;
+  _lastPanTime = now;
   let dx = 0, dy = 0;
-  if (keys2D.a || keys2D.ArrowLeft) dx += PAN_SPEED;
-  if (keys2D.d || keys2D.ArrowRight) dx -= PAN_SPEED;
-  if (keys2D.w || keys2D.ArrowUp) dy += PAN_SPEED;
-  if (keys2D.s || keys2D.ArrowDown) dy -= PAN_SPEED;
+  if (keys2D.a || keys2D.ArrowLeft) dx += PAN_PIXELS_PER_SEC;
+  if (keys2D.d || keys2D.ArrowRight) dx -= PAN_PIXELS_PER_SEC;
+  if (keys2D.w || keys2D.ArrowUp) dy += PAN_PIXELS_PER_SEC;
+  if (keys2D.s || keys2D.ArrowDown) dy -= PAN_PIXELS_PER_SEC;
   if (dx !== 0 || dy !== 0) {
-    transform.offsetX += dx;
-    transform.offsetY += dy;
+    transform.offsetX += dx * dt;
+    transform.offsetY += dy * dt;
     draw();
   }
 }

@@ -5,7 +5,7 @@
 const { ipcMain, BrowserWindow, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const dataSettings = require('./data-settings');
+const dataSettings = require('../data-settings');
 
 // 延迟加载 node-pty（N-API 预编译二进制，兼容 Electron）
 let nodePty = null;

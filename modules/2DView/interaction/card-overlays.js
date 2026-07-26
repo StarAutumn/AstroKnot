@@ -44,9 +44,9 @@ export function resetCardResize() {
 const _cardBodyOverlays = new Map();  // nodeId -> HTMLElement
 let _cardOverlayContainer = null;
 
-// 注入一次 scoped 样式
+// 注入一次 scoped 样式（导出供树形面板复用，确保卡片 overlay 视觉一致）
 let _cardOverlayStyleInjected = false;
-function _injectCardOverlayStyle() {
+export function _injectCardOverlayStyle() {
   if (_cardOverlayStyleInjected) return;
   _cardOverlayStyleInjected = true;
   const style = document.createElement('style');

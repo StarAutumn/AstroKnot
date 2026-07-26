@@ -11,8 +11,7 @@ import {
   POLYLINE_PEG_X, POLYLINE_PEG_Y,
   getNodeAnchors, getNodeLayoutSize
 } from '../2DView/index.js';
-
-const PAN_SPEED = 6;
+import { _injectCardOverlayStyle } from '../2DView/interaction/card-overlays.js';
 
 // ── 全局连线呼吸色：全色域缓慢循环，与主 2D 视图保持一致 ──
 function getBreathingLineColor() {
@@ -34,6 +33,7 @@ function createState(container, canvas) {
   return {
     container,
     canvas,
+    canvasId: canvas.id,
     ctx,
     visible: true,
     transform: { offsetX: 0, offsetY: 0, scale: 1 },
@@ -42,6 +42,8 @@ function createState(container, canvas) {
     nodeHitAreas: [],
     highlightedNodeId: null,
     animations: [],
+    cardBodyRects: [],
+    cardOverlays: new Map(),
     keys: { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false }
   };
 }
@@ -380,42 +382,121 @@ function drawSidebarNodeCard(x, y, node, s, selected, alpha, highlighted, connec
   ctx.lineTo(w - padding, padding + titleFontSize + 2);
   ctx.stroke();
 
-  // 正文摘要（纯文本多行，不渲染 HTML）
-  if (bodyH > 0) {
-    const plainText = _sidebarHtmlToPlain(node.richContent || node.desc || '');
-    if (plainText) {
-      ctx.fillStyle = '#9bb';
-      ctx.font = `${fontSize}px system-ui, sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      const charPerLine = Math.max(1, Math.floor((w - padding * 2) / (fontSize * 0.55)));
-      const lineHeight = fontSize * 1.3;
-      const maxLines = Math.max(1, Math.floor(bodyH / lineHeight));
-      let remaining = plainText;
-      for (let i = 0; i < maxLines && remaining.length > 0; i++) {
-        const line = remaining.slice(0, charPerLine);
-        remaining = remaining.slice(charPerLine);
-        ctx.fillText(line, padding, padding + titleAreaH + i * lineHeight);
-      }
-      if (remaining.length > 0) {
-        // 最后一行加省略号
-        const lastY = padding + titleAreaH + (maxLines - 1) * lineHeight;
-        ctx.fillText('…', padding + charPerLine * fontSize * 0.55, lastY);
-      }
-    }
+  // 正文区域：记录矩形（世界坐标）供 syncSidebarCardOverlays 同步 DOM overlay 渲染富文本
+  if (bodyH > 0 && node.id) {
+    s.cardBodyRects.push({
+      id: node.id,
+      x: x + padding,
+      y: y + padding + titleAreaH,
+      width: w - padding * 2,
+      height: bodyH,
+      alpha: alpha
+    });
   }
 
   ctx.restore();
 }
 
+// ── 树形面板卡片正文 DOM overlay：与主 2D 视图一致的富文本渲染 ──
+//  挂在树形面板容器内部（position:absolute），避免外部堆叠上下文遮挡
+
+function _ensureOverlayLayer(s) {
+  // 每个实例在自身 container 内创建一个 overlay 层
+  if (s._overlayLayer && s.container.contains(s._overlayLayer)) return s._overlayLayer;
+  _injectCardOverlayStyle();  // 复用主视图的 [data-card-overlay] 样式
+  // 确保 container 是定位上下文
+  if (getComputedStyle(s.container).position === 'static') {
+    s.container.style.position = 'relative';
+  }
+  const layer = document.createElement('div');
+  layer.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:10;';
+  s.container.appendChild(layer);
+  s._overlayLayer = layer;
+  return layer;
+}
+
+// 隐藏某实例的所有 overlay（实例不可见/销毁时调用）
+function _hideSidebarCardOverlays(s) {
+  for (const div of s.cardOverlays.values()) {
+    div.style.display = 'none';
+  }
+}
+
+// 同步所有卡片正文 overlay 的位置/尺寸/内容/透明度（与主视图 syncCardOverlays 对齐）
+function syncSidebarCardOverlays(s) {
+  const layer = _ensureOverlayLayer(s);
+  const { canvas, transform } = s;
+  const seen = new Set();
+  for (const r of s.cardBodyRects) {
+    seen.add(r.id);
+    const node = appState.nodeMap.get(r.id);
+    if (!node) continue;
+    if (r.alpha < 0.05) continue;
+
+    let div = s.cardOverlays.get(r.id);
+    if (!div) {
+      div = document.createElement('div');
+      div.dataset.cardOverlay = r.id;           // 复用主视图 [data-card-overlay] 样式
+      div.style.cssText = 'position:absolute;pointer-events:none;overflow:hidden;box-sizing:border-box;overflow-y:auto;';
+      layer.appendChild(div);
+      s.cardOverlays.set(r.id, div);
+    }
+    div.style.display = '';
+
+    // 世界坐标 → 容器内坐标（canvas 填满 container，原点 = canvas 左上角）
+    const sx = r.x * transform.scale + canvas.width / 2 + transform.offsetX;
+    const sy = r.y * transform.scale + canvas.height / 2 + transform.offsetY;
+
+    div.style.left = sx + 'px';
+    div.style.top = sy + 'px';
+    div.style.width = r.width + 'px';
+    div.style.height = r.height + 'px';
+    div.style.transform = `scale(${transform.scale})`;
+    div.style.transformOrigin = 'top left';
+    div.style.opacity = r.alpha;
+
+    // 内容更新（仅当 richContent 变化时）
+    const html = node.richContent || node.desc || '';
+    if (div._lastHtml !== html) {
+      div.innerHTML = html;
+      div._lastHtml = html;
+    }
+  }
+  // 移除不再存在的 overlay
+  for (const [id, div] of s.cardOverlays) {
+    if (!seen.has(id)) {
+      div.remove();
+      s.cardOverlays.delete(id);
+    }
+  }
+}
+
 // ── 绘制基础元素 ──
+// 根据文字内容计算节点宽度（自适应，不小于基础宽度）
+function getSidebarNodeWidth(node, scale, ctx) {
+  const fontSize = Math.max(10, 14 * scale);
+  const padding = 16 * scale;
+  ctx.font = `${fontSize}px system-ui, sans-serif`;
+  const textWidth = ctx.measureText((node && node.name) || '').width;
+  return Math.max(BASE_NODE_WIDTH * scale, textWidth + padding * 2);
+}
+
+// 统一获取节点尺寸：卡片模式用卡片尺寸，普通节点用自适应宽度
+function getSidebarNodeSize(node, scale, ctx) {
+  if (node && (node.displayMode === 'card' || node.displayMode === 'webpage')) {
+    return getNodeLayoutSize(node, scale);
+  }
+  return { width: getSidebarNodeWidth(node, scale, ctx), height: BASE_NODE_HEIGHT * scale };
+}
+
 function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted = false, connected = false, connectedStep = false, isCurrentlyEditing = false) {
   // 卡片/网页模式走独立绘制路径（与主 2D 视图一致）
   if (node.displayMode === 'card' || node.displayMode === 'webpage') {
     return drawSidebarNodeCard(x, y, node, s, selected, alpha, highlighted, connected, connectedStep, isCurrentlyEditing);
   }
   const scale = node.sizeScale || 1;
-  const w = BASE_NODE_WIDTH * scale;
+  const ctx = s.ctx;
+  const w = getSidebarNodeWidth(node, scale, ctx);
   const h = BASE_NODE_HEIGHT * scale;
   const fontSize = Math.max(10, 14 * scale);
   const shape = node.nodeShape || (isNextStepNode(node) ? 'stadium' : 'roundedRect');
@@ -439,7 +520,6 @@ function drawSidebarNode(x, y, node, s, selected = false, alpha = 1, highlighted
     return !srcLayer || !tgtLayer || srcLayer.id !== tgtLayer.id;
   });
 
-  const ctx = s.ctx;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(x, y);
@@ -735,7 +815,9 @@ export function toggleSidebarCollapse(nodeId) {
 // ── 递归绘制树 ──
 function drawSidebarTreeRecursive(layout, positionMap, s, parentCollapsedProgress = null, isRoot = true, layerNodeIds = null) {
   if (!layout?.node) return;
-  const { node, width, height } = layout;
+  const { node } = layout;
+  const _nodeScale = node.sizeScale || 1;
+  const { width, height } = getSidebarNodeSize(node, _nodeScale, s.ctx);
   const nodeId = node.id;
   const isSelected = nodeId ? appState.selectedNodeIds.has(nodeId) : false;
   const isHighlighted = nodeId === s.highlightedNodeId;
@@ -791,17 +873,19 @@ function drawSidebarTreeRecursive(layout, positionMap, s, parentCollapsedProgres
 
     const parentX = pos ? pos.x : layout.x;
     const parentY = pos ? pos.y : layout.y;
+    const _childScale = child.node.sizeScale || 1;
+    const { width: childW, height: childH } = getSidebarNodeSize(child.node, _childScale, s.ctx);
     let parentOutputX, parentOutputY, childInputX, childInputY;
     if (isStepNode) {
       parentOutputX = parentX + width / 2;
       parentOutputY = parentY + height;
-      childInputX = childPos.x + child.width / 2;
+      childInputX = childPos.x + childW / 2;
       childInputY = childPos.y;
     } else {
       parentOutputX = parentX + width;
       parentOutputY = parentY + height / 2;
       childInputX = childPos.x;
-      childInputY = childPos.y + child.height / 2;
+      childInputY = childPos.y + childH / 2;
     }
 
     const childAlpha = effectiveProgress !== null ? effectiveProgress : 1;
@@ -870,11 +954,11 @@ function drawSidebarCrossEdges(positionMap, s, layerNodeIds = null) {
     if (!sourcePos || !targetPos) continue;
     const sourceScale = appState.nodeMap.get(edge.source)?.sizeScale || 1;
     const targetScale = appState.nodeMap.get(edge.target)?.sizeScale || 1;
-    // 卡片模式使用卡片尺寸，普通节点使用基础尺寸
+    // 卡片模式使用卡片尺寸，普通节点使用自适应宽度
     const srcNode = appState.nodeMap.get(edge.source);
     const tgtNode = appState.nodeMap.get(edge.target);
-    const srcSize = getNodeLayoutSize(srcNode, sourceScale);
-    const tgtSize = getNodeLayoutSize(tgtNode, targetScale);
+    const srcSize = getSidebarNodeSize(srcNode, sourceScale, s.ctx);
+    const tgtSize = getSidebarNodeSize(tgtNode, targetScale, s.ctx);
     // 锚点支持
     let x1, y1, x2, y2;
     if (edge.sourceAnchor) {
@@ -949,8 +1033,13 @@ function drawSidebarCrossEdges(positionMap, s, layerNodeIds = null) {
 // ── 主绘制函数（接受状态参数） ──
 export function drawSidebar2D(s) {
   if (!s) s = getActiveState();
-  if (!s || !s.visible || !s.ctx || !s.canvas) return;
+  if (!s || !s.visible || !s.ctx || !s.canvas) {
+    if (s) _hideSidebarCardOverlays(s);  // 实例不可见时隐藏其卡片 overlay
+    return;
+  }
   if (!appState.methodsTree) return;
+
+  s.cardBodyRects = [];  // 清空上一帧的卡片正文矩形，绘制过程中重新收集
 
   const { ctx, canvas, transform } = s;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1060,13 +1149,15 @@ export function drawSidebar2D(s) {
     const node = appState.nodeMap.get(id);
     if (node) {
       const scale = node.sizeScale || 1;
-      // 卡片模式使用卡片尺寸，普通节点使用基础尺寸
-      const { width: nw, height: nh } = getNodeLayoutSize(node, scale);
+      const { width: nw, height: nh } = getSidebarNodeSize(node, scale, ctx);
       s.nodeHitAreas.push({ id, x: pos.x, y: pos.y, width: nw, height: nh });
     }
   }
 
   ctx.restore();
+
+  // 同步卡片正文 DOM overlay（与主 2D 视图一致的富文本渲染）
+  syncSidebarCardOverlays(s);
 
   if (s.animations.length > 0) {
     requestAnimationFrame(() => {
@@ -1079,19 +1170,24 @@ export function refreshSidebar2DView() {
   for (const [_, s] of instances) resizeSidebarCanvas(s);
 }
 
-// ── 键盘平移 ──
+// ── 键盘平移（帧率解耦：用 delta time 保证节点多帧率低时速度不下降）──
+let _lastSidebarPanTime = 0;
+const PAN_PIXELS_PER_SEC = 540; // 目标速度：540px/s（≈90fps × 6px/帧）
 export function processSidebar2DPanning() {
   const s = getActiveState();
   if (!s || !s.canvas) return;
+  const now = performance.now();
+  const dt = _lastSidebarPanTime > 0 ? Math.min(0.05, (now - _lastSidebarPanTime) / 1000) : 1 / 90;
+  _lastSidebarPanTime = now;
   let dx = 0, dy = 0;
-  if (s.keys.a || s.keys.ArrowLeft) dx += PAN_SPEED;
-  if (s.keys.d || s.keys.ArrowRight) dx -= PAN_SPEED;
-  if (s.keys.w || s.keys.ArrowUp) dy += PAN_SPEED;
-  if (s.keys.s || s.keys.ArrowDown) dy -= PAN_SPEED;
+  if (s.keys.a || s.keys.ArrowLeft) dx += PAN_PIXELS_PER_SEC;
+  if (s.keys.d || s.keys.ArrowRight) dx -= PAN_PIXELS_PER_SEC;
+  if (s.keys.w || s.keys.ArrowUp) dy += PAN_PIXELS_PER_SEC;
+  if (s.keys.s || s.keys.ArrowDown) dy -= PAN_PIXELS_PER_SEC;
   if (dx !== 0 || dy !== 0) {
     s.highlightedNodeId = null;
-    s.transform.offsetX += dx;
-    s.transform.offsetY += dy;
+    s.transform.offsetX += dx * dt;
+    s.transform.offsetY += dy * dt;
     drawSidebar2D(s);
   }
 }
@@ -1121,8 +1217,8 @@ export function centerOnNode(nodeId) {
   if (!pos || !s || !s.canvas) return false;
   const node = appState.nodeMap.get(nodeId);
   const scale = node?.sizeScale || 1;
-  // 卡片模式使用卡片尺寸居中，普通节点使用基础尺寸
-  const { width: nw, height: nh } = getNodeLayoutSize(node, scale);
+  // 卡片模式使用卡片尺寸居中，普通节点使用自适应宽度
+  const { width: nw, height: nh } = getSidebarNodeSize(node, scale, s.ctx);
   const nodeCX = pos.x + nw / 2;
   const nodeCY = pos.y + nh / 2;
   // 如果是当前正在编辑的节点，不设置 highlightedNodeId（已有绿色高亮）

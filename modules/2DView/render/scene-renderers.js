@@ -240,12 +240,9 @@ export function drawCrossEdges(positionMap) {
     }
     const edgeData = { edgeType: 'cross', startId: edge.source, endId: edge.target, label: edge.label, labelHidden: edge.labelHidden, customColor: edge.customColor };
 
-    // 查找对应的 lineItem（用于读取标签数据，与树连线标签逻辑一致）
-    const lineItem = appState.lineItems.find(item =>
-      item.edgeType === 'cross' &&
-      ((item.startId === edge.source && item.endId === edge.target) ||
-       (item.startId === edge.target && item.endId === edge.source))
-    );
+    // 查找对应的 lineItem（用 Map O(1) 查找替换 find O(n) 线性搜索）
+    const lineItem = _lineItemsMap.get(`${edge.source}->${edge.target}`)
+      || _lineItemsMap.get(`${edge.target}->${edge.source}`);
 
     // 有拐点则画折线，否则画直线
     if (edge.waypoints && edge.waypoints.length > 0) {

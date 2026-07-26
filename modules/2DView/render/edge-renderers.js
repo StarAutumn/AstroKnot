@@ -15,58 +15,80 @@ import { _renderHue } from './frame-state.js';
 import { isNodeInCurrentLayer } from './visibility.js';
 
 // ============================================================
-//  绘制连线
+//  绘制连线（单条，兼容旧调用；内部走批量收集）
 // ============================================================
 export function drawLine(x1, y1, x2, y2, alpha = 1, color = '#2c6e7e', edgeData = null, dash = [], glow = false, glowColor = null, drawArrow = true) {
   const lineWidth = glow ? 3 : 2;
+  // 命中区仍按单条记录
   setLineHitAreas([...lineHitAreas, { x1, y1, x2, y2, edgeData, color, lineWidth }]);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth;
-  ctx.setLineDash(dash);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // 光晕闪烁效果
+  // 批量收集：同色同宽同 dash 的线段合并为一次 stroke
+  _batchPush(x1, y1, x2, y2, alpha, color, lineWidth, dash);
+  // 光晕单独收集（宽度不同）
   if (glow) {
     const pulse = 0.5 + 0.5 * Math.sin(_renderHue * 0.08);
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.strokeStyle = glowColor || color;
-    ctx.lineWidth = 5 + pulse * 4;
-    ctx.globalAlpha = alpha * (0.3 + pulse * 0.3);
-    ctx.setLineDash(dash);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = alpha;
+    _batchPush(x1, y1, x2, y2, alpha * (0.3 + pulse * 0.3), glowColor || color, 5 + pulse * 4, dash);
   }
-
+  // 箭头单独画（fill，无法批量 stroke）
   if (drawArrow) {
-    const angle = Math.atan2(y2 - y1, x2 - x1);
-    const arrowLen = 12;
-    const tipX = x2 - 4 * Math.cos(angle);
-    const tipY = y2 - 4 * Math.sin(angle);
-    ctx.beginPath();
-    ctx.moveTo(tipX, tipY);
-    ctx.lineTo(
-      tipX - arrowLen * Math.cos(angle - Math.PI / 7),
-      tipY - arrowLen * Math.sin(angle - Math.PI / 7)
-    );
-    ctx.lineTo(
-      tipX - arrowLen * Math.cos(angle + Math.PI / 7),
-      tipY - arrowLen * Math.sin(angle + Math.PI / 7)
-    );
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+    if (!_arrowBatch) _arrowBatch = [];
+    _arrowBatch.push({ x1, y1, x2, y2, color });
   }
+}
 
+// ── 批量绘制缓冲 ──
+let _lineBatch = new Map();   // key → { x1,y1,x2,y2,alpha,color,lineWidth,dash }[]
+let _arrowBatch = null;
+
+function _batchKey(color, lineWidth, dash) {
+  // dash 数组内容相同即视为同一组（用 join 简化）
+  return color + '|' + lineWidth + '|' + (dash && dash.length ? dash.join(',') : '');
+}
+function _batchPush(x1, y1, x2, y2, alpha, color, lineWidth, dash) {
+  const key = _batchKey(color, lineWidth, dash);
+  let arr = _lineBatch.get(key);
+  if (!arr) { arr = []; _lineBatch.set(key, arr); }
+  arr.push(x1, y1, x2, y2, alpha);
+}
+/** 在 draw() 末尾调用：把收集到的所有线段按组一次性 stroke */
+export function flushLineBatch() {
+  if (!_lineBatch.size && !_arrowBatch) return;
+  ctx.save();
+  for (const [key, arr] of _lineBatch) {
+    const [color, lineWidth, dashStr] = key.split('|');
+    const dash = dashStr ? dashStr.split(',').map(Number) : [];
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Number(lineWidth);
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    for (let i = 0; i < arr.length; i += 5) {
+      // 同 alpha 也分组较复杂，这里按段设置（Canvas state 切换远比 stroke 便宜）
+      ctx.globalAlpha = arr[i + 4];
+      ctx.moveTo(arr[i], arr[i + 1]);
+      ctx.lineTo(arr[i + 2], arr[i + 3]);
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  // 箭头批量 fill
+  if (_arrowBatch && _arrowBatch.length) {
+    const arrowLen = 12;
+    for (const a of _arrowBatch) {
+      const angle = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
+      const tipX = a.x2 - 4 * Math.cos(angle);
+      const tipY = a.y2 - 4 * Math.sin(angle);
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX - arrowLen * Math.cos(angle - Math.PI / 7), tipY - arrowLen * Math.sin(angle - Math.PI / 7));
+      ctx.lineTo(tipX - arrowLen * Math.cos(angle + Math.PI / 7), tipY - arrowLen * Math.sin(angle + Math.PI / 7));
+      ctx.closePath();
+      ctx.fillStyle = a.color;
+      ctx.fill();
+    }
+  }
   ctx.restore();
+  _lineBatch.clear();
+  _arrowBatch = null;
 }
 
 // ============================================================

@@ -193,6 +193,12 @@ export function applyLoadedData(data, folderName, folderPath) {
   appState.history.clear();
   // 初始化保存时的历史记录长度为 0（刚加载的项目被视为"干净"状态）
   project._savedUndoLength = 0;
+
+  // 13. 刷新 2D 视图：methodsTree / currentLayerId / positions2D 已更新，
+  // 必须标记布局为脏并重绘，否则 draw() 会沿用旧项目的 _cachedLayout，
+  // 经 isNodeInCurrentLayer 过滤后画面一片空白
+  if (appState.refresh2DView) appState.refresh2DView();
+  else if (appState.redraw2DView) appState.redraw2DView();
 }
 
 /**

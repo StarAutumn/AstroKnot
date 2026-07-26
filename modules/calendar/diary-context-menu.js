@@ -11,6 +11,7 @@
 import { hasDiary, readDiary, fmtDiaryDate } from './diary-store.js';
 import { openDiaryEditor, deleteDiaryFromMenu } from './diary-editor.js';
 import { state } from './shared-state.js';
+import { showConfirm } from '../module4_Confirm.js';
 
 let _menu = null;
 let _currentDateStr = null;
@@ -134,7 +135,8 @@ async function _openEditor(dateStr) {
 }
 
 async function _deleteDiary(dateStr) {
-  if (!window.confirm('确定删除 ' + dateStr + ' 的日记吗？此操作不可撤销。')) return;
+  const confirmed = await showConfirm('确定删除 ' + dateStr + ' 的日记吗？', '此操作不可撤销。');
+  if (!confirmed) return;
   const result = await deleteDiaryFromMenu(dateStr);
   if (result && result.success) {
     _showToast('日记已删除');

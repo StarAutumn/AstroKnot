@@ -191,7 +191,6 @@ export { ANCHOR_KEYS };
 
 // -------- 键盘平移 --------
 export const keys2D = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
-export const PAN_SPEED = 8;
 
 // -------- 获取组群矩形把手位置（纯函数，供 Render/Interaction 共用）--------
 export function getGroupHandlePositions(gr) {

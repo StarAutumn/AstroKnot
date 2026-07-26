@@ -25,13 +25,13 @@ import {
   rebuildCrossEdgeIndex, rebuildAnimationsIndex,
   getPostDrawHook
 } from './frame-state.js';
-import { isNodeInCurrentLayer } from './visibility.js';
+import { isNodeInCurrentLayer, rebuildParentMap } from './visibility.js';
 import { getCardSize, getCardOffset } from './shape-utils.js';
 import {
   drawTreeRecursive, drawCrossEdges, drawBoxSelection,
   drawGroupRects, drawSelectedGroupHandles
 } from './scene-renderers.js';
-import { drawAllAnchorPoints, drawFreeDrawPreview } from './edge-renderers.js';
+import { drawAllAnchorPoints, drawFreeDrawPreview, flushLineBatch } from './edge-renderers.js';
 
 // ============================================================
 //  主绘制函数
@@ -42,6 +42,7 @@ export function draw() {
   setFrameNow(performance.now());  // 帧内时间戳：drawNode/getBreathingLineColor 复用，避免多次系统调用
   rebuildCrossEdgeIndex();       // 跨层连线节点索引（每帧重建）
   rebuildAnimationsIndex();      // 动画索引（数组引用变化时重建）
+  rebuildParentMap();            // parentMap 缓存（methodsTree 变更时重建）
 
   // 预索引 lineItems：每帧重建，避免 addSingleTreeLine(push)/splice 原地修改导致缓存过期
   clearLineItemsMap();
@@ -166,6 +167,10 @@ export function draw() {
   }
 
   drawBoxSelection();
+
+  // 批量刷新所有收集到的连线（在 ctx.restore 之前，保持世界坐标系）
+  flushLineBatch();
+
   ctx.restore();
 
   // 通知外部（Interaction.js）同步卡片正文 DOM overlay

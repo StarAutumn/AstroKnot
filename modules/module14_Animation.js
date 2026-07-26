@@ -278,6 +278,9 @@ export function animate() {
       }
     }
 
+    // 缓存节点颜色 hex 字符串（pause 模式），供 2D 视图绘制边框时直接读取
+    if (obj.mesh?.material?.color) obj._borderColorHex = '#' + obj.mesh.material.color.getHexString();
+
     // ========== 图层水面波纹更新 ==========
     if (appState.layerHighlights) {
       for (const hl of appState.layerHighlights) {
@@ -743,6 +746,9 @@ if (!appState.simple3D) {
         obj.surfaceGlowSphere.visible = lodOpacity > 0 && obj.mesh.visible;
       }
     }
+
+    // 缓存节点颜色 hex 字符串，供 2D 视图绘制边框时直接读取（避免每节点 getHexString float→hex 转换）
+    if (obj.mesh?.material?.color) obj._borderColorHex = '#' + obj.mesh.material.color.getHexString();
 
     // 🏷️ 相机视锥 LOD：距离超 35 或在相机后方时渐隐标签
     // 复用顶部计算的 _camDist/_dotCam，避免重复 Vector3 运算

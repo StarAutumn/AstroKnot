@@ -58,7 +58,10 @@ export function initScene() {
   });
   appState.effectComposer = new EffectComposer(appState.renderer);
   appState.effectComposer.addPass(new RenderPass(appState.scene, appState.camera));
-  appState.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.3, 0.4, 0.85);
+  // Bloom 降分辨率：bloom 本身是模糊效果，0.5x 分辨率视觉无差异，GPU 开销降 75%
+  const _bloomW = Math.max(1, Math.floor(window.innerWidth * 0.5));
+  const _bloomH = Math.max(1, Math.floor(window.innerHeight * 0.5));
+  appState.bloomPass = new UnrealBloomPass(new THREE.Vector2(_bloomW, _bloomH), 1.3, 0.4, 0.85);
   appState.bloomPass.threshold = 0.02;
   appState.bloomPass.strength = 0.2;
   appState.bloomPass.radius = 2;
@@ -506,6 +509,10 @@ export function initScene() {
     appState.camera.updateProjectionMatrix();
     appState.renderer.setSize(w, h);
     appState.effectComposer.setSize(w, h);
+    // Bloom 保持 0.5x 分辨率（resize 时也要同步）
+    if (appState.bloomPass) {
+      appState.bloomPass.setSize(Math.max(1, Math.floor(w * 0.5)), Math.max(1, Math.floor(h * 0.5)));
+    }
     appState.labelRenderer.setSize(w, h);
     // 更新 GPU 粒子材质的像素缩放
     appState._gpuParticleUniforms.forEach(u => u.uScale.value = h / 4);

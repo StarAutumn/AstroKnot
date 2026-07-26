@@ -33,21 +33,37 @@ export function finalizeAnimationProgress(nodeId, direction) {
 }
 
 // ============================================================
-//  查找父节点
+//  parentMap 缓存：每帧构建一次（O(n)），避免 getNodeVisibilityAlpha 中 O(n²) BFS
 // ============================================================
-export function findParentNode(nodeId) {
+let _parentMap = new Map();
+let _parentMapTreeRef = null;  // 用于检测 methodsTree 引用是否变化
+
+/** 每帧 draw() 开始时调用：构建 parentId 映射 */
+export function rebuildParentMap() {
   const root = appState.methodsTree;
+  // methodsTree 引用未变 → 复用缓存
+  if (root === _parentMapTreeRef) return;
+  _parentMapTreeRef = root;
+  _parentMap.clear();
+  if (!root) return;
+  // 迭代遍历，避免递归栈
   const stack = [root];
   while (stack.length) {
-    const current = stack.pop();
-    if (current.children) {
-      for (const child of current.children) {
-        if (child.id === nodeId) return current;
+    const node = stack.pop();
+    if (node.children) {
+      for (const child of node.children) {
+        if (child.id) _parentMap.set(child.id, node);
         stack.push(child);
       }
     }
   }
-  return null;
+}
+
+// ============================================================
+//  查找父节点（O(1) 从 parentMap 查找）
+// ============================================================
+export function findParentNode(nodeId) {
+  return _parentMap.get(nodeId) || null;
 }
 
 // ============================================================

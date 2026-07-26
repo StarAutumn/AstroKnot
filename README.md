@@ -10,6 +10,8 @@
 
 # AstroKnot
 
+<img src="assets/icon.png" alt="AstroKnot" width="128">
+
 ## 产品定位
 
 AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历排班融合为一体的桌面知识管理平台**。核心概念是以 3D 星图或 2D 思维导图的形式组织知识，每个节点都是一个可独立运行的"知识单元"——可以是一篇富文本笔记、一个前端项目（含完整 IDE）、一组多媒体覆盖层，或一个网页剪藏副本。
@@ -60,13 +62,16 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 
 基于 **Electron + Three.js** 构建，融合多种专业编辑器引擎：
 
-- 3D 渲染：Three.js 星云粒子、螺旋连线、节点光环、Bloom 辉光
+- 主进程：`main.js` 委托 `main/index.js`，按 IPC 域拆分为 `ipc-window/file/storage/browser/version-graph/emergency/data-settings` + `main-terminal`
+- 3D 渲染：Three.js 星云粒子、螺旋连线、节点光环、Bloom 辉光（0.5x 分辨率降 GPU 开销）
+- 2D 渲染：Canvas 2D 批量绘制（连线按颜色/线宽分组 stroke）、parentMap O(1) 查找、节点颜色 hex 缓存
 - 富文本：TinyMCE 7 inline 模式 + Univer 表格 + MathJax/MathLive 公式
 - 代码编辑：Monaco Editor（81 种语言）+ esbuild-wasm 打包
 - 版本控制：类 Git DAG 版本图，自动快照 + 手动提交
 - AI 集成：Chat/Agent 双模式，项目上下文感知，多模型切换
 - 内置浏览器：Electron `<webview>` 多进程隔离，独立 partition 会话，网页内容抓取
 - 系统级存储文件化：`SystemStorage` 模块接管应用 localStorage，每个 key 对应 `system/storage/` 下的独立 JSON 文件，实时原子写入
+- 帧率自适应：90fps 锁帧，50 秒无操作降至 50fps，交互即恢复
 
 ## 特性
 
@@ -104,6 +109,8 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - **内置终端** — node-pty + xterm.js，多标签页，支持 PowerShell/Zsh，沙盒目录自动作为工作目录
 - **双版本部署** — Electron 桌面版（完整功能）+ Web 版（浏览器访问，部分功能受限）
 - **自动化测试** — Vitest 单元测试套件，覆盖纯函数、VFS、版本控制、文件图标、GitHub API 等核心逻辑
+- **帧率自适应** — 锁定 90fps，用户无操作 50 秒后自动降至 50fps，任意交互立即恢复
+- **2D/3D 渲染优化** — 连线批量绘制、Bloom 降分辨率、parentMap 缓存、节点颜色 hex 缓存、连线视锥裁剪 + LOD 降频
 
 ## 快速开始
 
@@ -155,8 +162,18 @@ npm test
 AstroKnot/
 ├── AstroKnot.js              # 应用入口，顺序导入所有模块并启动
 ├── index.html                # 主页面（含启动闪屏、自定义标题栏、任务栏等）
-├── main.js                   # Electron 主进程（窗口创建、菜单、IPC 80+ 通道）
-├── main-terminal.js          # Electron 终端进程（node-pty 管理）
+├── main.js                   # Electron 主进程入口（仅 require('./main/index.js')）
+├── main/                     # 主进程按 IPC 域拆分
+│   ├── index.js              #   主启动入口（窗口创建、生命周期、各 IPC 模块注册）
+│   ├── ipc-window.js         #   窗口控制 IPC（最小化/最大化/关闭/全屏）
+│   ├── ipc-file.js           #   文件操作 IPC（项目保存/加载/图片选择）
+│   ├── ipc-storage.js        #   系统存储 IPC（SystemStorage 读写）
+│   ├── ipc-browser.js        #   内置浏览器 IPC（下载/书签/历史）
+│   ├── ipc-version-graph.js  #   版本图 IPC（快照/分支/回滚）
+│   ├── ipc-emergency.js      #   应急备份 IPC（崩溃恢复）
+│   ├── ipc-data-settings.js  #   数据目录设置 IPC（路径配置/首次引导）
+│   ├── main-terminal.js      #   终端进程管理（node-pty 会话）
+│   └── hmr.js                #   开发热更新
 ├── preload.js                # Electron preload 安全桥接
 ├── web-api-shim.js           # Web API 兼容层（Electron 环境补丁）
 ├── modules/systemStorage.js  # 系统级键值存储（接管应用 localStorage，持久化到 system/storage/）
@@ -514,6 +531,7 @@ AstroKnot/
 
 | 层 | 模块 | 职责 |
 |----|------|------|
+| 主进程层 | `main.js`, `main/` | Electron 主进程入口、窗口生命周期、按 IPC 域拆分（窗口/文件/存储/浏览器/版本图/应急备份/终端） |
 | 数据层 | `module0`, `module2`, `module3`, `module9`, `nodeDiskSync.js`, `emergencyBackup.js` | 状态管理、数据持久化、历史记录、文件 IO、节点级磁盘同步、应急备份 |
 | 版本控制层 | `versionGraph/` | 版本图系统（提交、分支、diff、回滚、自动保存） |
 | 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件（含卡片全息效果）、场景初始化、动画 |
@@ -568,7 +586,8 @@ AstroKnot/
 2. 需要操作节点树/项目 → 额外依赖 `module2`
 3. 需要创建/销毁 3D 对象 → 依赖 `VisualComponents/`
 4. 需要历史记录支持 → 使用 `module3` 的 `withHistory` 装饰器
-5. 在 `AstroKnot.js` 中导入并调用初始化函数
+5. 需要主进程能力（文件/终端/系统 API）→ 在 `main/` 下新建 `ipc-*.js`，通过 `bind*IPC(mainWindow)` 注册
+6. 在 `AstroKnot.js` 中导入并调用初始化函数
 
 ## 使用指南
 

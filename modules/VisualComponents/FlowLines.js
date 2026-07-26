@@ -307,16 +307,34 @@ export class SpiralFlowLine {
   }
 
   update(t) {
-    let off = (-t * 0.3 + this.off) % 1;
-    this.texture.offset.x = off;
-    this.glowTexture.offset.x = off;
-    this.glowTexture.offset.y = (-t * 0.1 + this.off) % 1;
-    this.texture.needsUpdate = true;
-    this.mesh.material.emissiveIntensity = 1 + Math.sin(t * 1.5 + this.off) * 0.7;
+    // 视锥裁剪优先：视锥外的连线只更新 label 位置，跳过纹理偏移/needsUpdate/粒子计算
+    if (!appState.simple3D && !_isLineInFrustum(this.start, this.end)) {
+      if (this.labelObj) {
+        _particleMidTmp.addVectors(this.start, this.end).multiplyScalar(0.5);
+        this.labelObj.position.copy(_particleMidTmp);
+      }
+      return;
+    }
+
+    // 🎯 LOD 降频：远距离连线纹理偏移每 2 帧更新一次（视觉无法察觉）
+    // 计算屏幕投影长度，复用后续 LOD 判断
+    _particleMidTmp.addVectors(this.start, this.end).multiplyScalar(0.5);
+    this._distToCamera = _particleMidTmp.distanceTo(appState.camera.position);
+    const _fov = appState.camera.fov * Math.PI / 180;
+    const _screenLen = (this.len / this._distToCamera) * (window.innerHeight / (2 * Math.tan(_fov / 2)));
+    const _farLine = _screenLen < 100;  // 远距离连线降频
+
+    if (!_farLine || ((_renderFrame & 1) === this._frameParity)) {
+      let off = (-t * 0.3 + this.off) % 1;
+      this.texture.offset.x = off;
+      this.glowTexture.offset.x = off;
+      this.glowTexture.offset.y = (-t * 0.1 + this.off) % 1;
+      this.texture.needsUpdate = true;
+      this.mesh.material.emissiveIntensity = 1 + Math.sin(t * 1.5 + this.off) * 0.7;
+    }
 
     if (appState.simple3D) {
       if (this.labelObj) {
-        _particleMidTmp.addVectors(this.start, this.end).multiplyScalar(0.5);
         this.labelObj.position.copy(_particleMidTmp);
       }
       if (this.customColor) {
@@ -325,18 +343,9 @@ export class SpiralFlowLine {
       return;
     }
 
-    if (!_isLineInFrustum(this.start, this.end)) {
-      if (this.labelObj) {
-        _particleMidTmp.addVectors(this.start, this.end).multiplyScalar(0.5);
-        this.labelObj.position.copy(_particleMidTmp);
-      }
-      return;
-    }
-
     if (!this.isFlowing && !appState.transitionActive) {
       if ((_renderFrame & 1) !== this._frameParity) {
         if (this.labelObj) {
-          _particleMidTmp.addVectors(this.start, this.end).multiplyScalar(0.5);
           this.labelObj.position.copy(_particleMidTmp);
         }
         return;
@@ -344,11 +353,8 @@ export class SpiralFlowLine {
     }
 
     // 🎯 基于屏幕空间大小的精确 LOD：远距离粒子在屏幕上几乎不可见时才裁剪
-    _particleMidTmp.addVectors(this.start, this.end).multiplyScalar(0.5);
-    this._distToCamera = _particleMidTmp.distanceTo(appState.camera.position);
-    // 估算连线在屏幕上的投影长度（像素），阈值改为 100px / 50px 才触发裁剪
-    const fov = appState.camera.fov * Math.PI / 180;
-    const screenLen = (this.len / this._distToCamera) * (window.innerHeight / (2 * Math.tan(fov / 2)));
+    // 复用上方计算的 _distToCamera/_screenLen，避免重复 Vector3 运算
+    const screenLen = _screenLen;
     let effectiveMaxParticles = this.particles.length;
     let effectiveTrailCount = this._trailCount;
     if (screenLen < 50) {
@@ -837,46 +843,54 @@ export class PolylineFlowLine {
   }
 
   update(t) {
-    const off = (-t * 0.3 + this.phase) % 1;
-    if (this.mesh.material.map) {
-      this.mesh.material.map.offset.x = off;
-      this.mesh.material.map.needsUpdate = true;
-    }
-    if (this.glowTube.material.map) {
-      this.glowTube.material.map.offset.x = off;
-      this.glowTube.material.map.offset.y = (-t * 0.1 + this.phase) % 1;
-      this.glowTube.material.map.needsUpdate = true;
-    }
-    this.mesh.material.emissiveIntensity = 1 + Math.sin(t * 1.5 + this.phase) * 0.7;
-
-    if (appState.simple3D) {
+    // 视锥裁剪优先：视锥外的连线只更新 label 位置，跳过纹理偏移/needsUpdate/粒子计算
+    if (!appState.simple3D && !_isLineInFrustum(this.points[0], this.points[this.points.length - 1])) {
       if (this.labelObj && this.points.length >= 2) {
         this.labelObj.position.copy(this.curve.getPointAt(0.5));
       }
-      if (this.customColor) this._applyCustomColor(this.customColor);
       return;
     }
 
-    if (!_isLineInFrustum(this.points[0], this.points[this.points.length - 1])) {
-      if (this.labelObj && this.points.length >= 2) {
-        this.labelObj.position.copy(this.curve.getPointAt(0.5));
+    // 🎯 LOD 降频：远距离连线纹理偏移每 2 帧更新一次（视觉无法察觉）
+    this.curve.getPointAt(0.5, _particleMidTmp);
+    this._distToCamera = _particleMidTmp.distanceTo(appState.camera.position);
+    const _fov2 = appState.camera.fov * Math.PI / 180;
+    const _screenLen2 = (this.len / this._distToCamera) * (window.innerHeight / (2 * Math.tan(_fov2 / 2)));
+    const _farLine2 = _screenLen2 < 100;
+
+    if (!_farLine2 || ((_renderFrame & 1) === this._frameParity)) {
+      const off = (-t * 0.3 + this.phase) % 1;
+      if (this.mesh.material.map) {
+        this.mesh.material.map.offset.x = off;
+        this.mesh.material.map.needsUpdate = true;
       }
+      if (this.glowTube.material.map) {
+        this.glowTube.material.map.offset.x = off;
+        this.glowTube.material.map.offset.y = (-t * 0.1 + this.phase) % 1;
+        this.glowTube.material.map.needsUpdate = true;
+      }
+      this.mesh.material.emissiveIntensity = 1 + Math.sin(t * 1.5 + this.phase) * 0.7;
+    }
+
+    if (appState.simple3D) {
+      if (this.labelObj && this.points.length >= 2) {
+        this.labelObj.position.copy(_particleMidTmp);
+      }
+      if (this.customColor) this._applyCustomColor(this.customColor);
       return;
     }
 
     if (!this.isFlowing && !appState.transitionActive) {
       if ((_renderFrame & 1) !== this._frameParity) {
         if (this.labelObj && this.points.length >= 2) {
-          this.labelObj.position.copy(this.curve.getPointAt(0.5));
+          this.labelObj.position.copy(_particleMidTmp);
         }
         return;
       }
     }
 
-    this.curve.getPointAt(0.5, _particleMidTmp);
-    this._distToCamera = _particleMidTmp.distanceTo(appState.camera.position);
-    const fov2 = appState.camera.fov * Math.PI / 180;
-    const screenLen2 = (this.len / this._distToCamera) * (window.innerHeight / (2 * Math.tan(fov2 / 2)));
+    // 复用上方计算的 _screenLen2，避免重复 Vector3 运算
+    const screenLen2 = _screenLen2;
     let effMaxParticles = this.particles.length;
     let effTrailCount = this._trailCount || 12;
     const trailCnt = this._trailCount || 12;

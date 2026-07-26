@@ -361,6 +361,12 @@ export function loadProject(projectId) {
   appState.updateSelectionUI();  // 更新选中显示
   appState.hideContextMenu();    // 关闭右键菜单
 
+  // 刷新 2D 视图：methodsTree / currentLayerId / positions2D 已更新，
+  // 必须标记布局为脏并重绘，否则 draw() 会沿用旧项目的 _cachedLayout，
+  // 经 isNodeInCurrentLayer 过滤后画面一片空白
+  if (appState.refresh2DView) appState.refresh2DView();
+  else if (appState.redraw2DView) appState.redraw2DView();
+
   // 切换项目时清空版本图缓存，确保新项目加载自己的版本图
   // 惰性动态 import 避免循环依赖（versionGraph.js → versionAutoSave.js → module2_TreeData.js）
   import('./versionGraph/versionGraph.js').then(({ clearCache }) => {

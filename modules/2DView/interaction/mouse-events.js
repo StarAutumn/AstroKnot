@@ -59,6 +59,12 @@ let _2dRenameActive = false;
 // ============================================================
 export function onMouseDown(e) {
   if (e.button === 2) return;
+
+  // 重命名输入框活跃时：先关闭输入框再处理点击，避免 e.preventDefault() 阻止 blur
+  if (_2dRenameActive && document.activeElement) {
+    document.activeElement.blur();
+  }
+
   const pos = getCanvasPos(e);
   setMouseDownPos(pos);  // 记录鼠标按下位置，供 onMouseUp 判断是否为点击（非拖拽）
   const worldPos = canvasToWorld(pos.x, pos.y);
@@ -677,19 +683,25 @@ export function handleClick(worldPos, e) {
       document.body.appendChild(input);
       input.focus();
       input.select();
+      let cardFinished = false;
       const finish = () => {
+        if (cardFinished) return;
+        cardFinished = true;
         const newName = input.value.trim();
-        if (newName && newName !== node.name) {
-          node.name = newName;
-          const obj = appState.nodeMeshes.get(renameHit.id);
-          if (obj) {
-            obj.mesh.userData.name = node.name;
-            if (obj.label && obj.label.element) obj.label.element.textContent = node.name;
+        try {
+          if (newName && newName !== node.name) {
+            node.name = newName;
+            const obj = appState.nodeMeshes.get(renameHit.id);
+            if (obj) {
+              obj.mesh.userData.name = node.name;
+              if (obj.label && obj.label.element) obj.label.element.textContent = node.name;
+            }
+            saveCurrentProjectData();
+            if (appState.refreshTreePanel) appState.refreshTreePanel();
           }
-          saveCurrentProjectData();
-          if (appState.refreshTreePanel) appState.refreshTreePanel();
+        } finally {
+          input.remove();
         }
-        input.remove();
         mark2DDirty();
         draw();
       };
@@ -784,19 +796,25 @@ function _start2DRename(hitArea) {
   input.focus();
   input.select();
 
+  let finished = false;
   const finish = (save) => {
+    if (finished) return;
+    finished = true;
     _2dRenameActive = false;
     const newName = save ? (input.value.trim() || originalName) : originalName;
-    if (newName !== originalName) {
-      node.name = newName;
-      saveCurrentProjectData();
-      if (typeof window.forceRefreshTreePanel === 'function') window.forceRefreshTreePanel();
-      // 更新 3D 标签
-      const obj = appState.nodeMeshes.get(hitArea.id);
-      if (obj && obj.label) obj.label.element.textContent = newName;
-      draw();
+    try {
+      if (newName !== originalName) {
+        node.name = newName;
+        saveCurrentProjectData();
+        if (typeof window.forceRefreshTreePanel === 'function') window.forceRefreshTreePanel();
+        // 更新 3D 标签
+        const obj = appState.nodeMeshes.get(hitArea.id);
+        if (obj && obj.label) obj.label.element.textContent = newName;
+        draw();
+      }
+    } finally {
+      input.remove();
     }
-    input.remove();
   };
 
   input.addEventListener('blur', () => finish(true));

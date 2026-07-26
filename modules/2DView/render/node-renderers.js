@@ -45,7 +45,9 @@ export function drawNode(x, y, node, selected = false, alpha = 1, connected = fa
   let borderColor = '#5a8a9a';
   if (node.id) {
     const obj = appState.nodeMeshes.get(node.id);
-    if (obj?.mesh?.material?.color) borderColor = '#' + obj.mesh.material.color.getHexString();
+    // 优先读取 3D 动画循环缓存的 hex 字符串，避免每节点 getHexString float→hex 转换
+    if (obj?._borderColorHex) borderColor = obj._borderColorHex;
+    else if (obj?.mesh?.material?.color) borderColor = '#' + obj.mesh.material.color.getHexString();
     else if (node.fixedColor) borderColor = node.fixedColor;
   }
 
@@ -185,7 +187,9 @@ function drawNodeCard(x, y, node, selected, alpha, hasCrossEdgesFlag = false, co
     borderColor = node.fixedColor;
   } else if (node.id) {
     const obj = appState.nodeMeshes.get(node.id);
-    if (obj?.mesh?.material?.color) borderColor = '#' + obj.mesh.material.color.getHexString();
+    // 优先读取 3D 动画循环缓存的 hex 字符串
+    if (obj?._borderColorHex) borderColor = obj._borderColorHex;
+    else if (obj?.mesh?.material?.color) borderColor = '#' + obj.mesh.material.color.getHexString();
   }
 
   ctx.save();
@@ -327,7 +331,9 @@ function drawNodeWebpage(x, y, node, selected, alpha, hasCrossEdgesFlag = false,
     borderColor = node.fixedColor;
   } else if (node.id) {
     const obj = appState.nodeMeshes.get(node.id);
-    if (obj?.mesh?.material?.color) borderColor = '#' + obj.mesh.material.color.getHexString();
+    // 优先读取 3D 动画循环缓存的 hex 字符串
+    if (obj?._borderColorHex) borderColor = obj._borderColorHex;
+    else if (obj?.mesh?.material?.color) borderColor = '#' + obj.mesh.material.color.getHexString();
   }
 
   ctx.save();
