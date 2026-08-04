@@ -166,7 +166,21 @@ AstroKnot/
 ├── main/                     # 主进程按 IPC 域拆分
 │   ├── index.js              #   主启动入口（窗口创建、生命周期、各 IPC 模块注册）
 │   ├── ipc-window.js         #   窗口控制 IPC（最小化/最大化/关闭/全屏）
-│   ├── ipc-file.js           #   文件操作 IPC（项目保存/加载/图片选择）
+│   ├── ipc-file/             #   文件操作 IPC（按功能域拆分为 14 个子模块）
+│   │   ├── index.js          #     入口（转发至 coordinator.js）
+│   │   ├── coordinator.js    #     汇总所有子模块的 IPC 注册
+│   │   ├── project-io.js     #     项目加载/保存/导出/打开外部链接
+│   │   ├── project-data.js   #     项目数据读写辅助函数
+│   │   ├── node-folder.js    #     节点文件夹创建/删除/写入
+│   │   ├── sandbox-sync.js   #     Sandbox 文件实时同步（写入/删除/重命名）
+│   │   ├── quick-notes.js    #     快速笔记 I/O（保存/加载）
+│   │   ├── trash.js          #     回收站（移入/列出/恢复/永久删除）
+│   │   ├── file-manager.js   #     文件管理器（目录树/读写/增删改/复制移动）
+│   │   ├── app-library.js    #     全局应用库（清单/sandbox 读写/入口查找/HTTP 服务）
+│   │   ├── ide-fs.js         #     IDE 真实文件系统（导入文件夹/读写/创建项目）
+│   │   ├── diary.js          #     日记 I/O（读取/保存/删除/列表）
+│   │   ├── icon.js           #     图标提取（exe/快捷方式图标转 Base64）
+│   │   └── helpers.js        #     工具函数（二进制处理/overlay/文件读写辅助）
 │   ├── ipc-storage.js        #   系统存储 IPC（SystemStorage 读写）
 │   ├── ipc-browser.js        #   内置浏览器 IPC（下载/书签/历史）
 │   ├── ipc-version-graph.js  #   版本图 IPC（快照/分支/回滚）
@@ -315,7 +329,13 @@ AstroKnot/
     │   ├── ide/                   # 代码沙盒 IDE（VSCode 风格，独立内置应用）
     │   │   ├── app.js             #    IDE 应用类（生命周期、虚拟节点创建）
     │   │   ├── ide.css            #    IDE 全部样式（菜单栏、标签页、预览等）
-    │   │   ├── index.js           #    IDE 入口 & 组件编排（欢迎页、文件操作、容器管理）
+    │   │   ├── index.js           #    入口协调器（统一导出公共 API）
+    │   │   ├── state.js           #    集中管理模块级共享状态变量（40+ 变量）
+    │   │   ├── window-init.js     #    窗口初始化 & 功能模块协调（事件绑定、菜单栏、拖拽）
+    │   │   ├── editor-lifecycle.js #   编辑器生命周期（预览运行/保存/命令面板/Markdown/图片预览）
+    │   │   ├── ide-components.js  #    IDE 组件初始化/销毁（VFS、文件树、标签页、Monaco、各模块）
+    │   │   ├── container-mode.js  #    容器模式（AppRunner modal 内初始化/销毁、DOM 还原）
+    │   │   ├── real-fs.js         #    真实文件系统操作（打开文件夹、读写、保存快捷键）
     │   │   ├── core/              #    核心模块
     │   │   │   ├── virtual-fs.js  #      虚拟文件系统（多文件管理、HTML 迁移、磁盘同步）
     │   │   │   ├── context.js     #      共享上下文（DOM 引用、事件总线、动作注册）
@@ -419,7 +439,11 @@ AstroKnot/
     │   ├── style.css              #   全局 UI 样式
     │   ├── Window.js              #   窗口管理 & AstroKnot 菜单
     │   ├── Window.css             #   窗口管理样式
-    │   ├── Toolbar.js             #   工具栏按钮
+    │   ├── Toolbar/               #   工具栏（按功能拆分为子模块）
+    │   │   ├── index.js           #     协调器（导出 bindToolbarButtons）
+    │   │   ├── settings-popup.js  #     设置弹窗（HTML 模板、滑块绑定）
+    │   │   ├── toolbar-buttons.js #     工具栏按钮（缩放/保存/加载/标签/新建项目）
+    │   │   └── version-map-modal.js #   版本时间线弹窗
     │   ├── Toolbar.css            #   工具栏样式
     │   ├── Search.js              #   搜索（节点/项目）
     │   ├── Search.css             #   搜索样式
@@ -445,6 +469,9 @@ AstroKnot/
     │   ├── schedule-import.js     #   日程导入
     │   ├── calendar-popup.js      #   三视图渲染 + 弹窗交互
     │   ├── weather.js             #   天气组件
+    │   ├── diary-store.js         #   日记数据层
+    │   ├── diary-editor.js        #   日记编辑器
+    │   ├── diary-context-menu.js  #   日记右键菜单
     │   ├── shift-store.js         #   排班数据层（班表/班次类型/节假日）
     │   ├── shift-form.js          #   排班编辑表单（规律/手动/倒班）
     │   ├── shift-types-store.js   #   班次类型管理（白班/夜班/休息/自定义）
@@ -498,7 +525,21 @@ AstroKnot/
         │   │
         │   ├── toolbar/           # 工具栏子模块（按标签页拆分）
         │   │   ├── toolbar-home.js          # 开始
-        │   │   ├── toolbar-home-font.js     # 字体/颜色/上标下标/渐变
+        │   │   ├── toolbar-home-font/       # 字体/颜色/上标下标/渐变（按功能拆分）
+        │   │   │   ├── index.js             #     入口（汇总注册）
+        │   │   │   ├── shared.js            #     共享工具（简繁转换、OpenCC）
+        │   │   │   ├── font-data.js         #     字体数据
+        │   │   │   ├── register-font-family.js  # 字体族
+        │   │   │   ├── register-font-size.js    # 字号
+        │   │   │   ├── register-color-picker.js # 颜色选择器
+        │   │   │   ├── register-underline.js    # 下划线
+        │   │   │   ├── register-emphasis.js     # 着重号
+        │   │   │   ├── register-char-spacing.js # 字间距
+        │   │   │   ├── register-char-border.js  # 文字边框
+        │   │   │   ├── register-char-convert.js # 简繁/拼音转换
+        │   │   │   ├── register-change-case.js  # 大小写转换
+        │   │   │   ├── register-pinyin.js       # 拼音注音
+        │   │   │   └── textbox-utils.js     #     文本框工具
         │   │   ├── toolbar-home-edit.js     # 编辑
         │   │   ├── toolbar-home-paragraph.js # 段落
         │   │   ├── toolbar-insert.js        # 插入（图片/文件/公式/图表/音视频）

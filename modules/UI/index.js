@@ -7,6 +7,6 @@ export { bindUndoRedo, bindKeyboardMovement, processMovement } from './Keyboard.
 export { bindMinimizePanel, bindHelpModal, bindFullscreenAndTab, bindZoomToggle, showWindow, hideWindow } from './Window.js';
 export { bindSearch, bindGlobalSearch } from './Search.js';
 export { bindResize } from './Resize.js';
-export { bindToolbarButtons } from './Toolbar.js';
+export { bindToolbarButtons } from './Toolbar/index.js';
 export { initAIFloatingDialog } from './AiDialog.js';
 export { initTaskbarClock } from '../calendar/index.js';

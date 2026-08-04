@@ -41,6 +41,7 @@ export function bindUndoRedo() {
       if (e.key === 'F1') {
         e.preventDefault();
         document.body.classList.toggle('hide-ui');
+        appState._hideLabelsOverride = document.body.classList.contains('hide-ui');
         return;
       }
       if (e.key in keys2D) {
@@ -70,6 +71,7 @@ export function bindUndoRedo() {
     } else if (e.key === 'F1') {
       e.preventDefault();
       document.body.classList.toggle('hide-ui');
+      appState._hideLabelsOverride = document.body.classList.contains('hide-ui');
     } else if (e.key === 'F2') {
       e.preventDefault();
       toggleSimple3DMode(!appState.simple3D);

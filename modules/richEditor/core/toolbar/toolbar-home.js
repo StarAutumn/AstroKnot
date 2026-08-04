@@ -3,7 +3,7 @@
 // ============================================================
 
 import { registerEditRegion } from './toolbar-home-edit.js';
-import { registerFontRegion } from './toolbar-home-font.js';
+import { registerFontRegion } from './toolbar-home-font/index.js';
 import { registerParagraphRegion } from './toolbar-home-paragraph.js';
 
 export function registerHomeTab(editor) {

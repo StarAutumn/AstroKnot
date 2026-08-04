@@ -6,7 +6,7 @@
 //    DOCX  → docx-preview 渲染
 // ============================================================
 import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
-import { getActiveBlockId, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let _docInput = null;
 let _pdfLib = null;
@@ -30,6 +30,7 @@ function getDocInput() {
 }
 
 export function openDocumentPicker() {
+  if (!requireActiveBlock()) return;
   getDocInput().click();
 }
 
@@ -42,8 +43,9 @@ function detectDocType(fileName) {
 
 export function addDocumentFromFile(file) {
   let docType = detectDocType(file.name);
-  let blockId = getActiveBlockId();
-  let blockW = blockId ? getBlockWidth(blockId) : 800;
+  let blockId = requireActiveBlock();
+  if (!blockId) return;
+  let blockW = getBlockWidth(blockId);
   let w = Math.min(560, blockW - 40);
   let h = Math.round(w * 1.3);
   let x = Math.max(0, (blockW - w) / 2);

@@ -1,7 +1,7 @@
 import { state } from '../../shared-state.js';
 import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, rgbaToHex, getInsertY, getInsertX, getSelectedImage } from './overlay-images.js';
 import { DEFAULT_COLORS } from './overlay-shapes.js';
-import { getActiveBlockId, getBlockElement, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockElement, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 // 辅助函数：设置 textbox 编辑状态
 function setEditingTextBoxState(textDiv, imgData) {
@@ -17,7 +17,7 @@ function clearEditingTextBoxState() {
 
 export function addTextBox() {
   ensureOverlay();
-  let blockId = getActiveBlockId();
+  let blockId = requireActiveBlock();
   if (!blockId) return;
 
   let blockW = getBlockWidth(blockId);

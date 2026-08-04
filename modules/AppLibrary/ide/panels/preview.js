@@ -4,6 +4,7 @@
 // ============================================================
 
 import { needsEsbuild, buildBundledHtml } from '../core/bundler.js';
+import { appState } from '../../../module0_AppState.js';
 
 export class SandboxPreview {
   /**
@@ -16,6 +17,10 @@ export class SandboxPreview {
     this._previewFullscreen = false;
     this._isRunningPreview = false;
     this._fullscreenKeydownHandler = null;
+    // HTTP 模式状态（pausePreview 停服务器后 resumePreview 需重启，故保留）
+    this._lastPreviewUrl = null;     // 上次成功运行的 HTTP 预览 URL
+    this._lastSandboxDir = null;     // 上次使用的 sandbox 目录
+    this._lastInjectScript = null;   // 上次注入的脚本
   }
 
   init() {
@@ -41,6 +46,9 @@ export class SandboxPreview {
     this._lastPreviewFiles.clear();
     this._previewFullscreen = false;
     this._isRunningPreview = false;
+    this._lastPreviewUrl = null;
+    this._lastSandboxDir = null;
+    this._lastInjectScript = null;
   }
 
   // ── 预览运行 ──
@@ -70,12 +78,27 @@ export class SandboxPreview {
       const monacoEditor = this.ctx.monacoEditor;
       if (monacoEditor) monacoEditor.syncAllToFS(vfs);
 
+      // 真实 FS 模式：强制写入脏文件到磁盘（不等自动保存防抖），确保 HTTP 服务器读到最新内容
+      if (this.ctx.isRealFS && this.ctx.workspacePath && window.api?.ideWriteFile) {
+        const wsPath = this.ctx.workspacePath;
+        const sep = wsPath.endsWith('/') || wsPath.endsWith('\\') ? '' : '/';
+        for (const filePath of vfs.getFilePaths()) {
+          const file = vfs.getFile(filePath);
+          if (file && file.isDirty) {
+            try {
+              await window.api.ideWriteFile(wsPath + sep + filePath, file.content);
+              file.isDirty = false;
+            } catch (e) { console.warn('[sandbox] 写入磁盘失败:', filePath, e); }
+          }
+        }
+      }
+
       // 清空控制台
       const consoleModule = this.ctx.getModule('console');
       if (consoleModule) consoleModule.clearConsole();
 
-      // 尝试热注入（非强制刷新且已有预览）
-      if (!forceFullReload && this._lastPreviewHtml && this._lastPreviewFiles.size > 0) {
+      // 尝试热注入（非强制刷新且已有预览：HTTP 或 srcdoc 模式皆可，postMessage 跨 http origin 用 '*' 仍工作）
+      if (!forceFullReload && (this._lastPreviewHtml || this._lastPreviewUrl) && this._lastPreviewFiles.size > 0) {
         const injectResult = this._tryHotInject();
         if (injectResult) {
           this.ctx.setStatus('热更新 ✓');
@@ -85,25 +108,70 @@ export class SandboxPreview {
 
       this.ctx.setStatus('正在构建...');
 
-      let fullHtml;
+      // 构造控制台重定向 + 热更新监听注入脚本（HTTP 服务器会在 .html 响应里注入）
+      const injectScript = this._consoleRedirectCode() + '\n' + this._hotUpdateListenerCode();
 
-      if (needsEsbuild(vfs)) {
-        this.ctx.setStatus('正在打包 (esbuild)...');
-        try {
-          fullHtml = await buildBundledHtml(vfs);
-        } catch (err) {
-          console.warn('[sandbox] esbuild 打包失败，回退到简单模式:', err);
-          fullHtml = vfs.buildSimpleHtml();
-          fullHtml = this._injectConsoleRedirect(fullHtml);
-          this.ctx.setStatus('打包失败，使用简单模式');
+      // 优先通过 HTTP 服务器加载预览（解决 srcdoc 下相对路径资源 404 问题：图标/地球/字体颜色等）
+      let httpStarted = false;
+      let sandboxDir = null;
+      try {
+        if (this.ctx.isRealFS && this.ctx.workspacePath) {
+          // 真实 FS 模式：直接使用 workspacePath，文件已在磁盘上，无需同步
+          sandboxDir = this.ctx.workspacePath;
+        } else {
+          // 节点 VFS / 临时 ide-app-project 模式：通过 IPC 获取 sandbox 路径并同步 node.fileSystem 到磁盘
+          const currentNodeId = this.ctx.currentNodeId;
+          if (currentNodeId) {
+            const node = appState.nodeMap.get(currentNodeId);
+            // 关键：刷新 node.fileSystem 为 VFS 最新状态（包括 PNG 等二进制文件）
+            // 否则 ideGetNodeSandboxPath 用陈旧的 node.fileSystem 同步，新增/修改的文件不会写入磁盘
+            const fileSystem = vfs.toJSON();
+            if (node) {
+              node.fileSystem = fileSystem;
+            }
+            // 临时 ide-app-project 模式：nodeMap 无此节点时构造 mock 节点（携带 fileSystem 以便同步到磁盘）
+            const nodeForSync = node || { id: currentNodeId, name: '未命名项目', fileSystem };
+            const r = await window.api.ideGetNodeSandboxPath(nodeForSync, this.ctx.getProjectFolderPath());
+            if (r && r.success) sandboxDir = r.sandboxPath;
+          }
         }
-      } else {
-        fullHtml = vfs.buildSimpleHtml();
-        fullHtml = this._injectConsoleRedirect(fullHtml);
+
+        if (sandboxDir) {
+          const srv = await window.api.ideStartSandboxServer(sandboxDir, injectScript);
+          if (srv && srv.port) {
+            preview.src = 'http://127.0.0.1:' + srv.port + '/';
+            this._lastPreviewUrl = preview.src;
+            this._lastSandboxDir = sandboxDir;
+            this._lastInjectScript = injectScript;
+            this._lastPreviewHtml = ''; // HTTP 模式不再使用 srcdoc
+            httpStarted = true;
+          }
+        }
+      } catch (err) {
+        console.warn('[sandbox] HTTP 服务器启动失败，回退到 srcdoc 模式:', err);
       }
 
-      this._lastPreviewHtml = fullHtml;
-      preview.srcdoc = fullHtml;
+      // 回退：HTTP 启动失败则用原 srcdoc + buildSimpleHtml 方式
+      if (!httpStarted) {
+        let fullHtml;
+        if (needsEsbuild(vfs)) {
+          this.ctx.setStatus('正在打包 (esbuild)...');
+          try {
+            fullHtml = await buildBundledHtml(vfs);
+          } catch (err) {
+            console.warn('[sandbox] esbuild 打包失败，回退到简单模式:', err);
+            fullHtml = vfs.buildSimpleHtml();
+            fullHtml = this._injectConsoleRedirect(fullHtml);
+            this.ctx.setStatus('打包失败，使用简单模式');
+          }
+        } else {
+          fullHtml = vfs.buildSimpleHtml();
+          fullHtml = this._injectConsoleRedirect(fullHtml);
+        }
+        this._lastPreviewHtml = fullHtml;
+        this._lastPreviewUrl = null;
+        preview.srcdoc = fullHtml;
+      }
 
       // 记录当前文件内容（用于下次热注入比较）
       this._lastPreviewFiles.clear();
@@ -239,11 +307,30 @@ export class SandboxPreview {
       parent.appendChild(newIframe);
       this.ctx.preview = newIframe;
     }
+
+    // 第四步：停止 HTTP 沙盒服务器（IDE 同时只一个预览，暂停时释放端口与连接）
+    // 注意：保留 _lastPreviewUrl/_lastSandboxDir/_lastInjectScript 供 resumePreview 重启使用
+    try { window.api?.ideStopSandboxServer?.(); } catch (e) {}
   }
 
   resumePreview() {
     const preview = this.ctx.preview;
-    if (preview && this._lastPreviewHtml) preview.srcdoc = this._lastPreviewHtml;
+    if (!preview) return;
+    if (this._lastPreviewUrl && this._lastSandboxDir) {
+      // HTTP 模式：pausePreview 已停服务器，重启服务器后重新指向 URL
+      // （iframe 已被重建，需在新的 iframe 上设置 src）
+      window.api?.ideStartSandboxServer?.(this._lastSandboxDir, this._lastInjectScript || '').then((srv) => {
+        if (srv && srv.port && this.ctx.preview) {
+          this.ctx.preview.src = 'http://127.0.0.1:' + srv.port + '/';
+          this._lastPreviewUrl = this.ctx.preview.src;
+        }
+      }).catch((e) => {
+        console.warn('[sandbox] resumePreview HTTP 重启失败:', e);
+      });
+    } else if (this._lastPreviewHtml) {
+      // srcdoc 模式：直接重设 srcdoc
+      preview.srcdoc = this._lastPreviewHtml;
+    }
   }
 
   // ── 全屏预览 ──

@@ -55,7 +55,7 @@ export function registerParagraphRegion(editor) {
 
   try {
     editor.ui.registry.addToggleButton('dropcap', {
-      text: '\u5218',
+      text: '沉',
       tooltip: '\u9996\u5B57\u4E0B\u6C89',
       onAction: function () {
         let ed = state.tinyEditor;

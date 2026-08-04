@@ -2,13 +2,14 @@
 //  overlay-excel.js — 表格 overlay 类型（Univer 预览 + 编辑）
 // ============================================================
 import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY } from './overlay-images.js';
-import { getActiveBlockId, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 import { openExcelEditor } from './overlay-excel-editor.js';
 
 // ── 插入空白表格 ──
 export function addExcel() {
-  let blockId = getActiveBlockId();
-  let blockW = blockId ? getBlockWidth(blockId) : 800;
+  let blockId = requireActiveBlock();
+  if (!blockId) return;
+  let blockW = getBlockWidth(blockId);
   let w = Math.min(640, blockW - 40);
   let h = Math.min(400, 500);
   let x = Math.max(0, (blockW - w) / 2);

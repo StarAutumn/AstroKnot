@@ -87,6 +87,7 @@ export class IdeApp {
             <div class="menu-item" data-menu="file">文件
               <div class="menu-dropdown">
                 <button class="menu-btn" data-action="openFolder">📂 打开文件夹 <span class="menu-shortcut">Ctrl+K Ctrl+O</span></button>
+                <button class="menu-btn" data-action="importLocalFolder">📥 导入本地文件夹…</button>
                 <div class="menu-sep"></div>
                 <button class="menu-btn" data-action="save">保存 <span class="menu-shortcut">Ctrl+S</span></button>
                 <button class="menu-btn" data-action="export">导出为 HTML <span class="menu-shortcut"></span></button>

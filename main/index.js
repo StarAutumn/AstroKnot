@@ -9,7 +9,7 @@ const fs = require('fs');
 const dataSettings = require('../data-settings');
 
 const { bindWindowIPC } = require('./ipc-window');
-const { bindFileIPC } = require('./ipc-file');
+const { bindFileIPC } = require('./ipc-file/index');
 const { bindEmergencyIPC } = require('./ipc-emergency');
 const { bindVersionGraphIPC } = require('./ipc-version-graph');
 const { bindStorageIPC } = require('./ipc-storage');

@@ -7,6 +7,7 @@ import { getCurrentTinyFontColor, clearEditingFormulaImg } from '../../utils.js'
 import { openTinyMceCodeEditor } from '../code-blocks.js';
 import { insertTinyFile } from '../../images-files.js';
 import { openImagePicker, SHAPE_CATEGORIES, SHAPE_LABELS, buildShapeThumbnail, addShape, addTextBox, openVideoPicker, openAudioPicker, addExcel, addChart, insertSlideBreak, startPresentation, addSlideshow, insertOverlayBlock, openDocumentPicker } from '../overlay/index.js';
+import { showToast } from '../../../module5_SelectAndEdit.js';
 
 export function registerInsertTab(editor) {
   try {
@@ -368,6 +369,44 @@ export function registerInsertTab(editor) {
     });
   } catch (e) {
     console.error('[TinyMCE] customdatetime 注册失败:', e);
+  }
+
+  // ── 插入笔记链接 ──
+  try {
+    editor.ui.registry.addIcon('note-link-icon',
+      '<svg width="48" height="48" viewBox="0 0 48 48" fill="#aef0ff" fill-opacity="0.35" stroke="#aef0ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M12 4h18l8 8v28a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>' +
+      '<path d="M30 4v8h8" fill="none"/>' +
+      '<line x1="16" y1="22" x2="32" y2="22"/>' +
+      '<line x1="16" y1="30" x2="28" y2="30"/>' +
+      '</svg>'
+    );
+    editor.ui.registry.addButton('insertnote', {
+      icon: 'note-link-icon',
+      text: '笔记',
+      tooltip: '插入笔记链接（单击选择树状面板中的节点）',
+      onAction: function () {
+        // 进入笔记选择模式：下次在树状面板单击节点时触发回调
+        window._notePickerCallback = function (nodeId, nodeName) {
+          window._notePickerCallback = null;
+          if (!nodeId) return;
+          // 转义节点名称中的特殊字符
+          var safeName = String(nodeName || '未命名').replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+          var html = '<span class="note-link" contenteditable="false" data-node-id="' + nodeId + '" ' +
+            'style="display:inline-flex;align-items:center;gap:0.4em;padding:0.4em 0.8em;' +
+            'background:linear-gradient(135deg,#5b3fb8,#2e1a6b);color:#fff!important;border-radius:1em;' +
+            'font-size:0.875em;border:1px solid rgba(180,150,255,0.4);margin:0.25em;cursor:pointer;user-select:none;">' +
+            '📝 ' + safeName + '</span>\u200B';
+          editor.insertContent(html);
+          showToast('已插入笔记链接：' + (nodeName || '未命名'));
+        };
+        showToast('请在树状面板中单击选择要插入的笔记节点');
+      }
+    });
+  } catch (e) {
+    console.error('[TinyMCE] insertnote 注册失败:', e);
   }
 
   // ── 幻灯片分页符 ──

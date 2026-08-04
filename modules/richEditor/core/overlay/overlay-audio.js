@@ -2,7 +2,7 @@
 //  overlay-audio.js — 音频播放器 overlay 类型
 // ============================================================
 import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
-import { getActiveBlockId, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 // SoundTouch 动态加载（避免导入失败导致整个模块崩溃）
 let _SoundTouchNode = null;
@@ -38,13 +38,15 @@ function getAudioInput() {
 }
 
 export function openAudioPicker() {
+  if (!requireActiveBlock()) return;
   getAudioInput().click();
 }
 
 export function addAudioFromFile(file) {
   if (!file || !file.type.startsWith('audio/')) return;
-  let blockId = getActiveBlockId();
-  let blockW = blockId ? getBlockWidth(blockId) : 800;
+  let blockId = requireActiveBlock();
+  if (!blockId) return;
+  let blockW = getBlockWidth(blockId);
   let w = Math.min(360, blockW - 40);
   let x = Math.max(0, (blockW - w) / 2);
   let y = getInsertY();
@@ -79,8 +81,9 @@ export function addAudioFromFile(file) {
 }
 
 export function addAudioFromUrl(url) {
-  let blockId = getActiveBlockId();
-  let blockW = blockId ? getBlockWidth(blockId) : 800;
+  let blockId = requireActiveBlock();
+  if (!blockId) return;
+  let blockW = getBlockWidth(blockId);
   let w = Math.min(360, blockW - 40);
   let x = Math.max(0, (blockW - w) / 2);
   let y = getInsertY();

@@ -63,6 +63,8 @@ function _updateLabelZIndices() {}
 const _labelHideTimers = new Map();
 function _setLabelVisible(obj, shouldShow, borderColor) {
   if (!obj.label) return;
+  // F1 隐藏覆盖：优先保持隐藏
+  if (appState._hideLabelsOverride) { obj.label.visible = false; return; }
   obj.label.visible = shouldShow;
   // 选中状态改变标签颜色（重绘 Sprite 纹理）
   if (shouldShow && borderColor !== undefined && obj.label.material) {
@@ -191,6 +193,12 @@ export function animate() {
     // ========== 节点颜色更新（完整 HSL 循环） ==========
     for (let [id, obj] of appState.nodeMeshes.entries()) {
       if (!obj.mesh.visible) continue;
+
+      // F1 隐藏标签覆盖：只隐藏标签，不影响动画
+      if (appState._hideLabelsOverride && obj.label) {
+        obj.label.visible = false;
+      }
+
       const node = appState.nodeMap.get(id);
       const isSel = appState.selectedNodeIds.has(id);
       const isConnected = !isSel && (appState.connectedNodeIds ? appState.connectedNodeIds.has(id) : false);
@@ -276,10 +284,9 @@ export function animate() {
           }
         }
       }
+      // 缓存节点颜色 hex 字符串（pause 模式），供 2D 视图绘制边框时直接读取
+      if (obj.mesh?.material?.color) obj._borderColorHex = '#' + obj.mesh.material.color.getHexString();
     }
-
-    // 缓存节点颜色 hex 字符串（pause 模式），供 2D 视图绘制边框时直接读取
-    if (obj.mesh?.material?.color) obj._borderColorHex = '#' + obj.mesh.material.color.getHexString();
 
     // ========== 图层水面波纹更新 ==========
     if (appState.layerHighlights) {
@@ -535,6 +542,12 @@ export function animate() {
   _camForward.set(0, 0, -1).applyQuaternion(appState.camera.quaternion);
   for (let [id, obj] of appState.nodeMeshes.entries()) {
     if (!obj.mesh.visible) continue;
+
+    // F1 隐藏标签覆盖：只隐藏 3D 节点标签 Sprite，不影响动画
+    if (appState._hideLabelsOverride && obj.label) {
+      obj.label.visible = false;
+    }
+
     const node = appState.nodeMap.get(id);
     const isSel = appState.selectedNodeIds.has(id);
     const isConnected = !isSel && (appState.connectedNodeIds ? appState.connectedNodeIds.has(id) : false);

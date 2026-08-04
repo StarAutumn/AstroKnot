@@ -3,7 +3,7 @@
 // ============================================================
 
 import { overlayImages, renderAll, transactRender, getNextZIndex, getInsertY } from './overlay-images.js';
-import { getActiveBlockId, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 var SW=960, SH=540;
 
@@ -62,8 +62,8 @@ function mkTable(rows,cols,x,y,w,h,t){var html='<table style="width:100%;border-
 
 /* ── 插入新幻灯片 ── */
 export function addSlideshow(){
-  var bid=getActiveBlockId(),bw=bid?getBlockWidth(bid):800;
-  var w=Math.min(580,bw-40),h=Math.min(380,520),x=Math.max(0,(bw-w)/2),y=getInsertY();
+  var bid=requireActiveBlock();if(!bid)return;
+  var bw=getBlockWidth(bid),w=Math.min(580,bw-40),h=Math.min(380,520),x=Math.max(0,(bw-w)/2),y=getInsertY();
   var t=TH[0],s1=defSlide(0,0);
   s1.elements.push(mkText(SW*0.15,SH*0.35,SW*0.7,70,t));
   s1.elements[0].content='标题文字';s1.elements[0].fontSize=44;s1.elements[0].fontWeight='bold';

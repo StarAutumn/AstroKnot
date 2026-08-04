@@ -7,6 +7,7 @@
 // ============================================================
 
 import { overlayImages, renderAll, transactRender } from './overlay-images.js';
+import { showToast } from '../../../module5_SelectAndEdit.js';
 
 let _blockIdCounter = 0;
 let _lastClickedBlockId = null; // 上一次点击的画布块 ID
@@ -117,6 +118,19 @@ export function getActiveBlockId() {
   // 回退：取第一个块
   let firstBlock = body.querySelector('.tmce-overlay-block');
   return firstBlock ? firstBlock.getAttribute('data-block-id') : null;
+}
+
+/**
+ * 要求当前存在活动的画布块；若没有则弹出"先插入画布块"提示并返回 null。
+ * 用于所有 overlay 元素插入入口（形状/文本框/图片/音视频/图表/表格/文档/幻灯片等）。
+ */
+export function requireActiveBlock() {
+  let blockId = getActiveBlockId();
+  if (!blockId) {
+    showToast('先插入画布块');
+    return null;
+  }
+  return blockId;
 }
 
 /**

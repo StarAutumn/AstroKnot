@@ -470,12 +470,17 @@ input[type="range"]:hover::-moz-range-thumb {
 /* ============================================================
    F1 快捷键：隐藏所有标签和模态框
    ============================================================ */
+body.hide-ui #appTitleBar,
 body.hide-ui #labelRenderer,
 body.hide-ui #taskbar,
+body.hide-ui #astroKnotMenu,
+body.hide-ui #startPage,
+body.hide-ui #desktopIconsLayer,
 body.hide-ui .rich-modal,
 body.hide-ui .help-modal,
 body.hide-ui #formulaEditorModal,
 body.hide-ui .layer-panel,
+body.hide-ui #layerIconBtn,
 body.hide-ui #aiFloatingDialog,
 body.hide-ui #nodeContextMenu,
 body.hide-ui #blankContextMenu,
@@ -494,6 +499,7 @@ body.hide-ui #slideshowEditorModal,
 body.hide-ui #olyEditorModal,
 body.hide-ui #olyAudioEditorModal,
 body.hide-ui .ve-overlay,
-body.hide-ui #chartEditorModal {
+body.hide-ui #chartEditorModal,
+body.hide-ui #appSplash {
     display: none !important;
 }

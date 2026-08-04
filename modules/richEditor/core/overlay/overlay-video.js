@@ -2,7 +2,7 @@
 //  overlay-video.js — 视频播放器 overlay 类型
 // ============================================================
 import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
-import { getActiveBlockId, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let _videoInput = null;
 
@@ -24,13 +24,15 @@ function getVideoInput() {
 }
 
 export function openVideoPicker() {
+  if (!requireActiveBlock()) return;
   getVideoInput().click();
 }
 
 export function addVideoFromFile(file) {
   if (!file || !file.type.startsWith('video/')) return;
-  let blockId = getActiveBlockId();
-  let blockW = blockId ? getBlockWidth(blockId) : 800;
+  let blockId = requireActiveBlock();
+  if (!blockId) return;
+  let blockW = getBlockWidth(blockId);
   let w = Math.min(480, blockW - 40);
   let h = Math.round(w * 9 / 16);
   let x = Math.max(0, (blockW - w) / 2);
@@ -66,8 +68,9 @@ export function addVideoFromFile(file) {
 }
 
 export function addVideoFromUrl(url) {
-  let blockId = getActiveBlockId();
-  let blockW = blockId ? getBlockWidth(blockId) : 800;
+  let blockId = requireActiveBlock();
+  if (!blockId) return;
+  let blockW = getBlockWidth(blockId);
   let w = Math.min(480, blockW - 40);
   let h = Math.round(w * 9 / 16);
   let x = Math.max(0, (blockW - w) / 2);

@@ -2,7 +2,7 @@
 //  overlay-chart.js — 图表 overlay 类型（ECharts 预览 + 编辑）
 // ============================================================
 import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY } from './overlay-images.js';
-import { getActiveBlockId, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 import { openChartEditor } from './overlay-chart-editor.js';
 
 // ── 图表类型定义 ──
@@ -719,8 +719,9 @@ export function buildEChartsOption(chartType, chartData, title) {
 
 // ── 插入空白图表 ──
 export function addChart() {
-  let blockId = getActiveBlockId();
-  let blockW = blockId ? getBlockWidth(blockId) : 800;
+  let blockId = requireActiveBlock();
+  if (!blockId) return;
+  let blockW = getBlockWidth(blockId);
   let w = Math.min(560, blockW - 40);
   let h = Math.min(380, 500);
   let x = Math.max(0, (blockW - w) / 2);

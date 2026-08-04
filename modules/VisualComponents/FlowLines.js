@@ -510,7 +510,7 @@ export class SpiralFlowLine {
     const showEffects = v && !appState.simple3D;
     if (this.glowTube) this.glowTube.visible = showEffects;
     if (this.labelObj) {
-      this.labelObj.visible = v && !this.mesh.userData.labelHidden && appState.showAllLabels;
+      this.labelObj.visible = v && !this.mesh.userData.labelHidden && appState.showAllLabels && !appState._hideLabelsOverride;
     }
     this.particlePoints.visible = showEffects;
     this.trailPointsMerged.visible = showEffects;
@@ -1058,7 +1058,7 @@ export class PolylineFlowLine {
     const showEffects = v && !appState.simple3D;
     if (this.glowTube) this.glowTube.visible = showEffects;
     if (this.labelObj) {
-      this.labelObj.visible = v && !this.mesh.userData.labelHidden && appState.showAllLabels;
+      this.labelObj.visible = v && !this.mesh.userData.labelHidden && appState.showAllLabels && !appState._hideLabelsOverride;
     }
     if (this.particlePoints) this.particlePoints.visible = showEffects;
     if (this.trailPointsMerged) this.trailPointsMerged.visible = showEffects;

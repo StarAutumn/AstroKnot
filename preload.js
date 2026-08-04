@@ -276,6 +276,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // ── IDE 真实文件系统（无路径限制）──
   ideSelectFolder: () => ipcRenderer.invoke('ide-select-folder'),
+  ideImportLocalFolder: (destDir) => ipcRenderer.invoke('ide-import-local-folder', destDir),
   ideReadDirTree: (dirPath) => ipcRenderer.invoke('ide-read-dir-tree', dirPath),
   ideReadDir: (dirPath) => ipcRenderer.invoke('ide-read-dir', dirPath),
   ideReadFile: (filePath) => ipcRenderer.invoke('ide-read-file', filePath),
@@ -285,6 +286,8 @@ contextBridge.exposeInMainWorld('api', {
   ideRenameItem: (filePath, newName) => ipcRenderer.invoke('ide-rename-item', filePath, newName),
   ideGetNodeSandboxPath: (node, projectFolderPath) => ipcRenderer.invoke('ide-get-node-sandbox-path', node, projectFolderPath),
   ideSyncSandboxToNode: (sandboxDir) => ipcRenderer.invoke('ide-sync-sandbox-to-node', sandboxDir),
+  ideStartSandboxServer: (sandboxDir, injectScript) => ipcRenderer.invoke('ide-start-sandbox-server', sandboxDir, injectScript),
+  ideStopSandboxServer: () => ipcRenderer.invoke('ide-stop-sandbox-server'),
 
   // ── Git 克隆 ──
   gitCloneAndRead: (repoUrl) => ipcRenderer.invoke('git-clone-and-read', repoUrl),

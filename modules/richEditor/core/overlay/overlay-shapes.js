@@ -1,6 +1,6 @@
 import { state } from '../../shared-state.js';
 import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
-import { getActiveBlockId, getBlockElement, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockElement, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let SHAPE_CATEGORIES = {
   line: ['line', 'arrow', 'arrowDouble', 'curve', 'polyline', 'scribble'],
@@ -194,7 +194,7 @@ export { getShapeCategory };
 export function addShape(shapeType) {
   if (!SHAPE_TYPES.includes(shapeType)) shapeType = 'rect';
   ensureOverlay();
-  let blockId = getActiveBlockId();
+  let blockId = requireActiveBlock();
   if (!blockId) return;
 
   let blockW = getBlockWidth(blockId);

@@ -3,7 +3,7 @@
 // ============================================================
 
 import { overlayImages, getNextZIndex, selectImage, transactRender, getInsertY, getInsertX } from './overlay-images.js';
-import { getActiveBlockId, getBlockWidth, pxToPct } from './overlay-block.js';
+import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let _fileInput = null;
 
@@ -28,6 +28,7 @@ function getFileInput() {
 }
 
 export function openImagePicker() {
+  if (!requireActiveBlock()) return;
   getFileInput().click();
 }
 
@@ -47,8 +48,9 @@ export function addImageFromFile(file) {
         w = Math.round(w * ratio);
         h = Math.round(h * ratio);
       }
-      let blockId = getActiveBlockId();
-      let blockW = blockId ? getBlockWidth(blockId) : 800;
+      let blockId = requireActiveBlock();
+      if (!blockId) return;
+      let blockW = getBlockWidth(blockId);
       let x = Math.max(0, (blockW - w) / 2);
       let y = getInsertY();
       let imgData = {

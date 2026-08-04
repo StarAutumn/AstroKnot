@@ -392,6 +392,20 @@ export function bindEditorPostInit(editors) {
     if (!window.__tmceFileLinkBound) {
       window.__tmceFileLinkBound = true;
       state.tinyEditor.on('click', function (e) {
+        let noteLink = e.target.closest('.note-link');
+        if (noteLink) {
+          e.preventDefault();
+          let nodeId = noteLink.getAttribute('data-node-id');
+          if (nodeId) {
+            // 动态导入避免循环依赖
+            import('../index.js').then(function (m) {
+              if (m.openRichEditor) m.openRichEditor(nodeId);
+            }).catch(function (err) {
+              console.error('[笔记链接] 打开失败:', err);
+            });
+          }
+          return;
+        }
         let fileLink = e.target.closest('.file-link');
         if (fileLink) {
           e.preventDefault();

@@ -119,6 +119,34 @@ export function initSidebar2DViewForTarget(containerId, canvasId) {
 
   canvas.addEventListener('mousedown', (e) => {
     if (e.button === 2) return;
+    // 笔记选择模式：拦截单击，命中节点后触发回调插入笔记链接
+    if (window._notePickerCallback) {
+      const rect = canvas.getBoundingClientRect();
+      const pos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const worldPos = canvasToWorld(pos.x, pos.y, s);
+      const hit = s.nodeHitAreas.find(area =>
+        worldPos.x >= area.x && worldPos.x <= area.x + area.width &&
+        worldPos.y >= area.y && worldPos.y <= area.y + area.height
+      );
+      e.preventDefault();
+      e.stopPropagation();
+      if (hit?.id) {
+        if (hit.id === appState.currentEditNodeId) {
+          window._notePickerCallback = null;
+          showToast('不可插入当前打开的笔记');
+          return;
+        }
+        const node = appState.nodeMap.get(hit.id);
+        const nodeName = node?.name || '未命名';
+        const cb = window._notePickerCallback;
+        window._notePickerCallback = null;
+        cb(hit.id, nodeName);
+      } else {
+        window._notePickerCallback = null;
+        showToast('未点中节点，已取消插入笔记');
+      }
+      return;
+    }
     blurActiveEditor();
     canvas.focus();
     s.highlightedNodeId = null;
