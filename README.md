@@ -19,16 +19,16 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 ### 🌟 普通用户：思维导图笔记工具
 
 将知识以 **3D 星图** 的形式呈现，每个节点都是可深度编辑的知识单元：
-<div class="picture1">
+
 <img src="assets/1.png" alt="AstroKnot" width="512">
-</div>
-<div class="picture2">
+
 <img src="assets/2.png" alt="AstroKnot" width="512">
-</div>
 
 - **2D/3D 视图切换** — 思维导图平面视图与沉浸式 3D 星图自由切换
 - **富文本编辑器** — TinyMCE 7 全功能编辑器，支持字体、段落、图片、表格、公式
-<img src="assets/3.png" alt="AstroKnot" width="512">    
+
+<img src="assets/3.png" alt="AstroKnot" width="512">
+
 - **多媒体插入** — 音频波形可视化、视频编辑、幻灯片放映、手绘绘图
 - **知识网络连接** — 节点间连线可视化，构建知识图谱
 
