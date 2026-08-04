@@ -61,6 +61,11 @@ export function initHtmlSandboxWindow() {
           for (const filePath of S._vfs.getFilePaths()) {
             const file = S._vfs.getFile(filePath);
             if (file && file.isDirty) {
+              // 跳过图片/二进制文件：其 content 是 dataUrl，写入磁盘会损坏原文件
+              if (file.content && file.content.startsWith('data:')) {
+                file.isDirty = false;
+                continue;
+              }
               const sep = S._workspacePath.endsWith('/') || S._workspacePath.endsWith('\\') ? '' : '/';
               const absPath = S._workspacePath + sep + filePath;
               window.api.ideWriteFile(absPath, file.content).catch(() => {});

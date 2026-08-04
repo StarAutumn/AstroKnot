@@ -50,30 +50,43 @@ class SandboxFileOps {
     const vfs = this._ctx.vfs;
     const monacoEditor = this._ctx.monacoEditor;
     const fileTabs = this._ctx.fileTabs;
-    if (!vfs || !monacoEditor || !fileTabs) return;
+    if (!vfs || !monacoEditor || !fileTabs) {
+      console.log('[IDE openFileInEditor] 提前返回: 缺少依赖', { vfs: !!vfs, monacoEditor: !!monacoEditor, fileTabs: !!fileTabs });
+      return;
+    }
 
     const file = vfs.getFile(filePath);
-    if (!file) return;
+    if (!file) {
+      console.log('[IDE openFileInEditor] 提前返回: 文件不存在', filePath);
+      return;
+    }
+
+    console.log('[IDE openFileInEditor] 开始:', filePath, 'content长度:', file.content?.length, 'content前缀:', file.content?.substring(0, 30));
 
     // 如果当前在预览标签，先退出预览
     if (this._ctx.isPreviewTab) {
       this._ctx.emit('deactivatePreviewTab');
     }
 
-    // 显式隐藏预览容器，显示 Monaco 容器（不依赖事件系统，确保可靠）
-    const previewContainer = document.getElementById('sandboxPreviewContainer');
-    if (previewContainer) previewContainer.style.display = 'none';
-    const monacoContainer = document.getElementById('sandboxMonacoContainer');
-    if (monacoContainer) monacoContainer.style.display = '';
-
-    // 图片文件路由到图片预览
+    // 先判断是否为图片文件，避免不必要的 Monaco 显示/隐藏
     const imagePreview = this._ctx.getModule('imagePreview');
     const markdown = this._ctx.getModule('markdown');
+    const isImage = imagePreview && imagePreview.constructor.isImageFile(filePath);
 
-    if (imagePreview && imagePreview.constructor.isImageFile(filePath)) {
+    // 隐藏预览容器（所有文件类型通用）
+    const previewContainer = document.getElementById('sandboxPreviewContainer');
+    if (previewContainer) previewContainer.style.display = 'none';
+
+    if (isImage) {
+      // 图片文件：直接路由到图片预览，不显示 Monaco
+      console.log('[IDE openFileInEditor] 路由到图片预览:', filePath);
       imagePreview.openImagePreview(filePath);
       return;
     }
+
+    // 非图片文件：显示 Monaco 容器
+    const monacoContainer = document.getElementById('sandboxMonacoContainer');
+    if (monacoContainer) monacoContainer.style.display = '';
 
     // 退出图片预览模式
     if (imagePreview) imagePreview.closeImagePreview();
@@ -493,6 +506,11 @@ class SandboxFileOps {
       for (const filePath of vfs.getFilePaths()) {
         const file = vfs.getFile(filePath);
         if (file && file.isDirty) {
+          // 跳过图片/二进制文件：其 content 是 dataUrl，写入磁盘会损坏原文件
+          if (file.content && file.content.startsWith('data:')) {
+            file.isDirty = false;
+            continue;
+          }
           const sep = workspacePath.endsWith('/') || workspacePath.endsWith('\\') ? '' : '/';
           const absPath = workspacePath + sep + filePath;
           window.api.ideWriteFile(absPath, file.content).then(() => {

@@ -57,6 +57,9 @@ export const S = {
   _workspacePath: null,
   _isRealFS: false,
 
+  // 防止 _onFileSelect 重入调用
+  _openingFilePath: null,
+
   // 自动运行
   _autoRunEnabled: true,
   _autoRunTimer: null,

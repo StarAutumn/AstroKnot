@@ -25,6 +25,7 @@ import { SandboxGithubImport } from './panels/github-import.js';
 import { S, AUTO_RUN_DEBOUNCE, AUTO_SAVE_DELAY } from './state.js';
 import { _updateActivityBarButtons, _toggleSidePanel } from './window-init.js';
 import { _updateBreadcrumb } from './editor-lifecycle.js';
+import { _realReadFile } from './real-fs.js';
 
 // ════════════════════════════════════════════════════════════
 //  IDE 组件初始化/销毁
@@ -346,26 +347,51 @@ export async function _openFileInEditor(filePath) {
       S._vfs.setFile(filePath, result.content);
     } else if (result && result.type === 'image' && result.dataUrl) {
       S._vfs.setFile(filePath, result.dataUrl);
+      // 图片文件的 content 是 dataUrl，不应标记为脏（防止保存时损坏磁盘文件）
+      const imgFile = S._vfs.getFile(filePath);
+      if (imgFile) imgFile.isDirty = false;
     }
   }
   if (S._fileOpsModule) S._fileOpsModule.openFileInEditor(filePath);
   _hideWelcomePage();
 }
 
-async function _onFileSelect(filePath) {
-  // 真实文件系统模式：从磁盘读取文件内容
-  if (S._isRealFS && S._workspacePath && window.api?.ideReadFile) {
-    const result = await _realReadFile(filePath);
-    if (result && result.type === 'text') {
-      S._vfs.setFile(filePath, result.content);
-    } else if (result && result.type === 'image' && result.dataUrl) {
-      S._vfs.setFile(filePath, result.dataUrl);
+export async function _onFileSelect(filePath) {
+  // 防止同一文件的重复调用（由 openImagePreview → fileTabs.openTab → setActive → _onTabSelect 触发的重入）
+  if (S._openingFilePath === filePath) {
+    console.log('[IDE _onFileSelect] 跳过重入调用:', filePath);
+    return;
+  }
+  S._openingFilePath = filePath;
+  try {
+    console.log('[IDE _onFileSelect] 开始, filePath:', filePath);
+    // 真实文件系统模式：从磁盘读取文件内容
+    if (S._isRealFS && S._workspacePath && window.api?.ideReadFile) {
+      const result = await _realReadFile(filePath);
+      console.log('[IDE _onFileSelect] _realReadFile 结果:', filePath, 'type:', result?.type, 'dataUrl长度:', result?.dataUrl?.length, 'content长度:', result?.content?.length);
+      if (result && result.type === 'text') {
+        S._vfs.setFile(filePath, result.content);
+      } else if (result && result.type === 'image' && result.dataUrl) {
+        S._vfs.setFile(filePath, result.dataUrl);
+        // 图片文件的 content 是 dataUrl（用于显示），不是磁盘原始二进制内容，
+        // 不应标记为脏（否则保存时会把 dataUrl 文本写入磁盘，损坏图片文件）
+        const imgFile = S._vfs.getFile(filePath);
+        if (imgFile) imgFile.isDirty = false;
+      }
+      // 验证 VFS 中的内容
+      const vfsFile = S._vfs.getFile(filePath);
+      console.log('[IDE _onFileSelect] VFS 验证:', filePath, 'file存在:', !!vfsFile, 'content长度:', vfsFile?.content?.length, 'content前缀:', vfsFile?.content?.substring(0, 30));
+    }
+    if (S._fileOpsModule) S._fileOpsModule.onFileSelect(filePath);
+    console.log('[IDE _onFileSelect] 完成:', filePath);
+  } finally {
+    if (S._openingFilePath === filePath) {
+      S._openingFilePath = null;
     }
   }
-  if (S._fileOpsModule) S._fileOpsModule.onFileSelect(filePath);
 }
 
-function _onTabClose(filePath) {
+export function _onTabClose(filePath) {
   if (S._fileOpsModule) S._fileOpsModule.onTabClose(filePath);
 }
 
@@ -381,7 +407,7 @@ function _onCloseSaved() {
   if (S._fileOpsModule) S._fileOpsModule.onCloseSaved();
 }
 
-function _onOpenFileLocation(filePath) {
+export function _onOpenFileLocation(filePath) {
   // 真实文件系统模式：使用 shell.showItemInFolder 打开文件所在位置
   if (S._isRealFS && S._workspacePath) {
     // 构建完整路径：S._workspacePath + filePath
@@ -410,19 +436,19 @@ function _onRevealInTree(filePath) {
   if (S._fileOpsModule) S._fileOpsModule.onRevealInTree(filePath);
 }
 
-function _onFileDelete(path, isDirectory) {
+export function _onFileDelete(path, isDirectory) {
   if (S._fileOpsModule) S._fileOpsModule.onFileDelete(path, isDirectory);
 }
 
-function _onFileRename(path, newName) {
+export function _onFileRename(path, newName) {
   if (S._fileOpsModule) S._fileOpsModule.onFileRename(path, newName);
 }
 
-function _onFileCreate(dirPath, name, type) {
+export function _onFileCreate(dirPath, name, type) {
   if (S._fileOpsModule) S._fileOpsModule.onFileCreate(dirPath, name, type);
 }
 
-function _onFileSystemChange() {
+export function _onFileSystemChange() {
   if (S._fileOpsModule) S._fileOpsModule.onFileSystemChange();
 }
 

@@ -228,12 +228,13 @@ export function isNodeSandbox(nodeId) {
   return false;
 }
 
-export function getSandboxHtml(nodeId) {
+export async function getSandboxHtml(nodeId) {
   const node = appState.nodeMap.get(nodeId);
   if (!node) return null;
 
   if (node.fileSystem) {
     const vfs = new VirtualFileSystem(node.fileSystem);
+    await _fillVfsContentFromDisk(vfs, node);
     return vfs.buildSimpleHtml();
   }
 
@@ -254,8 +255,53 @@ export function getSandboxHtml(nodeId) {
   return null;
 }
 
-export function renderSandboxContent(container, nodeId) {
-  const html = getSandboxHtml(nodeId);
+async function _fillVfsContentFromDisk(vfs, node) {
+  if (!window.api || !window.api.ideGetNodeSandboxPath || !window.api.ideReadFile) return;
+
+  const emptyFiles = [];
+  for (const [path, f] of vfs.getAllFiles()) {
+    if (!f.content) emptyFiles.push(path);
+  }
+  if (emptyFiles.length === 0) return;
+
+  let sandboxPath;
+  try {
+    const projectFolderPath = _getProjectFolderPath();
+    // 使用 skipRewrite: true 避免删除并重建 sandboxDir
+    // 否则会用 node.fileSystem（可能 content 为空）覆盖磁盘上已有的正确文件
+    const result = await window.api.ideGetNodeSandboxPath(node, projectFolderPath, { skipRewrite: true });
+    if (!result || !result.success || !result.sandboxPath) {
+      return;
+    }
+    sandboxPath = result.sandboxPath;
+  } catch (e) {
+    console.warn('[getSandboxHtml] 获取 sandbox 路径失败，回退到空 content:', e);
+    return;
+  }
+
+  const sep = sandboxPath.endsWith('/') || sandboxPath.endsWith('\\') ? '' : '/';
+
+  for (const filePath of emptyFiles) {
+    try {
+      const absPath = sandboxPath + sep + filePath;
+      const result = await window.api.ideReadFile(absPath);
+      if (!result) continue;
+      if (result.type === 'text' && result.content != null) {
+        vfs.setFile(filePath, result.content);
+      } else if (result.type === 'image' && result.dataUrl) {
+        const commaIdx = result.dataUrl.indexOf(',');
+        if (commaIdx >= 0) {
+          vfs.setBinaryFile(filePath, result.dataUrl.substring(commaIdx + 1));
+        }
+      }
+    } catch (e) {
+      console.warn('[getSandboxHtml] 读取文件失败:', filePath, e);
+    }
+  }
+}
+
+export async function renderSandboxContent(container, nodeId) {
+  const html = await getSandboxHtml(nodeId);
   if (!html) return;
 
   const iframe = document.createElement('iframe');

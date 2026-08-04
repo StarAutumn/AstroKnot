@@ -36,13 +36,13 @@ setCloseModalCKFn(closeModalCK);
 
 // ── sandbox / 普通笔记 UI 切换辅助函数 ──
 
-function _applySandboxUI(nodeId) {
+async function _applySandboxUI(nodeId) {
   // 支持快速笔记：当 currentQuickNoteId 匹配时从快速笔记获取沙盒内容
   let sandboxContent;
   if (appState.currentQuickNoteId === nodeId) {
     sandboxContent = _getQuickNoteSandboxHtml(nodeId);
   } else {
-    sandboxContent = getSandboxHtml(nodeId);
+    sandboxContent = await getSandboxHtml(nodeId);
   }
   if (!sandboxContent) return false;
 
@@ -92,7 +92,42 @@ function _applySandboxUI(nodeId) {
       ckEl.style.position = 'relative';
       ckEl.appendChild(sandboxIframe);
     }
-    sandboxIframe.srcdoc = sandboxContent;
+
+    // 优先使用 HTTP 服务器方式（与节点 IDE 一致），避免 srcdoc/blob 加载大 HTML 异常
+    let httpLoaded = false;
+    try {
+      const node = appState.nodeMap.get(nodeId);
+      if (node && window.api?.ideGetNodeSandboxPath && window.api?.ideStartSandboxServer) {
+        const projectFolderPath = (appState.currentProject && appState.currentProject.folderPath) || '';
+        const r = await window.api.ideGetNodeSandboxPath(node, projectFolderPath);
+        if (r && r.success && r.sandboxPath) {
+          const srv = await window.api.ideStartSandboxServer(r.sandboxPath, '');
+          if (srv && srv.port) {
+            const httpUrl = 'http://127.0.0.1:' + srv.port + '/';
+            sandboxIframe.src = httpUrl;
+            sandboxIframe._httpUrl = httpUrl;
+            httpLoaded = true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[applySandboxUI] HTTP 服务器启动失败，回退到 blob URL:', e);
+    }
+
+    // 回退：使用 blob URL
+    if (!httpLoaded) {
+      if (sandboxIframe._blobUrl) {
+        URL.revokeObjectURL(sandboxIframe._blobUrl);
+      }
+      try {
+        const blob = new Blob([sandboxContent], { type: 'text/html;charset=utf-8' });
+        sandboxIframe._blobUrl = URL.createObjectURL(blob);
+        sandboxIframe.src = sandboxIframe._blobUrl;
+      } catch (e) {
+        console.warn('[applySandboxUI] blob URL 创建失败，回退到 srcdoc:', e);
+        sandboxIframe.srcdoc = sandboxContent;
+      }
+    }
     sandboxIframe.style.display = 'block';
   }
 
@@ -176,7 +211,7 @@ function _getQuickNoteSandboxHtml(noteId) {
 
 // ── 标签页切换（内容感知）──
 
-function _switchToTab(tabKey) {
+async function _switchToTab(tabKey) {
   if (!state.tinyEditor) return;
   if (tabKey === getActiveTabKey()) return;
 
@@ -217,7 +252,7 @@ function _switchToTab(tabKey) {
   if (tab.type === 'quicknote') {
     let note = appState.quickNotes.find(function (n) { return n.id === tab.id; });
     if (_isQuickNoteSandbox(note)) {
-      if (!_applySandboxUI(tab.id)) {
+      if (!(await _applySandboxUI(tab.id))) {
         _applyNormalUI(null);
         state.tinyEditor.setContent(note ? (note.content || '') : '');
       } else {
@@ -233,10 +268,10 @@ function _switchToTab(tabKey) {
   } else {
     let node = appState.nodeMap.get(tab.id);
     if (_isNodeSandbox(node)) {
-      if (!_applySandboxUI(tab.id)) {
+      if (!(await _applySandboxUI(tab.id))) {
         _applyNormalUI(node);
       } else {
-        state.tinyInitialContent = getSandboxHtml(tab.id);
+        state.tinyInitialContent = await getSandboxHtml(tab.id);
       }
     } else {
       _applyNormalUI(node);
@@ -318,7 +353,7 @@ function _closeTab(tabKey) {
   }
 
   let nextIdx = Math.min(idx, tabs.length - 1);
-  _switchToTab(tabs[nextIdx].key);
+  _switchToTab(tabs[nextIdx].key).catch(e => console.error('[_closeTab] _switchToTab error:', e));
 }
 
 // ── 内容保存 ──
@@ -410,7 +445,7 @@ export function saveCurrentContentCK() {
 // ── 打开编辑器 ──
 
 export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
-  function doOpen() {
+  async function doOpen() {
     const nodeId = nodeIdOrNull;
     initModalTitleRename();
     let renameBtn = document.getElementById('renameModalTitleBtn');
@@ -435,7 +470,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
       }, 200);
 
       // 代码模式（沙盒）→ 应用沙盒 UI；文本模式 → 加载 TinyMCE 内容
-      if (_isQuickNoteSandbox(note) && _applySandboxUI(quickNoteId)) {
+      if (_isQuickNoteSandbox(note) && (await _applySandboxUI(quickNoteId))) {
         state.tinyInitialContent = _getQuickNoteSandboxHtml(quickNoteId);
       } else {
         state.tinyEditor.setContent(note.content || '');
@@ -476,7 +511,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
 
     // ── 判断是否为沙盒模式 ──
     if (_isNodeSandbox(node)) {
-      if (_applySandboxUI(nodeId)) {
+      if (await _applySandboxUI(nodeId)) {
         showTinyUI();
         appState.editorOpen = true;
         modalRich.classList.remove('window-open', 'window-close');
@@ -487,7 +522,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
         if (renameBtn) renameBtn.style.display = 'inline';
 
         appState.currentEditNodeId = nodeId;
-        state.tinyInitialContent = getSandboxHtml(nodeId);
+        state.tinyInitialContent = await getSandboxHtml(nodeId);
 
         if (window.Taskbar) {
           window.Taskbar.addOrUpdateEditor('rich', {
@@ -564,7 +599,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
       initCKEditorFn().then(function (success) {
         if (success) {
           initTOC(state.tinyEditor);
-          doOpen();
+          doOpen().catch(e => console.error('[openRichEditorCK] doOpen error:', e));
         } else {
           showToast('TinyMCE 加载失败，请检查网络连接');
         }
@@ -576,7 +611,7 @@ export function openRichEditorCK(nodeIdOrNull, quickNoteId, initCKEditorFn) {
   }
 
   initTOC(state.tinyEditor);
-  doOpen();
+  doOpen().catch(e => console.error('[openRichEditorCK] doOpen error:', e));
 }
 
 // ── 关闭编辑器 ──
@@ -669,7 +704,7 @@ export function closeModalCK() {
     let idx = _findTabIndex(getActiveTabKey());
     tabs.splice(idx, 1);
     let nextIdx = Math.min(idx, tabs.length - 1);
-    _switchToTab(tabs[nextIdx].key);
+    _switchToTab(tabs[nextIdx].key).catch(e => console.error('[closeModalCK] _switchToTab error:', e));
     return;
   }
 
@@ -877,8 +912,8 @@ window.switchNodeToCodeMode = withHistory(async function(nodeId) {
 
   // 如果当前正在编辑此节点，立即切换UI
   if (appState.currentEditNodeId === nodeId && appState.editorOpen) {
-    if (_applySandboxUI(nodeId)) {
-      state.tinyInitialContent = getSandboxHtml(nodeId);
+    if (await _applySandboxUI(nodeId)) {
+      state.tinyInitialContent = await getSandboxHtml(nodeId);
     }
   }
 });
@@ -921,7 +956,7 @@ window.switchQuickNoteToCodeMode = withHistory(async function(noteId) {
 
   // 如果当前正在编辑此笔记，立即切换UI
   if (appState.currentQuickNoteId === noteId && appState.editorOpen) {
-    if (_applySandboxUI(noteId)) {
+    if (await _applySandboxUI(noteId)) {
       state.tinyInitialContent = _getQuickNoteSandboxHtml(noteId);
     }
   }

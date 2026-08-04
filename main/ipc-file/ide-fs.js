@@ -103,7 +103,7 @@ function bindIDEFSIPC(mainWindow) {
     return { folderName, files };
   });
 
-  ipcMain.handle('ide-get-node-sandbox-path', async (event, node, projectFolderPath) => {
+  ipcMain.handle('ide-get-node-sandbox-path', async (event, node, projectFolderPath, options) => {
     try {
       let sandboxDir;
       if (projectFolderPath) {
@@ -114,12 +114,15 @@ function bindIDEFSIPC(mainWindow) {
         sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', node.id, 'sandbox');
       }
 
-      if (node.fileSystem) {
+      const skipRewrite = options && options.skipRewrite;
+      if (node.fileSystem && !skipRewrite) {
         if (fs.existsSync(sandboxDir)) {
           fs.rmSync(sandboxDir, { recursive: true, force: true });
         }
         fs.mkdirSync(sandboxDir, { recursive: true });
         _writeFileSystemToDisk(node.fileSystem, sandboxDir);
+      } else if (!fs.existsSync(sandboxDir)) {
+        fs.mkdirSync(sandboxDir, { recursive: true });
       }
 
       return { success: true, sandboxPath: sandboxDir };
@@ -243,7 +246,9 @@ function bindIDEFSIPC(mainWindow) {
   });
 
   ipcMain.handle('ide-delete-item', async (event, filePath) => {
-    if (!filePath || !fs.existsSync(filePath)) throw new Error('项目不存在');
+    if (!filePath) throw new Error('参数无效');
+    // 文件不存在视为已删除（幂等删除，避免 VFS 中新建未落盘的文件删除时报错）
+    if (!fs.existsSync(filePath)) return { success: true };
     try {
       const stat = fs.statSync(filePath);
       if (stat.isDirectory()) {

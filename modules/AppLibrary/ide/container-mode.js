@@ -24,9 +24,9 @@ import { SandboxFileOps } from './features/file-ops.js';
 import { SandboxGithubImport } from './panels/github-import.js';
 import { S, AUTO_RUN_DEBOUNCE, AUTO_SAVE_DELAY } from './state.js';
 import { _initFeatureModules, _initDragOpen, _registerCtxListeners, _updateActivityBarButtons, _toggleSidePanel, _activatePreviewTab, _hideHistoryPanel, _restoreHistoryVersion, _setConsoleFilter, _showBottomPanel, _togglePreviewFullscreen, _toggleBottomPanel, _newTerminal, _toggleSearch, _showQuickOpen } from './window-init.js';
-import { _initIDEComponents, _destroyIDEComponents } from './ide-components.js';
+import { _initIDEComponents, _destroyIDEComponents, _openFileInEditor, _getProjectFolderPath, _onTabClose } from './ide-components.js';
 import { runPreview, closeHtmlSandboxEditor, saveHtmlSource, _renderMarkdownPreview, _showCommandPalette } from './editor-lifecycle.js';
-import { _bindOpenFolderBtn } from './real-fs.js';
+import { _bindOpenFolderBtn, _openRealFolder, _importLocalFolder, _openFolderAtPath, _realReadFile, _bindRealFileOps, _bindRealSaveShortcut } from './real-fs.js';
 
 // ════════════════════════════════════════════════════════════
 //  容器化初始化（供内置应用 AppRunner 调用）
@@ -141,7 +141,7 @@ function _showWelcomePage() {
 /**
  * 隐藏欢迎页
  */
-function _hideWelcomePage() {
+export function _hideWelcomePage() {
   const el = S._modal?.querySelector('#sandboxWelcomePage');
   if (el) el.classList.add('hidden');
 }

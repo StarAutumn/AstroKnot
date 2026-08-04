@@ -704,13 +704,48 @@ export class VirtualFileSystem {
           if (_isNodeJsOnly(resolved.content, resolved.path)) return '';
           // ES6 模块文件（import/export）使用 <script type="module"> 内联，
           // 避免在普通 <script> 中报 "Cannot use import statement outside a module"
+          // 替换 JS 中的图片路径字符串为 data URI（如 THREE.TextureLoader().load('assets/earth.png')）
+          // 限制：超过 100KB 的图片不内联，避免 HTML 过大导致 iframe srcdoc 加载失败
+          let jsContent = resolved.content;
+          jsContent = jsContent.replace(/['"`]([^'"`\s]+\.(?:png|jpg|jpeg|gif|webp|bmp|svg|ico))['"`]/gi, (m, imgPath) => {
+            if (/^(https?:)?\/\//i.test(imgPath) || imgPath.startsWith('data:')) return m;
+            const r = _resolveAndRead(vfs, imgPath, basePath);
+            if (r) {
+              const f = vfs._files.get(r.path);
+              if (f && f.isBinary && f.content && f.content.length < 100000) {
+                const ext = r.path.split('.').pop().toLowerCase();
+                const mimeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', ico: 'image/x-icon' };
+                const mime = mimeMap[ext] || 'application/octet-stream';
+                return m[0] + `data:${mime};base64,${f.content}` + m[m.length - 1];
+              }
+            }
+            return m;
+          });
           if (_isEsModule(resolved.content)) {
-            return '<script type="module">\n' + _escapeInlineContent(resolved.content, 'script') + '\n</script>';
+            return '<script type="module">\n' + _escapeInlineContent(jsContent, 'script') + '\n</script>';
           }
           // 转义 </script> 避免浏览器提前关闭 <script> 标签导致内容截断
-          return '<script>\n' + _escapeInlineContent(resolved.content, 'script') + '\n</script>';
+          return '<script>\n' + _escapeInlineContent(jsContent, 'script') + '\n</script>';
         }
         return ''; // 无法解析的 script 标签移除，避免 404
+      });
+
+      // 替换 <img src="..."> 为 data URI（处理 HTML 中的图片引用）
+      // 限制：超过 100KB 的图片不内联，避免 HTML 过大导致 iframe srcdoc 加载失败
+      entryHtml = entryHtml.replace(/<img\s+[^>]*src=["']([^"']+)["'][^>]*>/gi, function (match, src) {
+        if (/^(https?:)?\/\//i.test(src)) return match;
+        if (src.startsWith('data:')) return match;
+        const resolved = _resolveAndRead(vfs, src, basePath);
+        if (resolved) {
+          const file = vfs._files.get(resolved.path);
+          if (file && file.isBinary && file.content && file.content.length < 100000) {
+            const ext = resolved.path.split('.').pop().toLowerCase();
+            const mimeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', ico: 'image/x-icon' };
+            const mime = mimeMap[ext] || 'application/octet-stream';
+            return match.replace(src, `data:${mime};base64,${file.content}`);
+          }
+        }
+        return match;
       });
     }
 

@@ -20,8 +20,12 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 
 将知识以 **3D 星图** 的形式呈现，每个节点都是可深度编辑的知识单元：
 
+<img src="assets/1.png" alt="AstroKnot" width="256">
+<img src="assets/2.png" alt="AstroKnot" width="256">
+
 - **2D/3D 视图切换** — 思维导图平面视图与沉浸式 3D 星图自由切换
 - **富文本编辑器** — TinyMCE 7 全功能编辑器，支持字体、段落、图片、表格、公式
+<img src="assets/3.png" alt="AstroKnot" width="256">
 - **多媒体插入** — 音频波形可视化、视频编辑、幻灯片放映、手绘绘图
 - **知识网络连接** — 节点间连线可视化，构建知识图谱
 
@@ -31,12 +35,22 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 
 每个知识节点可嵌入完整的 **VSCode 风格 IDE**，实现分布式前端开发：
 
+<img src="assets/4.png" alt="AstroKnot" width="256">
+
 - **代码沙盒 IDE** — Monaco Editor + 文件树 + 标签页 + esbuild 打包，支持 HTML/CSS/JS 实时预览
 - **分布式节点架构** — 每个节点 = 一个独立前端应用，节点间连线 = 模块依赖关系
+
+<img src="assets/5.png" alt="AstroKnot" width="256">
+
 - **版本控制系统** — 类 Git 的版本图，支持提交、分支、diff、回滚
+
+<img src="assets/7.png" alt="AstroKnot" width="256">
+
 - **内置终端** — node-pty + xterm.js，多标签页，PowerShell/Zsh 自动适配
 - **节点级磁盘同步** — 创建/删除/内容自动保存到磁盘，增量同步
 - **内置浏览器** — 完整浏览器功能，网页内容一键抓取为知识节点，实现"浏览-采集-整理"闭环
+
+<img src="assets/6.png" alt="AstroKnot" width="256">
 
 适合：前端开发者、项目原型设计、多项目并行开发、代码实验、技术学习笔记
 

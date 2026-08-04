@@ -23,7 +23,8 @@ import { SandboxResize } from './layout/resize.js';
 import { SandboxFileOps } from './features/file-ops.js';
 import { SandboxGithubImport } from './panels/github-import.js';
 import { S, AUTO_RUN_DEBOUNCE, AUTO_SAVE_DELAY } from './state.js';
-import { _initIDEComponents, _setStatus, _openFileInEditor } from './ide-components.js';
+import { _initIDEComponents, _setStatus, _openFileInEditor, _onFileSelect, _onOpenFileLocation, _onFileDelete, _onFileRename, _onFileCreate, _onFileSystemChange, _getProjectFolderPath } from './ide-components.js';
+import { _hideWelcomePage } from './container-mode.js';
 
 // ════════════════════════════════════════════════════════════
 //  真实文件系统操作（打开电脑任意文件夹）
@@ -52,7 +53,7 @@ export function _bindOpenFolderBtn() {
 /**
  * 打开文件夹对话框 → 加载真实目录到 VFS
  */
-async function _openRealFolder() {
+export async function _openRealFolder() {
   if (!window.api?.ideSelectFolder) return;
   const folderPath = await window.api.ideSelectFolder();
   if (!folderPath) return;
@@ -89,8 +90,6 @@ async function _openRealFolder() {
       treeContainer.innerHTML = '';
       S._fileTree = new FileTreeComponent(treeContainer, S._vfs, {
         onFileSelect: (filePath) => _onFileSelect(filePath),
-        onFileDblClick: (filePath) => _onFileDblClick(filePath),
-        onContextMenu: (filePath) => _onFileTreeContextMenu(filePath),
         onFileCreate: (dirPath, name, type) => _onFileCreate(dirPath, name, type),
         onFileDelete: (path, isDir) => _onFileDelete(path, isDir),
         onFileRename: (path, newName) => _onFileRename(path, newName),
@@ -107,7 +106,7 @@ async function _openRealFolder() {
     }
     // 关闭所有 Monaco 编辑器文件
     if (S._monacoEditor && S._monacoEditor._models) {
-      for (const fp of [..._monacoEditor._models.keys()]) {
+      for (const fp of [...S._monacoEditor._models.keys()]) {
         S._monacoEditor.closeFile(fp);
       }
     }
@@ -123,7 +122,7 @@ async function _openRealFolder() {
  * 导入本地文件夹（智能双模式：真实 FS 模式直接复制到工作区；VFS 模式读取文件列表写入 VFS）
  * 导入是复制操作，不会移动源文件；重名目录自动加 -2/-3 后缀，不覆盖。
  */
-async function _importLocalFolder() {
+export async function _importLocalFolder() {
   if (!window.api?.ideImportLocalFolder) {
     if (window.showToast) window.showToast('导入功能不可用（API 未就绪）', 'warning');
     return;
@@ -268,7 +267,7 @@ function _ensureDirInVFS(vfs, dirPath) {
  * 直接加载指定路径的文件夹（不弹出对话框）
  * @param {string} folderPath - 绝对路径
  */
-async function _openFolderAtPath(folderPath) {
+export async function _openFolderAtPath(folderPath) {
   if (!folderPath) return;
 
   try {
@@ -302,8 +301,6 @@ async function _openFolderAtPath(folderPath) {
       treeContainer.innerHTML = '';
       S._fileTree = new FileTreeComponent(treeContainer, S._vfs, {
         onFileSelect: (fp) => _onFileSelect(fp),
-        onFileDblClick: (fp) => _onFileDblClick(fp),
-        onContextMenu: (fp) => _onFileTreeContextMenu(fp),
         onFileCreate: (dirPath, name, type) => _onFileCreate(dirPath, name, type),
         onFileDelete: (path, isDir) => _onFileDelete(path, isDir),
         onFileRename: (path, newName) => _onFileRename(path, newName),
@@ -317,7 +314,7 @@ async function _openFolderAtPath(folderPath) {
     // 关闭所有已打开的标签
     if (S._fileTabs) S._fileTabs.closeAll();
     if (S._monacoEditor && S._monacoEditor._models) {
-      for (const fp of [..._monacoEditor._models.keys()]) {
+      for (const fp of [...S._monacoEditor._models.keys()]) {
         S._monacoEditor.closeFile(fp);
       }
     }
@@ -382,7 +379,7 @@ async function _dirTreeToVFS(dirTree, basePath) {
  * @param {string} filePath - VFS 路径（如 /index.html）
  * @returns {Promise<Object>} { type, content, dataUrl }
  */
-async function _realReadFile(filePath) {
+export async function _realReadFile(filePath) {
   if (!S._workspacePath) return null;
   const sep = S._workspacePath.endsWith('/') || S._workspacePath.endsWith('\\') ? '' : '/';
   const absPath = S._workspacePath + sep + filePath;
@@ -405,14 +402,14 @@ async function _realSaveFile(filePath, content) {
  * 真实文件系统的文件操作（创建/删除/重命名）
  * 已迁移到 file-ops.js 中处理，此处不再重复绑定
  */
-function _bindRealFileOps() {
+export function _bindRealFileOps() {
   // 文件操作已由 SandboxFileOps 根据 ctx.isRealFS 统一处理
 }
 
 /**
  * 绑定 Ctrl+S 保存到真实磁盘
  */
-function _bindRealSaveShortcut() {
+export function _bindRealSaveShortcut() {
   document.addEventListener('keydown', async (e) => {
     // Ctrl+S
     if ((e.ctrlKey || e.metaKey) && e.key === 's' && !e.shiftKey) {
@@ -432,6 +429,11 @@ function _bindRealSaveShortcut() {
       for (const filePath of allFiles) {
         const file = S._vfs.getFile(filePath);
         if (file && file.isDirty) {
+          // 跳过图片/二进制文件：其 content 是 dataUrl，写入磁盘会损坏原文件
+          if (file.content && file.content.startsWith('data:')) {
+            file.isDirty = false;
+            continue;
+          }
           try {
             await _realSaveFile(filePath, file.content);
             file.isDirty = false;

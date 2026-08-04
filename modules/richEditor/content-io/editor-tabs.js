@@ -380,7 +380,11 @@ export function setSwitchToTabFn(fn) { _switchToTabFn = fn; }
 export function setCloseTabFn(fn) { _closeTabFn = fn; }
 
 export function _switchToTab(tabKey) {
-  if (_switchToTabFn) { _switchToTabFn(tabKey); return; }
+  if (_switchToTabFn) {
+    const p = _switchToTabFn(tabKey);
+    if (p && typeof p.catch === 'function') p.catch(e => console.error('[editor-tabs] _switchToTab error:', e));
+    return;
+  }
   console.warn('[editor-tabs] _switchToTab not yet bound');
 }
 

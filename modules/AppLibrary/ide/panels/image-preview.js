@@ -33,16 +33,26 @@ class SandboxImagePreview {
 
   openImagePreview(filePath) {
     const vfs = this._ctx.vfs;
-    if (!vfs) return;
+    if (!vfs) {
+      console.log('[IDE openImagePreview] 提前返回: vfs 为空');
+      return;
+    }
 
     const file = vfs.getFile(filePath);
-    if (!file) return;
+    if (!file) {
+      console.log('[IDE openImagePreview] 提前返回: 文件不存在', filePath);
+      return;
+    }
+
+    const content = file.content || '';
+    console.log('[IDE openImagePreview] 开始:', filePath, 'content长度:', content.length, 'content前缀:', content.substring(0, 40));
 
     // Hide Monaco, show image preview
     const monacoContainer = document.getElementById('sandboxMonacoContainer');
     const imagePreview = document.getElementById('sandboxImagePreview');
     if (monacoContainer) monacoContainer.style.display = 'none';
     if (imagePreview) imagePreview.style.display = 'flex';
+    console.log('[IDE openImagePreview] DOM状态: monaco.display=', monacoContainer?.style.display, 'imagePreview.display=', imagePreview?.style.display);
 
     // Exit Markdown mode
     this._ctx.emit('exitMarkdownMode');
@@ -50,18 +60,22 @@ class SandboxImagePreview {
     // Set image src
     const img = document.getElementById('imagePreviewImg');
     if (img) {
-      const content = file.content || '';
+      console.log('[IDE openImagePreview] img存在, 当前src长度:', img.src?.length, '当前src前缀:', img.src?.substring(0, 40));
       if (content.startsWith('data:')) {
         img.src = content;
+        console.log('[IDE openImagePreview] 设置 img.src = dataUrl (长度:', content.length, ')');
       } else if (content.startsWith('<svg') || content.startsWith('<?xml')) {
         const blob = new Blob([content], { type: 'image/svg+xml' });
         img.src = URL.createObjectURL(blob);
+        console.log('[IDE openImagePreview] 设置 img.src = blob (svg)');
       } else if (/^[A-Za-z0-9+/=]+$/.test(content.trim()) && content.length > 20) {
         const ext = filePath.split('.').pop().toLowerCase();
         const mime = SandboxImagePreview.MIME_MAP[ext] || 'image/png';
         img.src = 'data:' + mime + ';base64,' + content;
+        console.log('[IDE openImagePreview] 设置 img.src = base64拼接 (mime:', mime, ')');
       } else {
         img.src = '';
+        console.log('[IDE openImagePreview] 警告: content 不匹配任何格式，img.src 设为空! content前缀:', content.substring(0, 50));
       }
       this._imageZoom = 1;
       img.style.transform = 'scale(1)';
@@ -75,6 +89,8 @@ class SandboxImagePreview {
         const zoomEl = document.getElementById('imagePreviewZoom');
         if (zoomEl) zoomEl.textContent = Math.round(this._imageZoom * 100) + '%';
       };
+    } else {
+      console.log('[IDE openImagePreview] 警告: imagePreviewImg 元素不存在!');
     }
 
     // Update info
@@ -91,13 +107,15 @@ class SandboxImagePreview {
     if (fileTree) fileTree.setActive(filePath);
 
     this._ctx.emit('updateBreadcrumb', filePath);
+    console.log('[IDE openImagePreview] 完成:', filePath);
   }
 
   closeImagePreview() {
     const imagePreview = document.getElementById('sandboxImagePreview');
+    const img = document.getElementById('imagePreviewImg');
+    console.log('[IDE closeImagePreview] 调用, img.src长度:', img?.src?.length, 'container.display=', imagePreview?.style.display);
     if (imagePreview) imagePreview.style.display = 'none';
 
-    const img = document.getElementById('imagePreviewImg');
     if (img) {
       if (img.src && img.src.startsWith('blob:')) {
         URL.revokeObjectURL(img.src);
