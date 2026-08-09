@@ -7,6 +7,7 @@
 import { appState } from '../module0_AppState.js';
 import { showConfirm } from '../module4_Confirm.js';
 import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { arrange3DWith2DLayout, apply3DWith2DLayoutImmediate } from '../UI/Resize.js';
 import * as THREE from 'three';
 
 let dragSrcIndex = null;
@@ -79,6 +80,12 @@ export function initLayerManager() {
     }
   });
 
+  // 📏 3D 排列层间距调节滑动条
+  document.getElementById('layerSpacingBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSpacingSlider();
+  });
+
   // ========== 拖拽移动面板 ==========
   const header = document.getElementById('layerPanelHeader');
   if (header) {
@@ -121,6 +128,8 @@ export function initLayerManager() {
 
 function openLayerPanel(panel) {
   renderLayerList();
+  // 打开时同步滑动条当前值（切换项目后间距可能变化）
+  syncSpacingSliderValue();
   const btn = document.getElementById('layerIconBtn');
   if (btn) {
     const btnRect = btn.getBoundingClientRect();
@@ -133,6 +142,113 @@ function openLayerPanel(panel) {
 
 function closeLayerPanel(panel) {
   panel.style.display = 'none';
+  // 关闭面板时收起滑动条
+  const slider = document.getElementById('layerSpacingSlider');
+  if (slider) {
+    slider.style.display = 'none';
+    // 确保关闭面板时相机控制恢复（防止滑块 pointer 状态残留）
+    if (appState.controls) appState.controls.enabled = true;
+  }
+}
+
+// ============================================================
+//  📏 3D 排列层间距调节滑动条
+// ============================================================
+function ensureSpacingSliderDOM() {
+  if (document.getElementById('layerSpacingSlider')) return;
+  const panel = document.getElementById('layerManagerModal');
+  if (!panel) return;
+
+  const slider = document.createElement('div');
+  slider.id = 'layerSpacingSlider';
+  slider.style.cssText = 'display:none;padding:10px 14px;border-bottom:1px solid var(--divider);background:var(--btn-bg);flex-shrink:0;';
+
+  slider.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <span style="color:var(--text-secondary);font-size:12px;">📏 3D 排列层间距</span>
+      <span id="layerSpacingValue" style="color:var(--accent);font-size:12px;font-weight:600;"></span>
+    </div>
+    <div id="layerSpacingTrack" style="position:relative;height:18px;cursor:pointer;touch-action:none;user-select:none;">
+      <div style="position:absolute;top:50%;left:0;right:0;height:4px;transform:translateY(-50%);background:var(--input-bg);border-radius:2px;"></div>
+      <div id="layerSpacingFill" style="position:absolute;top:50%;left:0;height:4px;transform:translateY(-50%);background:var(--accent);border-radius:2px;width:0%;"></div>
+      <div id="layerSpacingThumb" style="position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);transform:translate(-50%,-50%);left:0%;pointer-events:none;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;color:var(--text-secondary);font-size:9px;margin-top:2px;">
+      <span>近</span><span>远</span>
+    </div>
+  `;
+
+  // 插入到面板列表之前
+  const list = document.getElementById('layerList');
+  panel.insertBefore(slider, list);
+
+  const MIN = 0.5, MAX = 12;
+  const track = document.getElementById('layerSpacingTrack');
+  const fill = document.getElementById('layerSpacingFill');
+  const thumb = document.getElementById('layerSpacingThumb');
+  const valueEl = document.getElementById('layerSpacingValue');
+
+  // 自定义滑块：不用原生 range，避免拖动时浏览器捕获鼠标指针导致 3D 场景相机无法操作
+  const setSliderUI = (v) => {
+    const pct = ((v - MIN) / (MAX - MIN)) * 100;
+    fill.style.width = pct + '%';
+    thumb.style.left = pct + '%';
+    valueEl.textContent = v.toFixed(1) + ' 单位';
+  };
+
+  const applySpacing = (v) => {
+    appState.layer3DSpacing = v;
+    setSliderUI(v);
+    if (appState.layer3DLayout && !appState.is2DView && apply3DWith2DLayoutImmediate) {
+      apply3DWith2DLayoutImmediate();
+    }
+  };
+
+  const trackToValue = (clientX) => {
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const v = MIN + ratio * (MAX - MIN);
+    return Math.round(v * 2) / 2; // 步进 0.5
+  };
+
+  let dragging = false;
+  track.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    track.setPointerCapture(e.pointerId);
+    applySpacing(trackToValue(e.clientX));
+  });
+  track.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    applySpacing(trackToValue(e.clientX));
+  });
+  const _finishDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    saveCurrentProjectData();
+    if (appState.layer3DLayout && !appState.is2DView && arrange3DWith2DLayout) {
+      arrange3DWith2DLayout();
+    }
+  };
+  track.addEventListener('pointerup', _finishDrag);
+  track.addEventListener('pointercancel', _finishDrag);
+
+  slider._applySpacing = applySpacing;
+  slider._setSliderUI = setSliderUI;
+}
+
+function syncSpacingSliderValue() {
+  const slider = document.getElementById('layerSpacingSlider');
+  if (!slider || !slider._setSliderUI) return;
+  slider._setSliderUI(appState.layer3DSpacing ?? 4);
+}
+
+function toggleSpacingSlider() {
+  ensureSpacingSliderDOM();
+  const slider = document.getElementById('layerSpacingSlider');
+  if (!slider) return;
+  syncSpacingSliderValue();
+  slider.style.display = slider.style.display === 'none' ? 'block' : 'none';
 }
 
 // ============================================================

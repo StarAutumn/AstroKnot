@@ -1,7 +1,7 @@
 // ============================================================
 //  main/ipc-file/node-folder.js — 节点文件夹操作 IPC
 // ============================================================
-const { ipcMain, dialog, app } = require('electron');
+const { ipcMain, dialog, app, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const dataSettings = require('../../data-settings');
@@ -135,6 +135,29 @@ function bindNodeFolderIPC(mainWindow) {
       return { success: true };
     } catch (err) {
       console.error('[write-node-content] 错误:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 打开节点文件夹（在文件管理器中定位）
+  ipcMain.handle('show-node-folder', async (event, projectFolderPath, node) => {
+    if (!projectFolderPath || !node) return { success: false, error: '缺少参数' };
+    try {
+      const folderName = getNodeFolderName(node);
+      const nodeDir = path.join(projectFolderPath, 'nodes', folderName);
+      if (!fs.existsSync(nodeDir)) {
+        // 文件夹不存在时定位到 nodes 目录
+        const nodesDir = path.join(projectFolderPath, 'nodes');
+        if (fs.existsSync(nodesDir)) {
+          shell.showItemInFolder(nodesDir);
+          return { success: true, path: nodesDir, fallback: true };
+        }
+        return { success: false, error: 'not_found' };
+      }
+      shell.showItemInFolder(nodeDir);
+      return { success: true, path: nodeDir };
+    } catch (err) {
+      console.error('[show-node-folder] 错误:', err);
       return { success: false, error: err.message };
     }
   });

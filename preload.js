@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld('api', {
   deleteNodeFolder: (projectFolderPath, node) => ipcRenderer.invoke('delete-node-folder', projectFolderPath, node),
   // 写入节点 content.html（自动创建文件夹）
   writeNodeContent: (projectFolderPath, node, content) => ipcRenderer.invoke('write-node-content', projectFolderPath, node, content),
+  // 在文件管理器中定位节点文件夹
+  showNodeFolder: (projectFolderPath, node) => ipcRenderer.invoke('show-node-folder', projectFolderPath, node),
   // 删除项目文件夹（递归删除整个项目目录）
   deleteProjectFolder: (projectFolderPath) => ipcRenderer.invoke('delete-project-folder', projectFolderPath),
   // 删除未保存项目的临时文件夹（sandbox-tmp/{projectId}）
@@ -195,6 +197,7 @@ contextBridge.exposeInMainWorld('api', {
   // ── 快速笔记（文件系统存储）──
   saveQuickNotes: (data) => ipcRenderer.invoke('save-quick-notes', data),
   loadQuickNotes: (data) => ipcRenderer.invoke('load-quick-notes', data),
+  showQuickNoteInFolder: (data) => ipcRenderer.invoke('show-quicknote-in-folder', data),
 
   // ── 日记（按年-月文件系统存储）──
   readDiary: (dateStr) => ipcRenderer.invoke('diary-read', dateStr),
@@ -307,4 +310,18 @@ contextBridge.exposeInMainWorld('api', {
   findAppEntryHtml: (appId) => ipcRenderer.invoke('find-app-entry-html', appId),
   startAppServer: (appId) => ipcRenderer.invoke('start-app-server', appId),
   stopAppServer: (appId) => ipcRenderer.invoke('stop-app-server', appId),
+
+  // ── GitHub 云同步 ──
+  githubVerifyToken: (token) => ipcRenderer.invoke('github-verify-token', token),
+  githubSaveToken: (token) => ipcRenderer.invoke('github-save-token', token),
+  githubLoadToken: () => ipcRenderer.invoke('github-load-token'),
+  githubClearToken: () => ipcRenderer.invoke('github-clear-token'),
+  githubListRepos: (token) => ipcRenderer.invoke('github-list-repos', token),
+  githubCreateRepo: (token, payload) => ipcRenderer.invoke('github-create-repo', token, payload),
+  githubDeleteRepo: (token, owner, repo) => ipcRenderer.invoke('github-delete-repo', token, owner, repo),
+  githubSyncUpload: (token, repoInfo, dirs) => ipcRenderer.invoke('github-sync-upload', token, repoInfo, dirs),
+  githubSyncDownload: (token, repoInfo, dirs, targets) => ipcRenderer.invoke('github-sync-download', token, repoInfo, dirs, targets),
+  githubDeletePaths: (token, repoInfo, targets) => ipcRenderer.invoke('github-delete-paths', token, repoInfo, targets),
+  githubGetRepoInfo: (token, owner, repo, branch) => ipcRenderer.invoke('github-get-repo-info', token, owner, repo, branch),
+  onGithubSyncProgress: (callback) => ipcRenderer.on('github-sync-progress', (_e, data) => callback(data)),
 });

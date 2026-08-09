@@ -51,15 +51,20 @@ export function updateCardBillboards(tm) {
 
     // ── 卡片模式节点图标billboard朝向相机 ──
     if (obj.cardIcon && isCardMode) {
-      // 计算从节点指向相机的方向（局部空间，因为父mesh无旋转=世界空间）
+      // 计算从节点指向相机的方向（世界空间）
       _tmpVec3b.subVectors(camPos, obj.mesh.position).normalize();
       const R = appState.NODE_RADIUS || 0.22;
+      // 父 mesh 可能有旋转（非球形节点），需将其逆旋转补偿到图标的局部 position/quaternion，
+      // 使图标在世界空间中静止朝向相机，不随父级旋转而转动
+      _tmpQuat.copy(obj.mesh.quaternion).invert();
+      _tmpVec3b.applyQuaternion(_tmpQuat);
       obj.cardIcon.position.set(
         _tmpVec3b.x * (R + 0.005),
         _tmpVec3b.y * (R + 0.005),
         _tmpVec3b.z * (R + 0.005)
       );
-      obj.cardIcon.quaternion.copy(camQuat);
+      // 局部四元数 = 父逆旋转 * 相机朝向，使世界朝向 = 父旋转 * 局部 = 相机朝向
+      obj.cardIcon.quaternion.copy(_tmpQuat).multiply(camQuat);
     }
 
     // ── 非卡片模式节点：清除残留 cardLabel ──

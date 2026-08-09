@@ -92,6 +92,8 @@ export function applyLoadedData(data, folderName, folderPath) {
     appState.initDefaultLayer();
   }
   appState.currentLayerId = data.currentLayerId || (appState.layers[0]?.id || null);
+  // 恢复 3D 按 2D 布局的层间距
+  appState.layer3DSpacing = data.layer3DSpacing ?? 4;
   const curL = appState.getCurrentLayer();
   if (curL) {
     for (const [id, p] of appState.positions2D.entries()) {
@@ -290,6 +292,7 @@ export async function saveNetworkToFile() {
     collapsed2D: collapsed,
     layers: layersData,
     currentLayerId: appState.currentLayerId,
+    layer3DSpacing: appState.layer3DSpacing ?? 4,
     nodeRichContents: rich,
     overlayImages: overlay,
     nodeHtmlSources: htmlSources,

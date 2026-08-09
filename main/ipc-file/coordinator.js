@@ -12,6 +12,7 @@ const { bindQuickNotesIPC } = require('./quick-notes');
 const { bindDiaryIPC } = require('./diary');
 const { bindFileManagerIPC } = require('./file-manager');
 const { bindIDEFSIPC } = require('./ide-fs');
+const { bindGitHubIPC } = require('./github');
 
 function bindFileIPC(mainWindow) {
   bindProjectIOIPC(mainWindow);
@@ -24,6 +25,7 @@ function bindFileIPC(mainWindow) {
   bindDiaryIPC(mainWindow);
   bindFileManagerIPC(mainWindow);
   bindIDEFSIPC(mainWindow);
+  bindGitHubIPC(mainWindow);
 }
 
 module.exports = { bindFileIPC };

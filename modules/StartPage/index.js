@@ -6,6 +6,17 @@ import { applyLoadedData } from '../module9_FileIO.js';
 import * as THREE from 'three';
 
 let isStartPageVisible = false;
+let dateTimeTimer = null;
+
+// 更新开始首页的日期时间显示
+function updateStartPageDateTime() {
+    const el = document.getElementById('startPageDateTime');
+    if (!el) return;
+    const now = new Date();
+    const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const pad = (n) => String(n).padStart(2, '0');
+    el.textContent = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${weekDays[now.getDay()]} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
 
 // 应用开始页面背景（ribbon 飘带 / custom 本地图片）
 export function applyStartPageBackground() {
@@ -73,7 +84,12 @@ export function showStartPage(withSlideDown = false) {
     }
     
     isStartPageVisible = true;
-    
+
+    // 启动日期时间更新
+    updateStartPageDateTime();
+    if (dateTimeTimer) clearInterval(dateTimeTimer);
+    dateTimeTimer = setInterval(updateStartPageDateTime, 1000);
+
     renderRecentProjects();
     bindStartPageEvents();
 }
@@ -88,6 +104,12 @@ window.addEventListener('astroknot-projects-loaded', () => {
 export function hideStartPage() {
     const startPage = document.getElementById('startPage');
     if (!startPage) return;
+
+    // 清除日期时间定时器
+    if (dateTimeTimer) {
+        clearInterval(dateTimeTimer);
+        dateTimeTimer = null;
+    }
     
     // 添加向上滑动动画
     startPage.classList.add('slide-up-exit');

@@ -60,6 +60,8 @@ export async function reloadDiaryIndex() {
   _indexLoaded = false;
   await loadDiaryIndex();
 }
+// 暴露给同步模块在下载后刷新日记索引
+window.reloadDiaryIndex = reloadDiaryIndex;
 
 /**
  * 检查某日期是否有日记

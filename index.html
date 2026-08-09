@@ -36,7 +36,7 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script defer src="https://unpkg.com/mathlive"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathlive"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
     <!-- 主样式表（拆分） -->
@@ -149,6 +149,7 @@
             <div class="start-page-header">
                 <img src="assets/icon.png" alt="AstroKnot" class="start-page-logo">
                 <h1 class="start-page-title">AstroKnot</h1>
+                <div id="startPageDateTime" class="start-page-datetime"></div>
             </div>
             <div class="start-page-actions">
                 <button id="startPageNewProject" class="start-page-btn primary">
@@ -296,8 +297,9 @@
             </div>
         </div>
         <div class="menu-bottom-bar">
-            <button id="toggleNodeGlowBtn" class="menu-bottom-btn" title="设置">⚙️</button>
+            <button id="githubLoginBtn" class="menu-bottom-btn" title="登录到 GitHub"></button>
             <div class="menu-bottom-spacer"></div>
+            <button id="toggleNodeGlowBtn" class="menu-bottom-btn" title="设置">⚙️</button>
             <button id="closeAstroKnotMenuBtn" class="menu-bottom-btn menu-close-btn" title="关闭应用">⏻</button>
         </div>
     </div>
@@ -1849,6 +1851,9 @@
             <button id="removeConnectionContextBtn" style="background:#6a3c3c;">删除连线</button>
         </div>
         <div class="menu-row">
+            <button id="showNodeFolderBtn" style="background:#2c4a6c;">📂 打开文件所在位置</button>
+        </div>
+        <div class="menu-row">
             <button id="moveNodeBtn" style="background:#2c6e7e;">移动节点</button>
             <button id="copyNodeBtn" style="background:#2c5a7e;">复制节点</button>
             <button id="deleteNodeContextBtn" style="background:#6a2c2c;">删除该节点</button>
@@ -2549,6 +2554,7 @@
             <span class="layer-panel-title">🗂️ 图层管理</span>
             <div class="layer-panel-header-btns">
                 <button id="addLayerBtn" class="layer-header-btn">＋ 新建图层</button>
+                <button id="layerSpacingBtn" class="layer-header-btn layer-ghost-btn" title="3D 排列层间距">📏</button>
                 <button id="overviewLayersBtn" class="layer-header-btn layer-ghost-btn" title="图层总览">📑</button>
                 <button id="closeLayerModalBtn" class="layer-header-btn layer-close-btn" title="关闭">✕</button>
             </div>

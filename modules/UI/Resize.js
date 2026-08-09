@@ -11,6 +11,12 @@ import { groupRects } from '../2DView/shared.js';
 import { startArrangeAnimation, skipArrangeAnimation, startArrangeAnimation2D, skipArrangeAnimation2D } from './ArrangeAnimation.js';
 import { computeAutoArrangeTargets } from '../2DView/index.js';
 
+// 3D 按 2D 布局重排函数，由 bindResize() 内部注册
+// （内部实现依赖 bindResize 作用域内的函数，故通过此变量暴露给其他模块）
+export let arrange3DWith2DLayout = null;
+// 即时应用 2D 布局（无动画），供滑动条拖动过程中实时预览
+export let apply3DWith2DLayoutImmediate = null;
+
 export function bindResize() {
   window.addEventListener('resize', () => {
     appState.camera.aspect = window.innerWidth / window.innerHeight;
@@ -308,7 +314,8 @@ function compute3DWith2DLayoutTargets() {
   const rootNode = appState.methodsTree;
   if (!rootNode || !rootNode.id) return { targetPositions: new Map(), deferredEffects: { type: '2DLayout' } };
 
-  const LAYER_SPACING = 4;
+  // 每层之间的 Y 轴间距，可在图层管理面板的滑动条中调节
+  const LAYER_SPACING = appState.layer3DSpacing ?? 4;
   const sortedLayers = [...appState.layers].sort((a, b) => a.order - b.order);
 
   // 保存当前图层的 2D 位置
@@ -600,8 +607,9 @@ function compute3DWith2DLayoutTargets() {
 
 // ============================================================
 //  3D 按 2D 布局排列（带动画）
+//  注册到模块级导出变量，供图层管理面板调节层间距后调用
 // ============================================================
-function arrange3DWith2DLayout() {
+arrange3DWith2DLayout = function () {
   // 动画中再点击 → 跳过当前动画后重新排列
   if (appState.arrangeAnimActive) {
     skipArrangeAnimation();
@@ -614,7 +622,57 @@ function arrange3DWith2DLayout() {
   _clearLayerVisuals();
   const { targetPositions, deferredEffects } = compute3DWith2DLayoutTargets();
   startArrangeAnimation(targetPositions, deferredEffects);
-}
+};
+
+// 即时应用 2D 布局（无动画），供滑动条实时预览层间距
+apply3DWith2DLayoutImmediate = function () {
+  const rootNode = appState.methodsTree;
+  if (!rootNode || !rootNode.id) return;
+
+  // 若动画正在播放，先跳过动画避免冲突
+  if (appState.arrangeAnimActive) {
+    skipArrangeAnimation();
+  }
+
+  _clearLayerVisuals();
+  const { targetPositions, deferredEffects } = compute3DWith2DLayoutTargets();
+
+  // 直接应用目标位置（无动画）
+  for (const [id, targetPos] of targetPositions) {
+    const pos = appState.positions.get(id);
+    if (pos) pos.copy(targetPos);
+    const obj = appState.nodeMeshes.get(id);
+    if (obj) {
+      obj.mesh.position.copy(targetPos);
+      if (obj.label) {
+        obj.label.position.set(targetPos.x, targetPos.y + appState.NODE_RADIUS + 0.28, targetPos.z);
+      }
+    }
+  }
+
+  // 重建连线
+  rebuildAllLines();
+
+  // 恢复连线透明度
+  for (let it of appState.lineItems) {
+    it.line.setOpacity(1);
+    if (it.line.glowTube) it.line.glowTube.material.opacity = (appState.lineGlowOpacity ?? 1);
+    if (it.line.particlePoints) it.line.particlePoints.material.opacity = 1;
+    if (it.line.trailPointsMerged?.material?.uniforms) {
+      it.line.trailPointsMerged.material.uniforms.uOpacity.value = 0.6;
+    }
+  }
+
+  // 应用延迟视觉效果（图层高亮矩形等）
+  if (deferredEffects.layerHighlights) {
+    appState.layerHighlights = deferredEffects.layerHighlights;
+    for (const hl of deferredEffects.layerHighlights) appState.scene.add(hl);
+  }
+  if (deferredEffects.groupRectMeshes) {
+    appState.groupRectMeshes = deferredEffects.groupRectMeshes;
+    for (const m of deferredEffects.groupRectMeshes) appState.scene.add(m);
+  }
+};
 
   // ---------- 自动排列按钮（任务栏） ----------
   const arrangeBtn = document.getElementById('arrangeBtn');

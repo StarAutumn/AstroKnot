@@ -4,6 +4,7 @@
 import { initSettingsPopup } from './settings-popup.js';
 import { bindSimpleToolbarButtons } from './toolbar-buttons.js';
 import { initVersionMapModal } from './version-map-modal.js';
+import { initGitHubLogin } from './github-login.js';
 import { showPrompt } from '../../module4_Confirm.js';
 
 export function bindToolbarButtons() {
@@ -15,6 +16,9 @@ export function bindToolbarButtons() {
   if (glowBtn) {
     initSettingsPopup(glowBtn);
   }
+
+  // ---------- GitHub 登录 ----------
+  initGitHubLogin();
 
   // ---------- 其他工具栏按钮 ----------
   bindSimpleToolbarButtons();

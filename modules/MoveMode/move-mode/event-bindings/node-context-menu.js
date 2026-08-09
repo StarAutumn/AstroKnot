@@ -6,7 +6,7 @@
 import { appState } from '../../../module0_AppState.js';
 import {
   expandAllNodes, deleteSelectedNodes,
-  getPrimarySelectedId
+  getPrimarySelectedId, showToast
 } from '../../../module5_SelectAndEdit.js';
 import { hideContextMenu } from '../../../module8_ContextMenu.js';
 import { enterMoveMode } from '../move-core.js';
@@ -30,6 +30,30 @@ export function bindNodeContextMenu() {
     copySelectedNodes();
     hideContextMenu();
   });
+  document.getElementById('showNodeFolderBtn')?.addEventListener('click', async () => {
+    if (!appState.contextTargetId || appState.contextTargetId === 'multi') {
+      showToast('请右键单个节点后操作');
+      return;
+    }
+    if (!window.api || !window.api.showNodeFolder) {
+      showToast('无法打开文件位置（API 不可用）');
+      return;
+    }
+    const node = appState.nodeMap.get(appState.contextTargetId);
+    if (!node) { showToast('未找到节点数据'); return; }
+    const proj = appState.projects?.find(p => p.id === appState.currentProjectId);
+    const projectFolderPath = proj?.folderPath || appState.currentProjectSavePath || null;
+    if (!projectFolderPath) {
+      showToast('当前项目尚未保存到磁盘');
+      return;
+    }
+    const result = await window.api.showNodeFolder(projectFolderPath, node);
+    if (!result.success) {
+      if (result.error === 'not_found') showToast('节点文件夹不存在');
+      else showToast('打开失败: ' + (result.error || '未知错误'));
+    }
+  });
+
   document.getElementById('moveNodeBtn')?.addEventListener('click', () => {
     if (!appState.contextTargetId) return;
     if (appState.contextTargetId === 'multi') {

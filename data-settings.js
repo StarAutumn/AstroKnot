@@ -309,6 +309,12 @@ function saveSettings() {
  * 获取当前配置
  */
 function getSettings() {
+  // 补全旧配置可能缺失的字段（diariesDir 等）
+  if (_settings && _settings.dataRoot) {
+    if (!_settings.diariesDir) _settings.diariesDir = path.join(_settings.dataRoot, SUBDIR_NAMES.diaries);
+    if (!_settings.quicknotesDir) _settings.quicknotesDir = path.join(_settings.dataRoot, SUBDIR_NAMES.quicknotes);
+    if (!_settings.projectsDir) _settings.projectsDir = path.join(_settings.dataRoot, SUBDIR_NAMES.projects);
+  }
   return _settings;
 }
 

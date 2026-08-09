@@ -20,14 +20,14 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 
 将知识以 **3D 星图** 的形式呈现，每个节点都是可深度编辑的知识单元：
 
-<img src="assets/1.png" alt="AstroKnot" width="512">
+<img src="assets/1.png" alt="AstroKnot" width="800">
 
-<img src="assets/2.png" alt="AstroKnot" width="512">
+<img src="assets/2.png" alt="AstroKnot" width="800">
 
 - **2D/3D 视图切换** — 思维导图平面视图与沉浸式 3D 星图自由切换
 - **富文本编辑器** — TinyMCE 7 全功能编辑器，支持字体、段落、图片、表格、公式
 
-<img src="assets/3.png" alt="AstroKnot" width="512">
+<img src="assets/3.png" alt="AstroKnot" width="800">
 
 - **多媒体插入** — 音频波形可视化、视频编辑、幻灯片放映、手绘绘图
 - **知识网络连接** — 节点间连线可视化，构建知识图谱
@@ -38,12 +38,12 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 
 每个知识节点可嵌入完整的 **VSCode 风格 IDE**，实现分布式前端开发：
 
-<img src="assets/4.png" alt="AstroKnot" width="512">
+<img src="assets/4.png" alt="AstroKnot" width="800">
 
 - **代码沙盒 IDE** — Monaco Editor + 文件树 + 标签页 + esbuild 打包，支持 HTML/CSS/JS 实时预览
 - **分布式节点架构** — 每个节点 = 一个独立前端应用，节点间连线 = 模块依赖关系
 
-<img src="assets/5.png" alt="AstroKnot" width="512">
+<img src="assets/5.png" alt="AstroKnot" width="800">
 
 - **版本控制系统** — 类 Git 的版本图，支持提交、分支、diff、回滚
 
@@ -65,9 +65,9 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 |------|------|
 | **项目类型** | 个人 AI 辅助开发的知识管理桌面应用 |
 | **核心概念** | 将知识节点以 3D 星图/2D 思维导图呈现，每个节点是独立的知识单元 |
-| **技术栈** | Electron 29 + Three.js + TinyMCE 7 + Monaco Editor + esbuild-wasm |
-| **代码规模** | ~317 个源文件，~118,200 行代码（JS 265 + CSS 32 + HTML 20） |
-| **模块数量** | 30+ 功能模块，80+ IPC 通道 |
+| **技术栈** | Electron 29 + Three.js + TinyMCE 7 + Monaco Editor + esbuild-wasm + GitHub REST API |
+| **代码规模** | ~320 个源文件，~120,000 行代码（JS 270 + CSS 32 + HTML 20） |
+| **模块数量** | 30+ 功能模块，90+ IPC 通道 |
 | **部署方式** | Electron 桌面版（完整功能）+ Web 版（浏览器访问，部分受限） |
 | **数据存储** | 集中式 `AstroKnot-Data/` 目录，Markdown + JSON 混合格式 |
 | **版本控制** | 内置类 Git DAG 版本图，增量存储，内容寻址 blob |
@@ -79,7 +79,8 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 
 基于 **Electron + Three.js** 构建，融合多种专业编辑器引擎：
 
-- 主进程：`main.js` 委托 `main/index.js`，按 IPC 域拆分为 `ipc-window/file/storage/browser/version-graph/emergency/data-settings` + `main-terminal`
+- 主进程：`main.js` 委托 `main/index.js`，按 IPC 域拆分为 `ipc-window/file/storage/browser/version-graph/emergency/data-settings/github` + `main-terminal`
+- GitHub 云同步：`main/ipc-file/github.js` 封装 GitHub REST API，Token 经 `safeStorage` 加密落盘，支持仓库列表拉取、批量上传（项目/快速笔记/日记/回收站）与按需下载恢复
 - 3D 渲染：Three.js 星云粒子、螺旋连线、节点光环、Bloom 辉光（0.5x 分辨率降 GPU 开销）
 - 2D 渲染：Canvas 2D 批量绘制（连线按颜色/线宽分组 stroke）、parentMap O(1) 查找、节点颜色 hex 缓存
 - 富文本：TinyMCE 7 inline 模式 + Univer 表格 + MathJax/MathLive 公式
@@ -111,12 +112,14 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - **标题样式模板** — 内置多套标题样式模板，自定义各级标题字体/间距/缩进
 - **字数统计** — 中英文混合字数统计，实时显示
 - **历史记录** — 完整的撤销/重做，操作原子化
-- **快速笔记** — 独立的富文本笔记列表，支持文本模式和代码模式（Web 项目沙盒）切换
-- **项目持久化** — Markdown + JSON 混合格式存储，支持多项目，节点文件夹使用节点名称命名（格式：节点名称_[nodeId前8位]）
+- **快速笔记** — 独立的富文本笔记列表，支持文本模式和代码模式（Web 项目沙盒）切换；新建笔记自动编号命名（快速笔记1、快速笔记2...），右键支持"添加为节点""打开文件所在位置"
+- **项目持久化** — Markdown + JSON 混合格式存储，支持多项目，节点文件夹使用节点名称命名（格式：节点名称_[nodeId前8位]）；快速笔记磁盘文件夹采用与节点一致的命名规范
 - **节点级磁盘同步** — 节点创建/删除实时同步到磁盘，内容自动保存（3s debounce），沙盒文件增量同步
 - **版本控制** — 版本图系统，支持提交、分支、diff、回滚，类似 Git 的版本管理（已保存项目存储在 `.versiongraph/`，未保存项目临时存储在 `userData/version-graphs-tmp/`）
 - **代码沙盒 IDE** — VSCode 风格迷你 IDE，Monaco Editor + 文件树 + 标签页 + esbuild-wasm 打包，支持 HTML/CSS/JS 实时预览、分屏编辑、面包屑导航、Markdown 预览、Minimap、控制台、终端、全局搜索、本地历史、Emmet 缩写、代码片段模板
 - **GitHub 项目导入** — 从 GitHub 仓库导入前端项目到沙盒 IDE，自动解析文件结构
+- **GitHub 云同步** — 菜单栏一键登录（Token 加密存储、显示账号头像），选择仓库后上传/下载全部数据（项目、快速笔记、日记、全局应用库、回收站），支持按分类/条目右键单独下载或删除；上传显示进度条与仓库容量估算
+- **打开文件所在位置** — 项目列表、快速笔记、节点右键菜单均可定位到对应磁盘文件夹，快速笔记/节点文件夹使用"名称_短ID"结构便于辨识
 - **全局应用库** — 从 GitHub 克隆应用到本地库，支持拖拽插入为节点、独立预览窗口、一键更新
 - **内置浏览器** — 基于 Electron `<webview>` 的完整浏览器，多标签页、书签、历史记录、下载管理、阅读模式、暗色模式、密码管理、搜索引擎切换、User-Agent 切换、隐私模式、开发者工具侧边栏、网页内容抓取为知识节点
 - **系统级存储文件化** — 所有应用设置通过 `SystemStorage` 模块持久化到 `AstroKnot-Data/system/storage/` 目录（每个 key 一个 JSON 文件），替代 localStorage，跨开发/打包环境一致，启动时同步恢复，实时原子写入
@@ -128,6 +131,7 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - **自动化测试** — Vitest 单元测试套件，覆盖纯函数、VFS、版本控制、文件图标、GitHub API 等核心逻辑
 - **帧率自适应** — 锁定 90fps，用户无操作 50 秒后自动降至 50fps，任意交互立即恢复
 - **2D/3D 渲染优化** — 连线批量绘制、Bloom 降分辨率、parentMap 缓存、节点颜色 hex 缓存、连线视锥裁剪 + LOD 降频
+- **3D 排列层间距调节** — 图层管理面板标题栏"📏"按钮弹出滑动条，实时调节"3D 按 2D 布局排列"时每层之间的间距，松开自动保存并重排
 
 ## 快速开始
 
@@ -183,19 +187,20 @@ AstroKnot/
 ├── main/                     # 主进程按 IPC 域拆分
 │   ├── index.js              #   主启动入口（窗口创建、生命周期、各 IPC 模块注册）
 │   ├── ipc-window.js         #   窗口控制 IPC（最小化/最大化/关闭/全屏）
-│   ├── ipc-file/             #   文件操作 IPC（按功能域拆分为 14 个子模块）
+│   ├── ipc-file/             #   文件操作 IPC（按功能域拆分为 15 个子模块）
 │   │   ├── index.js          #     入口（转发至 coordinator.js）
 │   │   ├── coordinator.js    #     汇总所有子模块的 IPC 注册
 │   │   ├── project-io.js     #     项目加载/保存/导出/打开外部链接
 │   │   ├── project-data.js   #     项目数据读写辅助函数
-│   │   ├── node-folder.js    #     节点文件夹创建/删除/写入
+│   │   ├── node-folder.js    #     节点文件夹创建/删除/写入/定位
 │   │   ├── sandbox-sync.js   #     Sandbox 文件实时同步（写入/删除/重命名）
-│   │   ├── quick-notes.js    #     快速笔记 I/O（保存/加载）
+│   │   ├── quick-notes.js    #     快速笔记 I/O（保存/加载/打开所在文件夹）
 │   │   ├── trash.js          #     回收站（移入/列出/恢复/永久删除）
 │   │   ├── file-manager.js   #     文件管理器（目录树/读写/增删改/复制移动）
 │   │   ├── app-library.js    #     全局应用库（清单/sandbox 读写/入口查找/HTTP 服务）
 │   │   ├── ide-fs.js         #     IDE 真实文件系统（导入文件夹/读写/创建项目）
 │   │   ├── diary.js          #     日记 I/O（读取/保存/删除/列表）
+│   │   ├── github.js         #     GitHub 云同步（Token 验证/仓库列表/上传/下载/清单重建）
 │   │   ├── icon.js           #     图标提取（exe/快捷方式图标转 Base64）
 │   │   └── helpers.js        #     工具函数（二进制处理/overlay/文件读写辅助）
 │   ├── ipc-storage.js        #   系统存储 IPC（SystemStorage 读写）
@@ -460,6 +465,7 @@ AstroKnot/
     │   │   ├── index.js           #     协调器（导出 bindToolbarButtons）
     │   │   ├── settings-popup.js  #     设置弹窗（HTML 模板、滑块绑定）
     │   │   ├── toolbar-buttons.js #     工具栏按钮（缩放/保存/加载/标签/新建项目）
+    │   │   ├── github-login.js    #     GitHub 云同步面板（登录/仓库/文件树/上传下载/隐藏仓库）
     │   │   └── version-map-modal.js #   版本时间线弹窗
     │   ├── Toolbar.css            #   工具栏样式
     │   ├── Search.js              #   搜索（节点/项目）
@@ -589,7 +595,7 @@ AstroKnot/
 
 | 层 | 模块 | 职责 |
 |----|------|------|
-| 主进程层 | `main.js`, `main/` | Electron 主进程入口、窗口生命周期、按 IPC 域拆分（窗口/文件/存储/浏览器/版本图/应急备份/终端） |
+| 主进程层 | `main.js`, `main/` | Electron 主进程入口、窗口生命周期、按 IPC 域拆分（窗口/文件/存储/浏览器/版本图/应急备份/终端/GitHub 云同步） |
 | 数据层 | `module0`, `module2`, `module3`, `module9`, `nodeDiskSync.js`, `emergencyBackup.js` | 状态管理、数据持久化、历史记录、文件 IO、节点级磁盘同步、应急备份 |
 | 版本控制层 | `versionGraph/` | 版本图系统（提交、分支、diff、回滚、自动保存） |
 | 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件（含卡片全息效果）、场景初始化、动画 |
@@ -624,6 +630,7 @@ AstroKnot/
 | `AIChat/` | `module0`, `UI/` | AI 对话（Chat/Agent 双模式） |
 | `Guide/` | `module0`, `UI/` | 新手引导 |
 | `richEditor/` | `module0`, `module2`, `UI/` | 富文本编辑（含 sandbox IDE） |
+| `UI/Toolbar/github-login.js` | `module0`, `module2`, `module11` | GitHub 云同步面板（登录、仓库、文件树、上传/下载） |
 | `UI/` | `module0`, `module2`, `module3`, `module5`, `module9`, `richEditor/` | UI 组件 |
 | `MoveMode/` | `module0`, `module2`, `module3`, `module5`, `VisualComponents/`, `module8`, `richEditor/` | 移动模式 |
 | `2DView/` | `module0`, `module2`, `module5`, `VisualComponents/`, `module8`, `richEditor/` | 2D 视图 |
@@ -699,7 +706,7 @@ AstroKnot/
 ### 其他
 
 - **AstroKnot 菜单**：底部任务栏左侧按钮，打开项目面板 & 快速笔记 & 全局应用库
-- **快速笔记**：独立的富文本笔记，支持标签页，可在文本模式（TinyMCE）和代码模式（Web 项目沙盒 IDE）之间切换，右键可"📌 添加为节点"
+- **快速笔记**：独立的富文本笔记，新建自动编号命名（快速笔记1、快速笔记2...），支持标签页，可在文本模式（TinyMCE）和代码模式（Web 项目沙盒 IDE）之间切换，右键可"📌 添加为节点"或"📂 打开文件所在位置"
 - **2D 思维导图**：工具栏切换 2D 视图
 - **Dock 快捷启动**：底部 Dock 栏，支持拖放文件/文件夹
 - **天气 & 农历**：任务栏右侧时钟，右键可设置城市
@@ -708,6 +715,12 @@ AstroKnot/
 - **版本控制**：工具栏版本图按钮，查看提交历史、创建分支、回滚到历史版本、查看 diff
 - **代码沙盒 IDE**：右键节点 → "💻 以 HTML 方式打开"，进入 VSCode 风格 IDE，支持实时预览、控制台、全局搜索；也可双击应用栏 IDE 图标独立打开
 - **GitHub 项目导入**：IDE 菜单栏 → 文件 → 从 GitHub 导入，输入仓库 URL 自动克隆到沙盒
+- **GitHub 云同步**：AstroKnot 菜单 → GitHub 按钮（登录后显示账号头像）→ 登录（输入 Personal Access Token，需 `repo` 权限）→ 选择仓库
+  - **⬆️ 上传数据到云端**：将项目、快速笔记、日记、全局应用库、回收站等上传到所选仓库（需选择对应分类）
+  - **⬇️ 从云端恢复**：整仓恢复，或右键单个分类/条目单独下载到本地
+  - **删除**：右键云端条目可删除；仓库也可隐藏（🙈）或删除
+  - **快速笔记/日记下载后自动重建本地清单与索引**，下载完成即可在列表中看到
+- **打开文件所在位置**：项目列表、快速笔记、3D 节点右键菜单 → "📂 打开文件所在位置"，在文件管理器中定位到该数据对应的磁盘文件夹
 - **全局应用库**：AstroKnot 菜单 → 应用栏，从 GitHub 克隆应用，拖拽插入为节点或独立预览
 - **内置浏览器**：AstroKnot 菜单 → 应用栏 → 双击"内置浏览器"打开
   - **多标签页**：标签栏右侧"+"新建标签，支持拖拽排序、右键关闭
@@ -762,8 +775,27 @@ AstroKnot-Data/
 │   ├── emergency-backups/       #   应急备份（崩溃恢复）
 │   ├── sandbox-tmp/             #   未保存项目的临时沙盒
 │   └── version-graphs-tmp/      #   未保存项目的版本图临时数据
-├── projects/                    # 用户项目（每个项目一个文件夹）
-├── quicknotes/                  # 快速笔记（每条笔记一个子目录，含 content.html、drawdata.json、filesystem.json、mode.json 等）
+├── projects/                    # 用户项目（每个项目一个文件夹，以项目名命名）
+│   └── <project-name>/
+│       ├── project.json         #   项目核心数据（节点树、连线、位置、图层、相机视角、层间距、树边标签等）
+│       ├── project.md           #   人类可读项目摘要（自动生成）
+│       ├── .versiongraph/       #   内置版本图（类 Git DAG，增量 + 内容寻址 blob）
+│       │   ├── graph.json       #     版本节点/分支关系
+│       │   └── blobs/           #     内容寻址数据块
+│       └── nodes/               #   节点数据（文件夹命名"节点名_短ID"，与项目/快速笔记命名规范一致）
+│           └── <节点名_短ID>/
+│               ├── content.html #     节点富文本内容
+│               ├── overlays/    #     覆盖层资源（manifest.json + 图片/视频/音频/Excel JSON）
+│               └── sandbox/     #     代码模式沙盒（虚拟文件系统落盘的真实文件树）
+├── quicknotes/                  # 快速笔记（清单 + 每条笔记一个子目录）
+│   ├── quicknotes.json          #   笔记清单（[{ id, title, folder }]）
+│   └── <笔记名_qnote_短ID>/     #   每条笔记一个文件夹（新建自动编号：快速笔记1、快速笔记2...）
+│       ├── content.html         #     笔记富文本内容
+│       ├── drawdata.json        #     绘图/标注数据
+│       ├── overlays/            #     覆盖层资源（manifest.json + 媒体文件）
+│       ├── mode.json            #     模式标记（text / code）
+│       ├── filesystem.json      #     代码模式虚拟文件系统
+│       └── sandbox_history.json #     沙盒操作历史
 ├── apps/                        # 全局应用库（GitHub 克隆的应用）
 │   ├── index.json               #   应用清单
 │   └── <app-id>/                #   每个应用一个子目录
@@ -771,11 +803,11 @@ AstroKnot-Data/
 │       └── sandbox/             #     应用文件
 ├── download/                    # 下载文件（内置浏览器下载目录）
 └── trash/                       # 回收站（已删除项目，可恢复）
-    └── <project-name>/          #   每个已删除项目一个子目录
+    └── <project-name>/          #   每个已删除项目一个子目录（结构与 projects/ 一致）
         ├── .trash-meta.json     #     删除时间、来源等元数据
         ├── project.json         #     项目配置
         ├── project.md           #     项目描述
-        └── nodes/               #     节点数据
+        └── nodes/               #     节点数据（content.html / overlays/ / sandbox/）
 ```
 
 ### 系统级键值存储（system/storage/）

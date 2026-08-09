@@ -51,6 +51,8 @@ export async function loadQuickNotes() {
 
       if (result.success) {
         appState.quickNotes = result.notes || [];
+        // 记录实际保存目录（默认路径时由后端解析），供"打开文件所在位置"使用
+        if (result.path) appState.quickNoteSavePath = result.path;
 
         // 磁盘无数据，但 localStorage 有旧数据 → 自动迁移
         if (appState.quickNotes.length === 0 && !localStorage.getItem('qnotes_migrated')) {
@@ -72,6 +74,9 @@ export async function loadQuickNotes() {
     appState.quickNotes = saved ? JSON.parse(saved) : [];
   } catch { appState.quickNotes = []; }
 }
+// 暴露给同步模块在下载后刷新快速笔记
+window.loadQuickNotes = loadQuickNotes;
+window.renderQuickNotesList = renderQuickNotesList;
 
 /**
  * 从 localStorage 旧数据迁移到文件系统
@@ -129,6 +134,10 @@ async function _doSaveQuickNotes() {
         savePath: appState.quickNoteSavePath || null,
         notes: appState.quickNotes.filter(n => !n._isDiary) // 排除日记虚拟笔记
       });
+      if (result.success && result.path) {
+        // 记录实际保存目录，供"打开文件所在位置"使用
+        appState.quickNoteSavePath = result.path;
+      }
       if (!result.success) {
         console.error('[快速笔记保存] 失败:', result.error);
       }
@@ -147,6 +156,27 @@ async function _doSaveQuickNotes() {
 }
 
 // ---------- 列表渲染 ----------
+
+/**
+ * 生成快速笔记的默认标题：快速笔记1、快速笔记2、快速笔记3 ...
+ * 取现有同前缀标题的最大编号 + 1（保证编号不重复且递增）
+ * @returns {string} 默认标题，如 "快速笔记1"
+ */
+function getNextQuickNoteDefaultTitle() {
+  let maxNum = 0;
+  const notes = appState.quickNotes || [];
+  for (const n of notes) {
+    if (n._isDiary) continue;
+    const title = n.title || '';
+    const m = title.match(/^快速笔记(\d+)$/);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+  return '快速笔记' + (maxNum + 1);
+}
+
 export function renderQuickNotesList() {
     const list = document.getElementById('quickNotesList');
     if (!list) return;
@@ -238,6 +268,21 @@ export function renderQuickNotesList() {
                     })();
                 }},
                 { label: '✏️ 重命名', action: function () { startQuickNoteRename(item); } },
+                { sep: true },
+                { label: '📂 打开文件所在位置', action: async function () {
+                    if (!window.api || !window.api.showQuickNoteInFolder) {
+                        showToast('无法打开文件位置（API 不可用）');
+                        return;
+                    }
+                    const result = await window.api.showQuickNoteInFolder({
+                        savePath: appState.quickNoteSavePath || null,
+                        noteId: noteId
+                    });
+                    if (!result.success) {
+                        if (result.error === 'not_found') showToast('笔记尚未保存到磁盘');
+                        else showToast('打开失败: ' + (result.error || '未知错误'));
+                    }
+                }},
                 { sep: true },
                 { label: '📄 另存为 HTML...', action: async function () {
                     if (!note) return;
@@ -406,7 +451,7 @@ export async function initQuickNotes() {
     if (newBtn) {
         newBtn.onclick = function () {
             const noteId = 'qnote_' + Date.now();
-            const newNote = { id: noteId, title: '', content: '', activeMode: 'text' };
+            const newNote = { id: noteId, title: getNextQuickNoteDefaultTitle(), content: '', activeMode: 'text' };
             appState.quickNotes.unshift(newNote);
             saveQuickNotes();
             renderQuickNotesList();

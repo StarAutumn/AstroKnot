@@ -738,6 +738,14 @@
     margin: 0;
 }
 
+.start-page-datetime {
+    font-size: 14px;
+    color: rgba(184, 212, 232, 0.6);
+    letter-spacing: 1px;
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+}
+
 .start-page-subtitle {
     font-size: 16px;
     color: rgba(184, 212, 232, 0.7);

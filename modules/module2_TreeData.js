@@ -156,6 +156,7 @@ export function saveCurrentProjectData() {
     nodeActiveModes: nam,
     layers: serializedLayers,
     currentLayerId: appState.currentLayerId,
+    layer3DSpacing: appState.layer3DSpacing ?? 4,
     cameraView: cameraView,
     treeEdgeLabels: Object.fromEntries(appState.treeEdgeLabels || new Map())
   };
@@ -325,6 +326,8 @@ export function loadProject(projectId) {
     appState.currentLayerId = null;
     appState.initDefaultLayer();
   }
+  // 恢复 3D 按 2D 布局的层间距
+  appState.layer3DSpacing = data.layer3DSpacing ?? 4;
 
   appState.clearSelected();
 
@@ -1236,6 +1239,8 @@ export async function loadProjectListFromDisk() {
     console.warn('[项目列表] 从磁盘加载失败:', e);
   }
 }
+// 暴露给同步模块在下载后刷新项目列表
+window.loadProjectListFromDisk = loadProjectListFromDisk;
 
 /**
  * 从应急备份快照恢复为当前项目

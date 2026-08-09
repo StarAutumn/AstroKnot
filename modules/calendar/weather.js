@@ -367,8 +367,7 @@ if (weatherEl) {
   weatherEl.addEventListener('click', (e) => {
     e.stopPropagation();
     weatherCtxMenu.style.visibility = 'hidden';
-    weatherCoords = null;
-    weatherCityName = '';
+    // 仅刷新天气数据，保留当前城市（weatherCoords / weatherCityName 不清空，避免城市被改变）
     weatherCurrent = null;
     weatherDaily = null;
     weatherHourly = null;
