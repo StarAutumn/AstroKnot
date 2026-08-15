@@ -413,4 +413,28 @@ export function registerInsertTab(editor) {
   } catch (e) {
     console.error('[TinyMCE] customslideshow 注册失败:', e);
   }
+
+  // ── 勾选框（可反复点击切换勾选状态） ──
+  try {
+    editor.ui.registry.addIcon('todo-check-icon',
+      '<svg width="48" height="48" viewBox="0 0 48 48" fill="#2c6e7e" fill-opacity="0.35" stroke="#aef0ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<rect x="8" y="8" width="32" height="32" rx="4" ry="4"/>' +
+      '<polyline points="15,24 21,30 33,18" fill="none"/>' +
+      '</svg>'
+    );
+    editor.ui.registry.addButton('insertcheckbox', {
+      icon: 'todo-check-icon',
+      text: '勾选框',
+      tooltip: '在光标处插入勾选框（可点击切换勾选状态）',
+      onAction: function () {
+        editor.focus();
+        var html = '<span class="tmce-todo-check" contenteditable="false" data-checked="false" title="点击切换勾选状态">' +
+          '<span class="tmce-todo-check-box"></span>' +
+          '</span>\u200B';
+        editor.insertContent(html);
+      }
+    });
+  } catch (e) {
+    console.error('[TinyMCE] insertcheckbox 注册失败:', e);
+  }
 }

@@ -13,4 +13,10 @@ export const contentStyle =
   '.tmce-columns-3{column-count:3;column-gap:1.5em;}' +
   '.tmce-columns-2>p,.tmce-columns-3>p{margin-top:0;}' +
   '.tmce-columns-2>p:first-child,.tmce-columns-3>p:first-child{margin-top:0;}' +
-  '.toc-num{color:inherit;font-weight:600;margin-right:0.3em;user-select:none;cursor:default;font-variant-numeric:tabular-nums;}';
+  '.toc-num{color:inherit;font-weight:600;margin-right:0.3em;user-select:none;cursor:default;font-variant-numeric:tabular-nums;}' +
+  /* ── 勾选框（可点击切换） ── */
+  '.tmce-todo-check{display:inline-flex !important;align-items:center !important;justify-content:center !important;width:16px !important;height:16px !important;margin:0 0.3em !important;vertical-align:-0.2em !important;cursor:pointer !important;user-select:none !important;-webkit-user-select:none !important;border:1.5px solid #aef0ff !important;border-radius:3px !important;box-sizing:border-box !important;background:rgba(174,240,255,0.06) !important;position:relative !important;transition:background 0.15s,border-color 0.15s !important;}' +
+  '.tmce-todo-check:hover{border-color:#7fd7f0 !important;box-shadow:0 0 0 2px rgba(79,195,247,0.18) !important;}' +
+  '.tmce-todo-check[data-checked="true"]{background:rgba(79,195,247,0.22) !important;border-color:#4fc3f7 !important;}' +
+  '.tmce-todo-check[data-checked="true"]::after{content:\'\' !important;position:absolute !important;left:3px !important;top:0.5px !important;width:8px !important;height:4.5px !important;border-left:2px solid #4fc3f7 !important;border-bottom:2px solid #4fc3f7 !important;transform:rotate(-45deg) !important;}' +
+  '.tmce-todo-check .tmce-todo-check-box{display:none !important;}';

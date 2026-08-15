@@ -90,6 +90,30 @@ export function bindEditorPostInit(editors) {
         }
       }, true);
 
+      // 勾选框：用 body 原生事件委托处理点击切换
+      // （TinyMCE 的 on('click') 对 contenteditable=false 内联元素不可靠，overlay 块同此做法）
+      if (!body._todoCheckBound) {
+        body._todoCheckBound = true;
+        body.addEventListener('click', function (e) {
+          let todoCheck = e.target.closest('.tmce-todo-check');
+          if (!todoCheck) return;
+          e.preventDefault();
+          e.stopPropagation();
+          let checked = todoCheck.getAttribute('data-checked') === 'true';
+          todoCheck.setAttribute('data-checked', checked ? 'false' : 'true');
+          // 标记内容变更，触发自动保存
+          if (state.tinyEditor) state.tinyEditor.fire('change');
+          // 把光标移到勾选框后面，方便继续输入
+          try {
+            let rng = state.tinyEditor.dom.createRng();
+            rng.setStartAfter(todoCheck);
+            rng.collapse(true);
+            state.tinyEditor.selection.setRng(rng);
+            state.tinyEditor.focus();
+          } catch (err) { /* 忽略光标定位异常 */ }
+        });
+      }
+
       // 同样在 TinyMCE 编辑器事件层拦截
       state.tinyEditor.on('DragOver', function (e) {
         if (!e.event || !e.event.dataTransfer || !Array.from(e.event.dataTransfer.types).includes('Files')) return;
