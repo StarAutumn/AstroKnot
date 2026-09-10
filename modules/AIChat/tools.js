@@ -604,9 +604,11 @@ async function deleteNode(nodeId) {
   // 收集将被删除的所有节点 ID（含子树），须在 removeFromTree 之前
   // （rebuildNodeMapFromTree 后子节点从 nodeMap 消失，无法再遍历）
   const idsToDelete = [];
+  const deletedNodeInfos = []; // 在节点移除前捕获 {id, name}，供磁盘同步删除文件夹
   const collectSubtreeIds = (id) => {
     idsToDelete.push(id);
     const n = appState.nodeMap.get(id);
+    deletedNodeInfos.push({ id: id, name: n ? n.name : '未命名' });
     if (n && n.children) n.children.forEach(ch => collectSubtreeIds(ch.id));
   };
   collectSubtreeIds(nodeId);
@@ -642,7 +644,7 @@ async function deleteNode(nodeId) {
   // 派发批量删除事件（含子树，供 nodeDiskSync 监听器实时删除磁盘文件夹）
   if (idsToDelete.length > 0) {
     window.dispatchEvent(new CustomEvent('astroknot-node-deleted', {
-      detail: { nodeIds: idsToDelete }
+      detail: { nodeIds: idsToDelete, nodes: deletedNodeInfos }
     }));
   }
 }

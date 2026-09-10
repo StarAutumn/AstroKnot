@@ -12,6 +12,9 @@
 
 <img src="assets/icon.png" alt="AstroKnot" width="128">
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Electron](https://img.shields.io/badge/Electron-29-47848F.svg)](https://www.electronjs.org/)
+
 ## 产品定位
 
 AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历排班融合为一体的桌面知识管理平台**。核心概念是以 3D 星图或 2D 思维导图的形式组织知识，每个节点都是一个可独立运行的"知识单元"——可以是一篇富文本笔记、一个前端项目（含完整 IDE）、一组多媒体覆盖层，或一个网页剪藏副本。
@@ -118,6 +121,7 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - **版本控制** — 版本图系统，支持提交、分支、diff、回滚，类似 Git 的版本管理（已保存项目存储在 `.versiongraph/`，未保存项目临时存储在 `userData/version-graphs-tmp/`）
 - **代码沙盒 IDE** — VSCode 风格迷你 IDE，Monaco Editor + 文件树 + 标签页 + esbuild-wasm 打包，支持 HTML/CSS/JS 实时预览、分屏编辑、面包屑导航、Markdown 预览、Minimap、控制台、终端、全局搜索、本地历史、Emmet 缩写、代码片段模板
 - **GitHub 项目导入** — 从 GitHub 仓库导入前端项目到沙盒 IDE，自动解析文件结构
+- **本地文件夹导入** — IDE 支持导入本地文件夹到沙盒，自动跳过 `node_modules`/`.git`/`dist`/`build` 等依赖与构建产物目录（单文件 >10MB 亦跳过），避免虚拟文件系统与项目数据膨胀；检测到 `package.json` 时会引导在内置终端执行 `npm install` 重新安装依赖
 - **GitHub 云同步** — 菜单栏一键登录（Token 加密存储、显示账号头像），选择仓库后上传/下载全部数据（项目、快速笔记、日记、全局应用库、回收站），支持按分类/条目右键单独下载或删除；上传显示进度条与仓库容量估算
 - **打开文件所在位置** — 项目列表、快速笔记、节点右键菜单均可定位到对应磁盘文件夹，快速笔记/节点文件夹使用"名称_短ID"结构便于辨识
 - **全局应用库** — 从 GitHub 克隆应用到本地库，支持拖拽插入为节点、独立预览窗口、一键更新
@@ -208,6 +212,7 @@ AstroKnot/
 │   ├── ipc-version-graph.js  #   版本图 IPC（快照/分支/回滚）
 │   ├── ipc-emergency.js      #   应急备份 IPC（崩溃恢复）
 │   ├── ipc-data-settings.js  #   数据目录设置 IPC（路径配置/首次引导）
+│   ├── ipc-mobile-sync.js    #   移动端同步 IPC（局域网数据传输）
 │   ├── main-terminal.js      #   终端进程管理（node-pty 会话）
 │   └── hmr.js                #   开发热更新
 ├── preload.js                # Electron preload 安全桥接

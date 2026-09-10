@@ -55,23 +55,25 @@ async function handleNodeCreated(e) {
 }
 
 /**
- * 处理节点删除事件：批量删除 nodes/{nodeId} 文件夹
+ * 处理节点删除事件：批量删除 nodes/{id} 文件夹
+ * detail.nodes: [{id, name}]（须在节点从 nodeMap 移除前捕获，主进程按 name+id 生成文件夹名）
  */
 async function handleNodeDeleted(e) {
-  const { nodeIds } = e.detail || {};
-  if (!Array.isArray(nodeIds) || nodeIds.length === 0) return;
+  const { nodes } = e.detail || {};
+  if (!Array.isArray(nodes) || nodes.length === 0) return;
   const folderPath = _getProjectFolderPath();
   if (!folderPath) return;
 
   if (!window.api?.deleteNodeFolder) return;
-  for (const nodeId of nodeIds) {
+  for (const node of nodes) {
+    if (!node || !node.id) continue;
     try {
-      const result = await window.api.deleteNodeFolder(folderPath, nodeId);
+      const result = await window.api.deleteNodeFolder(folderPath, node);
       if (!result.success && !result.skipped) {
-        console.warn('[节点磁盘同步] 删除文件夹失败:', nodeId, result.error);
+        console.warn('[节点磁盘同步] 删除文件夹失败:', node.id, result.error);
       }
     } catch (err) {
-      console.warn('[节点磁盘同步] 删除文件夹异常:', nodeId, err);
+      console.warn('[节点磁盘同步] 删除文件夹异常:', node.id, err);
     }
   }
 }

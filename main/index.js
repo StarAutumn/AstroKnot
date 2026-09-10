@@ -15,6 +15,7 @@ const { bindVersionGraphIPC } = require('./ipc-version-graph');
 const { bindStorageIPC } = require('./ipc-storage');
 const { bindDataSettingsIPC } = require('./ipc-data-settings');
 const { bindBrowserIPC } = require('./ipc-browser');
+const { bindMobileSyncIPC, stopMobileSyncServer } = require('./ipc-mobile-sync');
 const { startHMR } = require('./hmr');
 const { bindTerminalIPC, killSessionsForWebContents, killAllSessions } = require('./main-terminal');
 
@@ -58,6 +59,7 @@ function createWindow() {
     width: 1400,
     height: 900,
     frame: false,
+    icon: path.join(appRoot, 'assets', 'icon.png'), // 任务栏/标题栏图标（开发模式默认是 Electron 图标）
     webPreferences: {
       preload: path.join(appRoot, 'preload.js'),
       nodeIntegration: false,
@@ -132,6 +134,7 @@ app.whenReady().then(() => {
   bindFileIPC(mainWindow);
   bindTerminalIPC();
   bindBrowserIPC(mainWindow);
+  bindMobileSyncIPC();
   startHMR(mainWindow);
 
   // ── before-quit 兜底：正常退出/重启时触发渲染进程同步落盘应急备份 ──
@@ -145,6 +148,8 @@ app.whenReady().then(() => {
     _flushing = true;
     // 立即清理所有 pty 进程，避免僵尸进程
     killAllSessions();
+    // 关闭移动端同步服务
+    stopMobileSyncServer();
     let done = false;
     const finish = () => {
       if (done) return;

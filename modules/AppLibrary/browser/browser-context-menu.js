@@ -89,7 +89,7 @@ export class BrowserContextMenu {
     }
 
     // 网页转节点：整页 / Markdown 剪藏
-    items.push({ label: '🌐 转为 Web 项目节点（整页）', action: () => {
+    items.push({ label: '🌐 转为 Web 项目节点（整页·源码本地化）', action: () => {
       clipFullPageToNode(webview, ctx);
     }});
     items.push({ label: '📋 Markdown 剪藏为节点树', action: () => {

@@ -231,6 +231,8 @@ contextBridge.exposeInMainWorld('api', {
   browserGetCookies: (partition) => ipcRenderer.invoke('browser-get-cookies', partition),
   browserDeleteCookie: (partition, url, name) => ipcRenderer.invoke('browser-delete-cookie', { partition, url, name }),
   browserClearCookies: (partition) => ipcRenderer.invoke('browser-clear-cookies', partition),
+  // 内置浏览器：抓取页面源码资源（整页剪藏·资源本地化用，主进程 net.fetch）
+  browserFetchResource: (url) => ipcRenderer.invoke('browser-fetch-resource', url),
   // 内置浏览器：网页截图保存
   browserSaveScreenshot: (dataUrl, filename) => ipcRenderer.invoke('browser-save-screenshot', { dataUrl, filename }),
   // 内置浏览器：DevTools 侧边栏
@@ -324,4 +326,8 @@ contextBridge.exposeInMainWorld('api', {
   githubDeletePaths: (token, repoInfo, targets) => ipcRenderer.invoke('github-delete-paths', token, repoInfo, targets),
   githubGetRepoInfo: (token, owner, repo, branch) => ipcRenderer.invoke('github-get-repo-info', token, owner, repo, branch),
   onGithubSyncProgress: (callback) => ipcRenderer.on('github-sync-progress', (_e, data) => callback(data)),
+
+  // ── 移动端局域网同步 ──
+  mobileSyncStart: () => ipcRenderer.invoke('mobile-sync-start'),
+  mobileSyncStop: () => ipcRenderer.invoke('mobile-sync-stop'),
 });

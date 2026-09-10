@@ -100,7 +100,7 @@ export async function _initIDEComponents(node) {
           else S._fileTabs.markClean(filePath);
         }
       },
-      (filePath) => _onContentChange(filePath)
+      (filePath) => { if (S._autoRunModule) S._autoRunModule.onContentChange(filePath); }
     );
     await S._monacoEditor.init(monacoContainer);
     S._ctx.monacoEditor = S._monacoEditor;

@@ -257,9 +257,11 @@ export const doDeleteSelectedNodes = () => {
   let toDelete = Array.from(appState.selectedNodeIds);
   // 收集所有将被删除的节点 ID（包括递归子节点），用于增量移除连线
   const allDeletedIds = new Set();
+  const deletedNodeInfos = []; // 在节点移除前捕获 {id, name}，供磁盘同步删除文件夹
   const collectIds = (id) => {
     allDeletedIds.add(id);
     const node = appState.nodeMap.get(id);
+    deletedNodeInfos.push({ id: id, name: node ? node.name : '未命名' });
     if (node && node.children) node.children.forEach(ch => collectIds(ch.id));
   };
   for (let id of toDelete) {
@@ -269,7 +271,7 @@ export const doDeleteSelectedNodes = () => {
   // 派发节点删除事件（批量，供 nodeDiskSync 监听器实时删除磁盘文件夹）
   if (allDeletedIds.size > 0) {
     window.dispatchEvent(new CustomEvent('astroknot-node-deleted', {
-      detail: { nodeIds: Array.from(allDeletedIds) }
+      detail: { nodeIds: Array.from(allDeletedIds), nodes: deletedNodeInfos }
     }));
   }
   clearSelected();
@@ -288,9 +290,11 @@ export const deleteSelectedNodes = function () {
     if (idsToDelete.every(id => !appState.nodeMap.has(id))) return;
     withHistory(() => {
       const allIds = new Set();
+      const deletedNodeInfos = []; // 在节点移除前捕获 {id, name}，供磁盘同步删除文件夹
       const collectIds = (id) => {
         allIds.add(id);
         const node = appState.nodeMap.get(id);
+        deletedNodeInfos.push({ id: id, name: node ? node.name : '未命名' });
         if (node && node.children) node.children.forEach(ch => collectIds(ch.id));
       };
       for (const id of idsToDelete) {
@@ -330,7 +334,7 @@ export const deleteSelectedNodes = function () {
         // 派发节点删除事件（批量，供 nodeDiskSync 监听器实时删除磁盘文件夹）
         if (allIds.size > 0) {
           window.dispatchEvent(new CustomEvent('astroknot-node-deleted', {
-            detail: { nodeIds: Array.from(allIds) }
+            detail: { nodeIds: Array.from(allIds), nodes: deletedNodeInfos }
           }));
         }
         appState.crossEdges = appState.crossEdges.filter(e => !allIds.has(e.source) && !allIds.has(e.target));

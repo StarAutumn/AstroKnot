@@ -1,6 +1,6 @@
 // ============================================================
 //  browser/browser-node-clip.js — 网页内容抓取为 AstroKnot 知识节点
-//  功能 22：网页转节点（文本/图片/链接/整页）
+//  功能 22：网页转节点（文本/图片/链接/整页·源码本地化）
 //  功能 23：Markdown 网页剪藏（HTML → Markdown → 节点树）
 // ============================================================
 //  注意：编辑器读取 node.richContent（HTML）来显示内容，
@@ -154,22 +154,167 @@ function _escapeHtml(s) {
 // ════════════════════════════════════════════════════════════
 
 /**
- * 将整页内容抓取为 Web 项目节点（sandbox 模式，保留完整 HTML）
+ * 将整页内容抓取为 Web 项目节点（资源本地化模式）
+ * - 保留完整 HTML（含内联脚本/样式）
+ * - 外链 CSS/JS 源码下载到节点 sandbox（assets/css/、assets/js/），引用改写为本地路径
+ * - CSS 内的 @import 递归本地化（≤3 层），url() 相对路径绝对化
+ * - 下载失败或超限的资源回退为原绝对 URL（在线时仍可用）
  */
 export async function clipFullPageToNode(webview, ctx) {
-  const result = await _exec(webview, '(' + _extractPageHtml.toString() + ')()');
-  let title = '网页节点', url = '', pageHtml = '';
+  const result = await _exec(webview, '(' + _extractPageWithResourceMap.toString() + ')()');
+  let title = '网页节点', url = '', pageHtml = '', resources = [];
   try {
     if (result) {
       const d = JSON.parse(result);
       title = d.title || title;
       url = d.url || '';
       pageHtml = d.html || '';
+      resources = Array.isArray(d.resources) ? d.resources : [];
     }
   } catch (_) {}
   if (!pageHtml) { _notify(null, '未能提取页面内容'); return; }
+
+  if (resources.length > 0) {
+    _notify(null, '正在本地化页面源码（' + resources.length + ' 个资源）…');
+  }
+
+  // ── 资源抓取与本地化 ──
+  const MAX_PER_FILE = 3 * 1024 * 1024;  // 单文件 3MB
+  const MAX_TOTAL = 12 * 1024 * 1024;    // 总量 12MB
+  const MAX_COUNT = 150;                 // 文件数上限
+  const files = [];                      // [{ path, content, language }]
+  const cssUrlToPath = new Map();        // 已本地化 CSS 的 URL → 本地路径（@import 去重）
+  let totalChars = 0;
+  let cssImportCounter = 0;
+  const failed = [];
+
+  /** 通过主进程抓取文本资源 */
+  async function _fetchViaMain(u) {
+    try {
+      if (!window.api || typeof window.api.browserFetchResource !== 'function') return null;
+      const r = await window.api.browserFetchResource(u);
+      if (r && r.success && typeof r.content === 'string') return r.content;
+    } catch (_) {}
+    return null;
+  }
+
+  /** 从 URL 提取安全文件名 */
+  function _nameFromUrl(u, fallbackExt) {
+    let base = 'res';
+    try { base = new URL(u).pathname.split('/').pop() || 'res'; } catch (_) {}
+    base = base.split('?')[0].split('#')[0].replace(/[^a-zA-Z0-9._-]/g, '_');
+    if (!base || base === '.' || base === '..') base = 'res';
+    if (!/\.[a-zA-Z0-9]{1,8}$/.test(base)) base += '.' + fallbackExt;
+    return base;
+  }
+
+  /**
+   * 本地化一个 CSS 文件（含 @import 递归下载、url() 绝对化）
+   * @param {string|null} presetPath 页面 HTML 中已预分配的本地路径（顶层 CSS 用；@import 发现的传 null）
+   * @returns {string|null} 本地路径；失败返回 null
+   */
+  async function _localizeCss(cssUrl, depth, presetPath) {
+    if (cssUrlToPath.has(cssUrl)) {
+      const existing = cssUrlToPath.get(cssUrl);
+      if (!presetPath || presetPath === existing) return existing;
+      // HTML 预分配路径与 @import 已生成的路径不同（同 URL 双重引用）：按预分配路径再存一份
+      const src = files.find(function (f) { return f.path === existing; });
+      if (src) {
+        files.push({ path: presetPath, content: src.content, language: 'css' });
+        return presetPath;
+      }
+      return existing;
+    }
+    if (depth > 3 || files.length >= MAX_COUNT || totalChars >= MAX_TOTAL) return null;
+    let text = await _fetchViaMain(cssUrl);
+    if (text == null) return null;
+    if (text.length > MAX_PER_FILE) text = text.slice(0, MAX_PER_FILE) + '\n/* 已截断 */';
+
+    // @import 递归本地化（保留 media query 部分）
+    const importRe = /@import\s+(?:url\(\s*)?["']?([^"')\s]+?)["']?\s*\)?\s*([^;]*);/g;
+    const imports = [];
+    let m;
+    while ((m = importRe.exec(text))) imports.push({ full: m[0], url: m[1], media: m[2].trim() });
+    for (const imp of imports) {
+      let abs = null;
+      try { abs = new URL(imp.url, cssUrl).href; } catch (_) {}
+      if (!abs) continue;
+      let replacement = null;
+      if (/^https?:/i.test(abs)) {
+        const existing = cssUrlToPath.get(abs);
+        if (existing) {
+          replacement = '@import "' + existing + '"' + (imp.media ? ' ' + imp.media : '') + ';';
+        } else {
+          const p = await _localizeCss(abs, depth + 1);
+          if (p) replacement = '@import "' + p + '"' + (imp.media ? ' ' + imp.media : '') + ';';
+        }
+      }
+      if (!replacement) {
+        // 未本地化：改为绝对 URL，保证在线可用
+        replacement = '@import "' + abs + '"' + (imp.media ? ' ' + imp.media : '') + ';';
+      }
+      text = text.split(imp.full).join(replacement);
+    }
+
+    // url() 相对路径 → 绝对 URL（图片/字体保持远程引用）
+    text = text.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, function (full, _q, u) {
+      const t = u.trim();
+      if (!t || /^(data:|blob:|about:|#|https?:)/i.test(t)) return full;
+      try { return 'url("' + new URL(t, cssUrl).href + '")'; } catch (_) { return full; }
+    });
+
+    cssImportCounter++;
+    const path = presetPath || ('assets/css/i' + cssImportCounter + '__' + _nameFromUrl(cssUrl, 'css'));
+    cssUrlToPath.set(cssUrl, path);
+    files.push({ path, content: text, language: 'css' });
+    totalChars += text.length;
+    return path;
+  }
+
+  for (const r of resources) {
+    if (files.length >= MAX_COUNT || totalChars >= MAX_TOTAL) { failed.push(r.url); continue; }
+    if (r.kind === 'css') {
+      const p = await _localizeCss(r.url, 0, r.path);
+      if (p) continue; // 成功（@import 的 url 不在 pageHtml 中，无需改写）
+    } else {
+      let text = await _fetchViaMain(r.url);
+      if (text != null) {
+        if (text.length > MAX_PER_FILE) text = text.slice(0, MAX_PER_FILE) + '\n/* 已截断 */';
+        files.push({ path: r.path, content: text, language: 'javascript' });
+        totalChars += text.length;
+        continue;
+      }
+    }
+    // 失败回退：HTML 中的本地路径改回原绝对 URL
+    failed.push(r.url);
+    pageHtml = pageHtml.split(r.path).join(r.url);
+  }
+
+  // ── 组装 sandbox fileSystem（index.html + assets/ 目录树）──
+  const rootNode = {
+    type: 'directory',
+    name: '/',
+    children: [{
+      type: 'file',
+      name: 'index.html',
+      content: pageHtml,
+      language: 'html'
+    }]
+  };
+  for (const f of files) {
+    const parts = f.path.split('/').filter(Boolean);
+    let cur = rootNode;
+    for (let i = 0; i < parts.length - 1; i++) {
+      let dir = cur.children.find(function (c) { return c.type === 'directory' && c.name === parts[i]; });
+      if (!dir) { dir = { type: 'directory', name: parts[i], children: [] }; cur.children.push(dir); }
+      cur = dir;
+    }
+    cur.children.push({ type: 'file', name: parts[parts.length - 1], content: f.content, language: f.language });
+  }
+
   // desc：简短描述（3D 场景用）
-  const desc = url ? '🔗 ' + url : '';
+  const localizedCount = files.length;
+  const desc = '🔗 ' + (url || '') + (localizedCount > 0 ? '\n📦 已本地化 ' + localizedCount + ' 个源码文件' : '');
   const node = _createNode({
     name: title,
     desc: desc,
@@ -180,35 +325,129 @@ export async function clipFullPageToNode(webview, ctx) {
   if (node) {
     // 设置为 Web 项目节点（sandbox 模式）
     node.activeMode = 'code';
-    node.fileSystem = {
-      type: 'directory',
-      name: '/',
-      children: [{
-        type: 'file',
-        name: 'index.html',
-        content: pageHtml,
-        language: 'html'
-      }]
-    };
+    node.fileSystem = rootNode;
     node.htmlSource = { mode: 'sandbox' };
     // 保存项目数据
     saveCurrentProjectData();
     // 同步沙盒文件到磁盘
     _syncSandboxToDisk(node);
   }
-  _notify(node, '已抓取整页为 Web 项目节点「' + title + '」');
+  let msg = '已抓取整页为 Web 项目节点「' + title + '」';
+  if (resources.length > 0) {
+    msg += '（源码本地化 ' + localizedCount + '/' + resources.length;
+    if (failed.length > 0) msg += '，' + failed.length + ' 个保留远程引用';
+    msg += '）';
+  }
+  _notify(node, msg);
 }
 
-/** 在 webview 内执行：提取页面完整 HTML（去除 script，保留样式） */
-function _extractPageHtml() {
+/**
+ * 在 webview 内执行：提取页面完整 HTML + 资源清单
+ * - 保留 script（源码归档用途）
+ * - 外链 CSS/JS 的 href/src 改写为本地路径（assets/css/、assets/js/），URL 存入 resources
+ * - 媒体属性（img src / srcset / poster 等）与 <a href> 相对路径绝对化
+ * - 内联 <style> 的 url() / @import 绝对化
+ * 注意：此函数会被 .toString() 后注入 webview，不能引用外部变量
+ */
+function _extractPageWithResourceMap() {
   var title = document.title || '网页节点';
   var url = location.href;
   var clone = document.documentElement.cloneNode(true);
-  // 移除脚本和无关标签
-  clone.querySelectorAll('script, noscript, link[rel="preconnect"], link[rel="dns-prefetch"], link[rel="manifest"]').forEach(function (el) { el.remove(); });
+  // 移除对快照无意义/有害的标签（保留 script 与 stylesheet）
+  clone.querySelectorAll('noscript, base, meta[http-equiv="Content-Security-Policy"], link[rel="preconnect"], link[rel="dns-prefetch"], link[rel="manifest"], link[rel="preload"], link[rel="modulepreload"]').forEach(function (el) { el.remove(); });
+
+  var resources = [];
+  var byUrl = {};
+  var counters = { css: 0, js: 0 };
+
+  function sanitizeName(name, fallbackExt) {
+    name = (name || '').split('?')[0].split('#')[0].replace(/[^a-zA-Z0-9._-]/g, '_');
+    if (!name || name === '.' || name === '..') name = 'res';
+    if (!/\.[a-zA-Z0-9]{1,8}$/.test(name)) name += '.' + fallbackExt;
+    return name;
+  }
+
+  /** 为外链资源分配本地路径（同 URL 去重），非 http(s) 返回 null */
+  function assignPath(kind, href) {
+    var abs;
+    try { abs = new URL(href, location.href).href; } catch (e) { return null; }
+    if (!/^https?:/i.test(abs)) return null;
+    if (byUrl[abs]) return byUrl[abs];
+    var ext = kind === 'css' ? 'css' : 'js';
+    var base = '';
+    try { base = new URL(abs).pathname.split('/').pop() || ''; } catch (e) {}
+    counters[kind]++;
+    var path = (kind === 'css' ? 'assets/css/' : 'assets/js/')
+      + counters[kind] + '__' + sanitizeName(base, ext);
+    byUrl[abs] = path;
+    resources.push({ kind: kind, url: abs, path: path });
+    return path;
+  }
+
+  // 外链样式表 → assets/css/
+  clone.querySelectorAll('link[rel~="stylesheet"][href]').forEach(function (el) {
+    var p = assignPath('css', el.getAttribute('href'));
+    if (p) el.setAttribute('href', p);
+  });
+  // 外链脚本 → assets/js/
+  clone.querySelectorAll('script[src]').forEach(function (el) {
+    var p = assignPath('js', el.getAttribute('src'));
+    if (p) el.setAttribute('src', p);
+  });
+
+  /** 相对 URL → 绝对（跳过 data:/blob:/#/js: 等） */
+  function absolutizeAttr(el, attr) {
+    var v = el.getAttribute(attr);
+    if (!v) return;
+    var t = v.trim();
+    if (/^(data:|blob:|about:|javascript:|mailto:|tel:|#)/i.test(t)) return;
+    if (/^https?:/i.test(t)) { el.setAttribute(attr, t); return; }
+    try { el.setAttribute(attr, new URL(t, location.href).href); } catch (e) {}
+  }
+
+  // 媒体资源绝对化（保持远程引用，但保证路径可解析）
+  clone.querySelectorAll('img').forEach(function (el) { absolutizeAttr(el, 'src'); });
+  clone.querySelectorAll('video, audio, source, track, embed').forEach(function (el) {
+    absolutizeAttr(el, 'src');
+    absolutizeAttr(el, 'poster');
+  });
+  clone.querySelectorAll('input[type="image"]').forEach(function (el) { absolutizeAttr(el, 'src'); });
+  clone.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach(function (el) { absolutizeAttr(el, 'href'); });
+  // 链接绝对化（便于离线归档中导航）
+  clone.querySelectorAll('a[href]').forEach(function (el) { absolutizeAttr(el, 'href'); });
+  // srcset 绝对化
+  clone.querySelectorAll('img[srcset], source[srcset]').forEach(function (el) {
+    var v = el.getAttribute('srcset');
+    var parts = v.split(',').map(function (part) {
+      var seg = part.trim().split(/\s+/);
+      var u = seg[0];
+      if (!u || /^(data:|blob:|#)/i.test(u)) return part.trim();
+      try { seg[0] = new URL(u, location.href).href; } catch (e) {}
+      return seg.join(' ');
+    });
+    el.setAttribute('srcset', parts.join(', '));
+  });
+
+  // 内联 <style>：url() 与 @import 绝对化
+  function absolutizeCssText(css, baseUrl) {
+    css = css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, function (full, _q, u) {
+      var t = u.trim();
+      if (!t || /^(data:|blob:|#|https?:)/i.test(t)) return full;
+      try { return 'url("' + new URL(t, baseUrl).href + '")'; } catch (e) { return full; }
+    });
+    css = css.replace(/@import\s+(?:url\(\s*)?["']?([^"')\s]+)["']?\s*\)?/g, function (full, u) {
+      if (/^(data:|blob:|#|https?:)/i.test(u)) return full;
+      try { return full.split(u).join(new URL(u, baseUrl).href); } catch (e) { return full; }
+    });
+    return css;
+  }
+  clone.querySelectorAll('style').forEach(function (el) {
+    el.textContent = absolutizeCssText(el.textContent || '', location.href);
+  });
+
   var html = '<!DOCTYPE html>\n' + clone.outerHTML;
-  if (html.length > 500000) html = html.substring(0, 500000) + '\n<!-- 内容已截断 -->';
-  return JSON.stringify({ title: title, url: url, html: html });
+  if (html.length > 2000000) html = html.substring(0, 2000000) + '\n<!-- 内容已截断 -->';
+  return JSON.stringify({ title: title, url: url, html: html, resources: resources });
 }
 
 /**

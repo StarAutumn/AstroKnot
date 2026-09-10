@@ -170,6 +170,7 @@
     "lunar-javascript": "^1.7.7",
     "node-pty": "^1.1.0",
     "pdfjs-dist": "^6.0.227",
+    "qrcode": "^1.5.4",
     "three": "^0.128.0",
     "tinymce": "^7.9.3",
     "wavesurfer.js": "^7.12.7"

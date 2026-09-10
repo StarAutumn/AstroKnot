@@ -144,7 +144,7 @@ function _readProjectData(folderPath) {
       // 读取沙盒代码文件（sandbox/ 目录 → 虚拟文件系统）
       const sandboxDir = path.join(nodeDir, 'sandbox');
       if (fs.existsSync(sandboxDir)) {
-        const fsTree = _readFileSystemFromDiskBinary(sandboxDir);
+        const fsTree = _readFileSystemFromDiskBinary(sandboxDir, true);
         if (fsTree && fsTree.children && fsTree.children.length > 0) {
           fsTree.name = '/';
           nodeFileSystems[nodeId] = fsTree;

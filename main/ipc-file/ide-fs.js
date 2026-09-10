@@ -135,7 +135,7 @@ function bindIDEFSIPC(mainWindow) {
   ipcMain.handle('ide-sync-sandbox-to-node', async (event, sandboxDir) => {
     try {
       if (!fs.existsSync(sandboxDir)) return { success: true, fileSystem: null };
-      const fileSystem = _readFileSystemFromDiskBinary(sandboxDir);
+      const fileSystem = _readFileSystemFromDiskBinary(sandboxDir, true);
       return { success: true, fileSystem };
     } catch (err) {
       console.error('[ide-sync-sandbox-to-node] 错误:', err);

@@ -2,7 +2,7 @@
 //  main/ipc-browser.js — 内置浏览器 IPC
 //  下载管理 / Cookie / 广告拦截 / 截图 / DevTools / webview 拦截
 // ============================================================
-const { ipcMain, app, session, BrowserWindow, dialog, webContents } = require('electron');
+const { ipcMain, app, session, BrowserWindow, dialog, webContents, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const dataSettings = require('../data-settings');
@@ -171,6 +171,41 @@ function bindBrowserIPC(mainWindow) {
         callback({});
       }
     });
+  });
+
+  // ── 内置浏览器：抓取页面源码资源（整页剪藏·资源本地化用）──
+  // 通过主进程 net.fetch 抓取指定 URL 的文本内容（CSS/JS 等），
+  // 绕过渲染进程/webview 的 CORS 与 CSP 限制；跟随重定向，15s 超时
+  ipcMain.handle('browser-fetch-resource', async (_e, url) => {
+    try {
+      if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+        return { success: false, error: '无效 URL' };
+      }
+      const headers = { 'Accept': '*/*', 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' };
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        headers['User-Agent'] = mainWindow.webContents.userAgent;
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      const resp = await net.fetch(url, {
+        signal: controller.signal,
+        redirect: 'follow',
+        headers,
+      });
+      clearTimeout(timer);
+      if (!resp.ok) return { success: false, error: 'HTTP ' + resp.status };
+      const contentType = resp.headers.get('content-type') || '';
+      // 仅接受文本类资源（css/js/源码），二进制（图片/字体）不本地化
+      if (contentType && !/text\/|javascript|ecmascript|json|xml|plain|octet-stream/i.test(contentType)) {
+        return { success: false, error: '非文本资源: ' + contentType };
+      }
+      const content = await resp.text();
+      // 单文件上限 4MB，防止超大 bundle 拖垮项目
+      if (content.length > 4 * 1024 * 1024) return { success: false, error: '文件过大' };
+      return { success: true, content, contentType };
+    } catch (err) {
+      return { success: false, error: (err && err.message) || 'fetch 失败' };
+    }
   });
 
   // ── 内置浏览器：网页截图保存 ──
