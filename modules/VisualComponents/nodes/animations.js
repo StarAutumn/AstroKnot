@@ -3,7 +3,7 @@
 // ============================================================
 import { appState } from '../../module0_AppState.js';
 import { easeOutBack, easeInBack } from './utils.js';
-import { destroyNodeMeshImmediate } from './mesh.js';
+import { destroyNodeMeshImmediate, labelAnimScale } from './mesh.js';
 
 const nodeAnimations = new Map();
 const ANIM_DURATION_IN = 400;
@@ -77,7 +77,7 @@ function animateNodeOut(nodeId, onComplete) {
     const eased = easeInBack(t);
     const scale = startScale * (1 - eased);
     obj.mesh.scale.setScalar(Math.max(0.001, scale));
-    if (obj.label) obj.label.scale.setScalar(Math.max(0.001, scale));
+    if (obj.label) labelAnimScale(obj.label, Math.max(0.001, scale));
     // 卡片模式：同步缩小 cardLabel
     if (obj.cardLabel) obj.cardLabel.scale.setScalar(Math.max(0.001, scale));
 

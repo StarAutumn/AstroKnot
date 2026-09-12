@@ -19,6 +19,19 @@ import { animateNodeIn, cancelNodeAnimation } from './animations.js';
 
 // ── 标签 Sprite 创建 ──
 
+/**
+ * 按系数缩放标签 Sprite（f=1 恢复基准大小）。
+ * 标签基准缩放 0.02（_createLabelSprite），折叠/展开/删除动画若直接
+ * scale.set(sc,sc,sc) 会把标签放大 50 倍（CSS2D 时代该代码无视觉影响，
+ * 换 Sprite 后爆发），必须乘基准。
+ */
+export function labelAnimScale(label, f) {
+  if (!label) return;
+  const bw = label.userData._labelBaseW || 0.02;
+  const bh = label.userData._labelBaseH || 0.02;
+  label.scale.set(bw * f, bh * f, 1);
+}
+
 function _createLabelSprite(text, nodeId) {
   const fontSize = 28;
   const padX = 20;
@@ -81,6 +94,9 @@ function _createLabelSprite(text, nodeId) {
   const aspect = bgW / bgH;
   const scale = 0.02;  // 基础缩放
   sprite.scale.set(scale * aspect, scale, 1);
+  // 基准缩放记录：labelAnimScale 按系数缩放/恢复时使用
+  sprite.userData._labelBaseW = scale * aspect;
+  sprite.userData._labelBaseH = scale;
   sprite.userData._labelNodeId = nodeId;
   sprite.userData._labelText = text;
 

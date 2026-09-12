@@ -197,6 +197,79 @@ function _writeFileSystemToDisk(node, dirPath) {
 }
 
 /**
+ * 收集 VFS 树中所有文件的相对路径（'/' 分隔）
+ */
+function _collectVfsRelativePaths(node, prefix, out) {
+  if (!node || !node.children) return;
+  for (const child of node.children) {
+    const rel = prefix ? prefix + '/' + child.name : child.name;
+    if (child.type === 'file') {
+      out.push(rel);
+    } else if (child.type === 'directory') {
+      _collectVfsRelativePaths(child, rel, out);
+    }
+  }
+}
+
+// VFS 同步清单文件名：记录上次由 VFS 写入的相对路径，用于增量删除已移除的文件。
+// 存放在 sandbox 目录的上一级（sandbox 外），避免被 _readFileSystemFromDisk* 读回 VFS。
+const VFS_MANIFEST_NAME = '.vfs-manifest.json';
+
+/**
+ * 增量同步 VFS 到磁盘（替代"整目录 rmSync + 重写"的全量方式）：
+ *   1. 删除上次由 VFS 写入、本次已不在 VFS 中的文件（并清理空目录）
+ *   2. 覆盖写入当前 VFS 的全部文件
+ * 磁盘上 VFS 之外的内容（终端安装的 node_modules、构建产物 dist、.env 等）全部保留
+ * @param {Object} fileSystem - VFS 树 { children: [...] }
+ * @param {string} sandboxDir - sandbox 磁盘目录
+ */
+function _syncFileSystemToDisk(fileSystem, sandboxDir) {
+  const sandboxAbs = path.resolve(sandboxDir);
+  const manifestPath = path.join(path.dirname(sandboxAbs), VFS_MANIFEST_NAME);
+
+  // 读取上次同步清单
+  let prevPaths = [];
+  try {
+    if (fs.existsSync(manifestPath)) {
+      const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      if (Array.isArray(parsed)) prevPaths = parsed;
+    }
+  } catch (_) { prevPaths = []; }
+
+  const currentPaths = [];
+  _collectVfsRelativePaths(fileSystem, '', currentPaths);
+  const currentSet = new Set(currentPaths);
+
+  // 删除已从 VFS 移除的文件（仅限上次由 VFS 写入的路径，安全护栏：必须位于 sandbox 内）
+  for (const rel of prevPaths) {
+    if (currentSet.has(rel)) continue;
+    let abs;
+    try { abs = path.resolve(sandboxAbs, rel); } catch (_) { continue; }
+    if (abs !== sandboxAbs && !abs.startsWith(sandboxAbs + path.sep)) continue;
+    try {
+      if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+        fs.unlinkSync(abs);
+        // 自底向上清理空目录（只清到 sandbox 根为止）
+        let parent = path.dirname(abs);
+        while (parent.startsWith(sandboxAbs + path.sep) && parent !== sandboxAbs) {
+          if (fs.readdirSync(parent).length > 0) break;
+          fs.rmdirSync(parent);
+          parent = path.dirname(parent);
+        }
+      }
+    } catch (_) { /* 单文件清理失败不阻塞整体同步 */ }
+  }
+
+  // 覆盖写入当前 VFS 内容（不触碰 VFS 之外的磁盘内容）
+  _writeFileSystemToDisk(fileSystem, sandboxDir);
+
+  // 写入本次清单（写失败只影响下次增量删除，不阻塞）
+  try {
+    fs.writeFileSync(manifestPath, JSON.stringify(currentPaths));
+  } catch (_) { /* ignore */ }
+}
+
+/**
  * 从磁盘目录读取虚拟文件系统（递归，文本模式）
  */
 function _readFileSystemFromDisk(dirPath) {
@@ -433,6 +506,7 @@ module.exports = {
   saveOverlays,
   loadOverlays,
   _writeFileSystemToDisk,
+  _syncFileSystemToDisk,
   _readFileSystemFromDisk,
   _readFileSystemFromDiskBinary,
   _copyDirSync,

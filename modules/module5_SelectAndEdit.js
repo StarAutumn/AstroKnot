@@ -10,6 +10,7 @@ import { showConfirm, showPrompt } from './module4_Confirm.js';
 import { saveCurrentProjectData } from './module2_TreeData.js';
 import { generateRandomPosition, createNodeMesh, destroyNodeMesh, rebuildAllLines, addSingleTreeLine, removeLinesForNodes, updateLinesVis, buildSceneFromTree, animateDeleteNode } from './VisualComponents/index.js';
 import { hideContextMenu } from './module8_ContextMenu.js';
+import { labelAnimScale } from './VisualComponents/nodes/mesh.js';
 import { isNextStepNode } from './2DView/Layout.js';
 
 export function showToast(message, duration) {
@@ -732,7 +733,7 @@ export function toggleChildren() {
       let obj = appState.nodeMeshes.get(n.id);
       if (obj) {
         obj.mesh.visible = true; obj.label.visible = true; obj.visible = true;
-        obj.mesh.scale.set(0.05, 0.05, 0.05); obj.label.scale.set(0.05, 0.05, 0.05);
+        obj.mesh.scale.set(0.05, 0.05, 0.05); if (obj.label) labelAnimScale(obj.label, 0.05);
         if (obj.mesh.material) { obj.mesh.material.transparent = true; obj.mesh.material.opacity = 0; }
         if (obj.glowSphere && obj.glowSphere.material) {
           obj.glowSphere.visible = showGlow;
@@ -776,7 +777,7 @@ export function toggleChildren() {
       let obj = appState.nodeMeshes.get(n.id);
       if (obj) {
         obj.mesh.scale.set(sc, sc, sc);
-        if (obj.label) obj.label.scale.set(sc, sc, sc);
+        if (obj.label) labelAnimScale(obj.label, sc);
         if (obj.mesh.material) { obj.mesh.material.transparent = true; obj.mesh.material.opacity = opacity; }
         if (obj.glowSphere && obj.glowSphere.material && showGlow) { obj.glowSphere.material.transparent = true; obj.glowSphere.material.opacity = opacity; }
         if (obj.ring && obj.ring.material) { obj.ring.material.transparent = true; obj.ring.material.opacity = opacity; }
@@ -806,6 +807,7 @@ export function toggleChildren() {
         if (obj) {
           obj.mesh.visible = target; obj.label.visible = target; obj.visible = target;
           obj.mesh.scale.set(1, 1, 1);
+          if (obj.label) labelAnimScale(obj.label, 1); // 恢复标签基准缩放（Sprite 基准 0.02，不能停在动画系数 1）
           if (obj.mesh.material) { obj.mesh.material.transparent = false; obj.mesh.material.opacity = 1; }
           // 泛光球壳：极简模式下不强制显示，由每帧动画循环按模式控制
           const showGlow = target && !appState.simple3D;
@@ -931,7 +933,7 @@ export const expandAllNodes = withHistory(function () {
     let obj = appState.nodeMeshes.get(nid);
     if (!obj) continue;
     obj.mesh.visible = true; obj.label.visible = true; obj.visible = true;
-    obj.mesh.scale.set(0.05, 0.05, 0.05); obj.label.scale.set(0.05, 0.05, 0.05);
+    obj.mesh.scale.set(0.05, 0.05, 0.05); if (obj.label) labelAnimScale(obj.label, 0.05);
     if (obj.mesh.material) { obj.mesh.material.transparent = true; obj.mesh.material.opacity = 0; }
     if (obj.glowSphere && obj.glowSphere.material) {
       obj.glowSphere.visible = showGlow;
@@ -969,7 +971,7 @@ export const expandAllNodes = withHistory(function () {
       let obj = appState.nodeMeshes.get(nid);
       if (!obj) continue;
       obj.mesh.scale.set(sc, sc, sc);
-      if (obj.label) obj.label.scale.set(sc, sc, sc);
+      if (obj.label) labelAnimScale(obj.label, sc);
       if (obj.mesh.material) { obj.mesh.material.transparent = true; obj.mesh.material.opacity = opacity; }
       if (obj.glowSphere && obj.glowSphere.material && showGlow) { obj.glowSphere.material.transparent = true; obj.glowSphere.material.opacity = opacity; }
       if (obj.ring && obj.ring.material) { obj.ring.material.transparent = true; obj.ring.material.opacity = opacity; }
@@ -993,6 +995,7 @@ export const expandAllNodes = withHistory(function () {
         let obj = appState.nodeMeshes.get(nid);
         if (!obj) continue;
         obj.mesh.scale.set(1, 1, 1);
+        if (obj.label) labelAnimScale(obj.label, 1); // 恢复标签基准缩放（Sprite 基准 0.02，不能停在动画系数 1）
         if (obj.mesh.material) { obj.mesh.material.transparent = false; obj.mesh.material.opacity = 1; }
         // 泛光球壳：极简模式下不强制显示，由每帧动画循环按模式控制
         const showGlow = !appState.simple3D;

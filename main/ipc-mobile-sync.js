@@ -1,30 +1,29 @@
 // ============================================================
-//  main/ipc-mobile-sync.js — 移动端局域网同步服务
+//  main/ipc-mobile-sync.js — 移动端局域网同步服务（配对码模式）
 //
-//  流程: 渲染进程点击「移动端同步」→ 启动本地 HTTP 服务（一次性配对码）
-//        → 生成 astroknot://sync 深链二维码 → 手机系统相机扫码唤起 App
-//        → App 拉取项目列表 (/api/info) → 下载项目 tgz (/api/project)
+//  流程: 用户在桌面端设置一个配对码（持久保存，可重新设置）
+//        → 服务常驻监听（已设配对码则应用启动即开）
+//        → 平板/手机在同一局域网输入 地址 + 配对码 配对（消费端持久保存）
+//        → 拉取项目列表 (/api/info) → 下载项目 tgz (/api/project)
 //
-//  安全: 服务仅存活 15 分钟（空闲自动关闭）；所有请求需带配对 token；
-//        数据仅在局域网内传输，不经过任何第三方服务器
+//  安全: 所有请求需带配对码（用户自设持久码）；数据仅在局域网内
+//        传输，不经过任何第三方服务器
 //  打包: 自研 ustar writer（支持 GNU longname）+ zlib gzip，零新依赖
 // ============================================================
 
 const { ipcMain } = require('electron');
 const http = require('http');
 const zlib = require('zlib');
-const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const dataSettings = require('../data-settings');
 
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 分钟无请求自动关闭
+const DEFAULT_PORT = 8899;
+const MAX_PORT = 8909; // 端口占用时向上重试的上限（不含）
 
 let server = null;
 let serverPort = 0;
-let syncToken = '';
-let idleTimer = null;
 
 // ── 工具 ──
 
@@ -46,20 +45,46 @@ function findLanIPv4() {
   return candidates[0] || '127.0.0.1';
 }
 
-function resetIdleTimer() {
-  if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => stopServer(), IDLE_TIMEOUT_MS);
-}
-
 function stopServer() {
-  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
   if (server) {
     try { server.close(); } catch (_) { /* 已关闭 */ }
     server = null;
     serverPort = 0;
-    syncToken = '';
     console.log('[mobile-sync] 服务已关闭');
   }
+}
+
+// ── 配对码持久化（<systemDir>/mobile-sync.json） ──
+
+function configPath() {
+  const sysDir = dataSettings.getSystemDir();
+  return sysDir ? path.join(sysDir, 'mobile-sync.json') : '';
+}
+
+function loadPairCode() {
+  const p = configPath();
+  if (!p || !fs.existsSync(p)) return '';
+  try {
+    const conf = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return typeof conf.pairCode === 'string' ? conf.pairCode : '';
+  } catch (_) {
+    return ''; // 配置损坏视为未设置
+  }
+}
+
+function savePairCode(code) {
+  const p = configPath();
+  if (!p) throw new Error('系统数据目录未初始化');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify({ pairCode: code }, null, 2), 'utf8');
+}
+
+/** 校验配对码：trim 后 4~16 位、无空白字符 */
+function validatePairCode(code) {
+  const c = String(code || '').trim();
+  if (c.length < 4 || c.length > 16) return '配对码长度需为 4~16 位';
+  if (/\s/.test(c)) return '配对码不能包含空格';
+  return '';
 }
 
 /** JSON 响应 */
@@ -67,7 +92,7 @@ function sendJson(res, code, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*', // 浏览器开发模式调试用
+    'Access-Control-Allow-Origin': '*', // 平板/手机 WebView 跨域访问
     'Cache-Control': 'no-store',
   });
   res.end(body);
@@ -216,16 +241,16 @@ function packProjectTgz(projectDir) {
 
 function startServer() {
   return new Promise((resolve, reject) => {
+    if (server) { resolve(serverPort); return; }
     const tryListen = (port) => {
       const s = http.createServer((req, res) => {
-        resetIdleTimer(); // 有活动就续命
         try { handleRequest(req, res); } catch (e) {
           console.error('[mobile-sync] 请求处理失败:', e);
           try { sendJson(res, 500, { error: e.message }); } catch (_) { /* 已响应 */ }
         }
       });
       s.on('error', (err) => {
-        if (err.code === 'EADDRINUSE' && port < 8909) tryListen(port + 1);
+        if (err.code === 'EADDRINUSE' && port < MAX_PORT - 1) tryListen(port + 1);
         else reject(err);
       });
       s.listen(port, '0.0.0.0', () => {
@@ -234,37 +259,39 @@ function startServer() {
         resolve(port);
       });
     };
-    syncToken = crypto.randomBytes(6).toString('hex'); // 12 位一次性配对码
-    tryListen(8899);
+    tryListen(DEFAULT_PORT);
   });
 }
 
 function checkToken(query) {
-  return query.get('t') === syncToken;
+  return query.get('t') === loadPairCode();
 }
 
 async function handleRequest(req, res) {
   const url = new URL(req.url, 'http://x');
   const pathname = url.pathname;
 
-  // 深链落地页（无 token 也可见，仅提示用系统相机打开 App）
+  // 落地页（无配对码也可见，仅提示服务在线）
   if (pathname === '/' || pathname === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Access-Control-Allow-Origin': '*', // 平板/手机 WebView 跨域可达性探测
+    });
     res.end('<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>AstroKnot 同步</title></head><body style="font-family:sans-serif;padding:24px;text-align:center;">' +
-      '<h2>AstroKnot 桌面同步服务</h2><p>请使用 AstroKnot App 扫码连接本电脑</p>' +
+      '<h2>AstroKnot 桌面同步服务</h2><p>请在 AstroKnot App 中输入本地址与配对码连接</p>' +
       '<p style="color:#888;font-size:13px;">本页面仅用于确认服务在线</p></body></html>');
     return;
   }
 
   if (!checkToken(url.searchParams)) {
-    sendJson(res, 401, { error: '配对码无效，请在桌面端重新获取二维码' });
+    sendJson(res, 401, { error: '配对码不匹配，请检查桌面端设置的配对码' });
     return;
   }
 
   // 项目列表
   if (pathname === '/api/info') {
-    sendJson(res, 200, { app: 'astroknot-desktop', token: syncToken, projects: listProjects() });
+    sendJson(res, 200, { app: 'astroknot-desktop', token: loadPairCode(), projects: listProjects() });
     return;
   }
 
@@ -297,33 +324,36 @@ async function handleRequest(req, res) {
 
 // ── IPC ──
 
+function currentHost() {
+  return findLanIPv4() + ':' + (serverPort || DEFAULT_PORT);
+}
+
 function bindMobileSyncIPC() {
+  // 读取配对码与连接信息（弹窗展示态用）
+  ipcMain.handle('mobile-sync-get-config', async () => {
+    return { pairCode: loadPairCode(), host: currentHost(), running: !!server };
+  });
+
+  // 设置/重设配对码（保存持久化并确保服务启动）
+  ipcMain.handle('mobile-sync-set-config', async (_e, pairCode) => {
+    const err = validatePairCode(pairCode);
+    if (err) return { success: false, error: err };
+    try {
+      savePairCode(String(pairCode).trim());
+      await startServer();
+      return { success: true, host: currentHost() };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // 确保服务运行（配对码已设置时）
   ipcMain.handle('mobile-sync-start', async () => {
     try {
-      if (!server) await startServer();
-      const ip = findLanIPv4();
-      const host = ip + ':' + serverPort;
-      const deepLink = 'astroknot://sync?host=' + host + '&t=' + syncToken;
-      let qrDataUrl = '';
-      try {
-        const QRCode = require('qrcode');
-        qrDataUrl = await QRCode.toDataURL(deepLink, {
-          width: 320,
-          margin: 1,
-          color: { dark: '#1a1f2e', light: '#ffffff' },
-        });
-      } catch (e) {
-        console.error('[mobile-sync] 二维码生成失败:', e.message);
-      }
-      resetIdleTimer();
-      console.log('[mobile-sync] 服务已启动 http://' + host + ' （15 分钟无活动自动关闭）');
-      return {
-        success: true,
-        host,
-        deepLink,
-        qrDataUrl,
-        expiresInMin: Math.round(IDLE_TIMEOUT_MS / 60000),
-      };
+      const pairCode = loadPairCode();
+      if (!pairCode) return { success: false, error: '尚未设置配对码' };
+      await startServer();
+      return { success: true, host: currentHost(), pairCode };
     } catch (e) {
       stopServer();
       return { success: false, error: e.message };
@@ -334,6 +364,22 @@ function bindMobileSyncIPC() {
     stopServer();
     return { success: true };
   });
+
+  // 应用启动自启：已设置配对码 → 服务常驻（systemDir 未就绪时延迟重试）
+  const tryAutoStart = (attempt) => {
+    if (!loadPairCode()) return; // 未设置过配对码则不启动
+    const p = configPath();
+    if (!p) {
+      if (attempt < 10) setTimeout(() => tryAutoStart(attempt + 1), 1000);
+      return;
+    }
+    startServer().then((port) => {
+      console.log('[mobile-sync] 服务已自启 http://' + findLanIPv4() + ':' + port + '（常驻，配对码认证）');
+    }).catch((e) => {
+      console.error('[mobile-sync] 自启失败:', e.message);
+    });
+  };
+  tryAutoStart(0);
 }
 
 module.exports = { bindMobileSyncIPC, stopMobileSyncServer: stopServer };

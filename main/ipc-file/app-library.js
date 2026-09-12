@@ -6,13 +6,69 @@ const path = require('path');
 const fs = require('fs');
 const dataSettings = require('../../data-settings');
 const {
-  _writeFileSystemToDisk, _readFileSystemFromDiskBinary,
-  _copyDirSync,
+  _readFileSystemFromDiskBinary,
+  _copyDirSync, _syncFileSystemToDisk,
 } = require('./helpers');
 
 // ── 服务器变量（模块级）──
 const _appServers = new Map(); // appId -> { server, port }
 let _ideSandboxServer = null; // { server, port }
+
+// ── 应用固定端口分配（41001-41999，持久化到 apps/ports.json）──
+// 背景：localStorage 按 origin（协议+域名+端口）分区，随机端口导致应用每次
+// 重启 origin 漂移、设置丢失。固定端口保证 origin 稳定，应用设置可跨重启保留。
+const APP_PORT_BASE = 41001;
+const APP_PORT_MAX = 41999;
+
+function _portMapPath() {
+  return path.join(dataSettings.getAppsDir(), 'ports.json');
+}
+
+function _loadPortMap() {
+  try {
+    if (fs.existsSync(_portMapPath())) {
+      const m = JSON.parse(fs.readFileSync(_portMapPath(), 'utf-8'));
+      if (m && typeof m === 'object' && !Array.isArray(m)) return m;
+    }
+  } catch (err) {
+    console.error('[app-ports] 读取端口表失败:', err.message);
+  }
+  return {};
+}
+
+function _savePortMap(map) {
+  try {
+    const dir = dataSettings.getAppsDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(_portMapPath(), JSON.stringify(map, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[app-ports] 写入端口表失败:', err.message);
+  }
+}
+
+// 探测端口当前是否可绑定（被外部进程占用则返回 false）
+function _canBind(port) {
+  const net = require('net');
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', () => resolve(false));
+    probe.once('listening', () => probe.close(() => resolve(true)));
+    probe.listen(port, '127.0.0.1');
+  });
+}
+
+// 为应用分配空闲端口：跳过已映射给其他应用的端口和不可绑定端口
+async function _allocFreePort(appId, portMap) {
+  const takenByOthers = new Set(
+    Object.entries(portMap).filter(([id]) => id !== appId).map(([, p]) => p)
+  );
+  const start = portMap[appId] || APP_PORT_BASE;
+  for (let p = Math.max(start, APP_PORT_BASE); p <= APP_PORT_MAX; p++) {
+    if (takenByOthers.has(p)) continue;
+    if (await _canBind(p)) return p;
+  }
+  return null;
+}
 
 // ── IPC：全局应用库 ──
 function bindAppLibraryIPC(mainWindow) {
@@ -217,9 +273,21 @@ function bindAppLibraryIPC(mainWindow) {
       }
     });
 
+    // 固定端口：读端口表 → 被外部进程抢占时重新分配并更新表
+    const portMap = _loadPortMap();
+    let port = portMap[appId];
+    if (!port || !(await _canBind(port))) {
+      port = await _allocFreePort(appId, portMap);
+      if (!port) {
+        console.error('[start-app-server] 端口池耗尽（' + APP_PORT_BASE + '-' + APP_PORT_MAX + '）');
+        return null;
+      }
+      portMap[appId] = port;
+      _savePortMap(portMap);
+    }
+
     return new Promise((resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const port = server.address().port;
+      server.listen(port, '127.0.0.1', () => {
         _appServers.set(appId, { server, port });
         resolve({ port });
       });
@@ -355,18 +423,15 @@ function bindAppLibraryIPC(mainWindow) {
     return { success: true };
   });
 
-  // 写入应用 sandbox 到磁盘
+  // 写入应用 sandbox 到磁盘（增量同步：保留终端安装的 node_modules/dist/.env 等非 VFS 管辖文件）
   ipcMain.handle('sync-app-directory', async (event, appId, fileSystem) => {
     try {
       const appsDir = dataSettings.getAppsDir();
       const sandboxDir = path.join(appsDir, appId, 'sandbox');
 
-      if (fs.existsSync(sandboxDir)) {
-        fs.rmSync(sandboxDir, { recursive: true, force: true });
-      }
+      fs.mkdirSync(sandboxDir, { recursive: true });
       if (fileSystem) {
-        fs.mkdirSync(sandboxDir, { recursive: true });
-        _writeFileSystemToDisk(fileSystem, sandboxDir);
+        _syncFileSystemToDisk(fileSystem, sandboxDir);
       }
       return { success: true, diskPath: sandboxDir };
     } catch (err) {
@@ -382,6 +447,12 @@ function bindAppLibraryIPC(mainWindow) {
       const appDir = path.join(appsDir, appId);
       if (fs.existsSync(appDir)) {
         fs.rmSync(appDir, { recursive: true, force: true });
+      }
+      // 释放固定端口（端口表瘦身，空位可复用）
+      const portMap = _loadPortMap();
+      if (portMap[appId] !== undefined) {
+        delete portMap[appId];
+        _savePortMap(portMap);
       }
       return { success: true };
     } catch (err) {

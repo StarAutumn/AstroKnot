@@ -327,7 +327,9 @@ contextBridge.exposeInMainWorld('api', {
   githubGetRepoInfo: (token, owner, repo, branch) => ipcRenderer.invoke('github-get-repo-info', token, owner, repo, branch),
   onGithubSyncProgress: (callback) => ipcRenderer.on('github-sync-progress', (_e, data) => callback(data)),
 
-  // ── 移动端局域网同步 ──
+  // ── 移动端局域网同步（配对码模式） ──
+  mobileSyncGetConfig: () => ipcRenderer.invoke('mobile-sync-get-config'),
+  mobileSyncSetConfig: (pairCode) => ipcRenderer.invoke('mobile-sync-set-config', pairCode),
   mobileSyncStart: () => ipcRenderer.invoke('mobile-sync-start'),
   mobileSyncStop: () => ipcRenderer.invoke('mobile-sync-stop'),
 });

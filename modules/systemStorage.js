@@ -315,7 +315,7 @@
       // 过滤掉已经被接管的 app key
       const nativeIndex = index - appKeys.length;
       const nativeKeys = [];
-      for (let i = 0; i < _origLength(); i++) {
+      for (let i = 0, n = _origLength.call(this); i < n; i++) {
         const k = _origKey.call(this, i);
         if (!isAppKey(k)) nativeKeys.push(k);
       }
@@ -332,7 +332,7 @@
         get: function () {
           const appLen = keys().length;
           let nativeLen = 0;
-          for (let i = 0; i < _origLength(); i++) {
+          for (let i = 0, n = _origLength.call(this); i < n; i++) {
             const k = _origKey.call(this, i);
             if (!isAppKey(k)) nativeLen++;
           }

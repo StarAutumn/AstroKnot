@@ -7,7 +7,7 @@ const fs = require('fs');
 const dataSettings = require('../../data-settings');
 const {
   BINARY_EXTENSIONS,
-  _writeFileSystemToDisk, _readFileSystemFromDiskBinary,
+  _syncFileSystemToDisk, _readFileSystemFromDiskBinary,
   getNodeFolderName, sanitizeFileName,
 } = require('./helpers');
 
@@ -115,14 +115,12 @@ function bindIDEFSIPC(mainWindow) {
       }
 
       const skipRewrite = options && options.skipRewrite;
+      if (!fs.existsSync(sandboxDir)) {
+        fs.mkdirSync(sandboxDir, { recursive: true });
+      }
       if (node.fileSystem && !skipRewrite) {
-        if (fs.existsSync(sandboxDir)) {
-          fs.rmSync(sandboxDir, { recursive: true, force: true });
-        }
-        fs.mkdirSync(sandboxDir, { recursive: true });
-        _writeFileSystemToDisk(node.fileSystem, sandboxDir);
-      } else if (!fs.existsSync(sandboxDir)) {
-        fs.mkdirSync(sandboxDir, { recursive: true });
+        // 增量同步：只重写 VFS 管辖的文件，保留磁盘上 VFS 之外的产物（node_modules/dist/.env 等）
+        _syncFileSystemToDisk(node.fileSystem, sandboxDir);
       }
 
       return { success: true, sandboxPath: sandboxDir };

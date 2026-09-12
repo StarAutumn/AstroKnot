@@ -79,6 +79,13 @@
     appVersion: '1.0.0',
 
     checkFirstRun: async function () {
+      // 平板：文件化存储启动预载是异步的，必须等就绪再读首启标记，
+      // 否则 Map 未载入时每次都会误判"首次安装"，导致 resetGuide 清掉教程完成标记
+      try {
+        if (window.__storageReady && typeof window.__storageReady.then === 'function') {
+          await window.__storageReady;
+        }
+      } catch (_) { /* 存储初始化失败也继续走 */ }
       if (!localStorage.getItem(FIRST_RUN_KEY)) {
         localStorage.setItem(FIRST_RUN_KEY, '1');
         return true;

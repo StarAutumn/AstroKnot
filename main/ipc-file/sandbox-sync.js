@@ -5,7 +5,7 @@ const { ipcMain, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const dataSettings = require('../../data-settings');
-const { getNodeFolderName, _writeFileSystemToDisk } = require('./helpers');
+const { getNodeFolderName, _syncFileSystemToDisk } = require('./helpers');
 
 function bindSandboxSyncIPC(mainWindow) {
 
@@ -107,13 +107,13 @@ function bindSandboxSyncIPC(mainWindow) {
         sandboxDir = tmpDir || path.join(app.getPath('userData'), 'sandbox-tmp', node.id, 'sandbox');
       }
 
-      if (fs.existsSync(sandboxDir)) {
-        fs.rmSync(sandboxDir, { recursive: true, force: true });
+      if (!fs.existsSync(sandboxDir)) {
+        fs.mkdirSync(sandboxDir, { recursive: true });
       }
 
       if (fileSystem) {
-        fs.mkdirSync(sandboxDir, { recursive: true });
-        _writeFileSystemToDisk(fileSystem, sandboxDir);
+        // 增量同步：只重写 VFS 管辖的文件，保留磁盘上 VFS 之外的产物（node_modules/dist/.env 等）
+        _syncFileSystemToDisk(fileSystem, sandboxDir);
       }
 
       return { success: true, diskPath: sandboxDir };

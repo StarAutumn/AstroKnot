@@ -64,6 +64,15 @@ export async function startGuide() {
 
 /** 首次启动自动弹出 */
 export async function startGuideIfNeeded() {
+  // 平板文件化存储的启动预载是异步的：必须等存储就绪再判定，
+  // 否则首启判定与完成标记都会读到空值 → checkFirstRun 每次误判首启
+  // → resetGuide 在预载完成后把已完成标记连同磁盘文件一起删掉 → 教程每次都弹
+  try {
+    if (window.__storageReady && typeof window.__storageReady.then === 'function') {
+      await window.__storageReady;
+    }
+  } catch (_) { /* 存储初始化失败也继续走 */ }
+
   // 检测是否首次安装：如果是，强制重置教程标记
   let firstRun = false;
   try {

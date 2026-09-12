@@ -312,6 +312,8 @@ export class SandboxConsole {
     this.ctx.terminal = new SandboxTerminal(
       document.getElementById('sandboxTerminalPanel'),
       async () => {
+        // 真实 FS 工作区直接用工作区根目录（与 ide-components 初始化逻辑一致）
+        if (this.ctx.isRealFS && this.ctx.workspacePath) return this.ctx.workspacePath;
         const projectFolderPath = this.ctx.getProjectFolderPath();
         const result = await window.api.terminalGetSandboxCwd(projectFolderPath, this.ctx.currentNodeId);
         return result.success ? result.cwd : null;

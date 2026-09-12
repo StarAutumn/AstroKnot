@@ -67,10 +67,14 @@ function _setLabelVisible(obj, shouldShow, borderColor) {
   if (appState._hideLabelsOverride) { obj.label.visible = false; return; }
   obj.label.visible = shouldShow;
   // 选中状态改变标签颜色（重绘 Sprite 纹理）
+  // 性能关键：仅当边框颜色或节点名实际变化时才重绘（之前每帧每节点重建
+  // 2 个 canvas + 1 次 GPU 纹理上传，节点多时是卡顿主因）
   if (shouldShow && borderColor !== undefined && obj.label.material) {
     const node = appState.nodeMap.get(obj.label.userData._labelNodeId);
-    if (node) {
+    if (node && (obj.label._lastBorder !== borderColor || obj.label._lastLabelName !== node.name)) {
       _redrawLabelSprite(obj.label, node.name, borderColor);
+      obj.label._lastBorder = borderColor;
+      obj.label._lastLabelName = node.name;
     }
   }
 }
@@ -299,11 +303,18 @@ export function animate() {
 
     // ========== 渲染 ==========
     try {
-      updateCardBillboards(tm);
-      _updateLabelZIndices();
-      appState.controls.update();
-      appState.effectComposer.render();
-      appState.labelRenderer.render(appState.scene, appState.camera);
+      // 2D 模式跳过整条 3D 渲染管线（与主循环同规则）
+      if (!appState.is2DView) {
+        updateCardBillboards(tm);
+        _updateLabelZIndices();
+        appState.controls.update();
+        if (appState.simple3D && appState.renderer) {
+          appState.renderer.render(appState.scene, appState.camera);
+        } else {
+          appState.effectComposer.render();
+        }
+        appState.labelRenderer.render(appState.scene, appState.camera);
+      }
     } catch (e) { console.error('渲染异常(暂停模式):', e); }
 
     if (appState.is2DView && typeof appState.redraw2DView === 'function') {
@@ -765,9 +776,15 @@ if (!appState.simple3D) {
 
     // 🏷️ 相机视锥 LOD：距离超 35 或在相机后方时渐隐标签
     // 复用顶部计算的 _camDist/_dotCam，避免重复 Vector3 运算
-    if (obj.label) {
+    // 性能关键：hsl 默认边框随 tm 连续变化，若在极简模式也执行，会导致
+    // 每帧每节点重建标签 Sprite 纹理（2 canvas + GPU 上传），节点多时严重卡顿。
+    // 极简模式的标签已由上方 simple 分支用静态边框处理，这里仅华丽模式执行。
+    if (obj.label && !appState.simple3D) {
       const shouldShow = _camDist < 35 && _dotCam > 0;
-      const border = isSel ? "#FFD700" : isConnectedStep ? "#AA44FF" : isConnected ? "#4488FF" : `hsl(${(tm * 0.08 * 360 + (id.charCodeAt(0) || 0) * 20) % 360},80%,65%)`;
+      // 色相量化到 5° 步进：hsl 每帧连续变化会让标签 Sprite 每帧重建纹理（2 canvas + GPU 上传），
+      // 量化后约每 5~8 帧才变一次色，重绘频率降 ~6 倍，视觉几乎无感
+      const _labelHue = (tm * 0.08 * 360 + (id.charCodeAt(0) || 0) * 20) % 360;
+      const border = isSel ? "#FFD700" : isConnectedStep ? "#AA44FF" : isConnected ? "#4488FF" : `hsl(${Math.round(_labelHue / 5) * 5},80%,65%)`;
       _setLabelVisible(obj, shouldShow, border);
     }
   }
@@ -1194,11 +1211,19 @@ if (!appState.simple3D) {
 
   // ========== 渲染 ==========
   try {
-    updateCardBillboards(tm);
-    _updateLabelZIndices();  // 按距离排序标签 z-index，避免远处标签遮挡近处元素
-    appState.controls.update();
-    appState.effectComposer.render();
-    appState.labelRenderer.render(appState.scene, appState.camera);
+    // 2D 模式跳过整条 3D 渲染管线（billboard/composer/bloom/labelRenderer 均不可见）
+    if (!appState.is2DView) {
+      updateCardBillboards(tm);
+      _updateLabelZIndices();  // 按距离排序标签 z-index，避免远处标签遮挡近处元素
+      appState.controls.update();
+      // 极简模式直接 renderer.render，跳过 Bloom 后处理链（省 GPU）
+      if (appState.simple3D && appState.renderer) {
+        appState.renderer.render(appState.scene, appState.camera);
+      } else {
+        appState.effectComposer.render();
+      }
+      appState.labelRenderer.render(appState.scene, appState.camera);
+    }
   } catch (e) { console.error('渲染异常:', e); }
 
   if (appState.is2DView && typeof appState.redraw2DView === 'function') {

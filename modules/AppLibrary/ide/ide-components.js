@@ -208,8 +208,11 @@ export async function _initIDEComponents(node) {
   if (terminalPanel) {
     S._terminal = new SandboxTerminal(
       terminalPanel,
-      // getCwd 回调：通过 IPC 获取 sandbox 磁盘路径（兼容未保存项目）
+      // getCwd 回调：真实 FS 工作区（GitHub 应用 IDE / 打开的本地文件夹）直接用工作区根目录，
+      // 确保 npm install 装到实际运行的目录（预览/运行 HTTP 服务器服务的正是该目录）；
+      // 否则回退到节点 sandbox 路径（兼容未保存项目）
       async () => {
+        if (S._ctx.isRealFS && S._ctx.workspacePath) return S._ctx.workspacePath;
         const projectFolderPath = _getProjectFolderPath();
         const result = await window.api.terminalGetSandboxCwd(projectFolderPath, S._currentNodeId);
         return result.success ? result.cwd : null;
