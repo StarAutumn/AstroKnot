@@ -22,7 +22,8 @@ export function showConfirm(message, onConfirm, onCancel, title) {
   const dialogTitle = title || '提示';
   const isClose = dialogTitle.includes('关闭');
   const isDelete = dialogTitle.includes('删除');
-  const icon = isClose ? '⏻' : isDelete ? '✕' : '⚡';
+  const powerIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v8"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>'; // 内联 SVG：⏻ 字形在安卓 WebView 字体缺失
+  const icon = isClose ? powerIcon : isDelete ? '✕' : '⚡';
 
   // 创建遮罩层容器
   const overlay = document.createElement('div');

@@ -772,6 +772,27 @@ body.light-mode .breadcrumb-separator {
     bottom: 0;
 }
 
+/* ── 平板触摸：加宽把手命中区（仅粗指针设备生效，视觉与桌面布局不变）── */
+@media (pointer: coarse) {
+    /* 树面板分割线：5px 视觉宽度不变，透明命中区向外扩到约 24px */
+    .resize-handle {
+        touch-action: none;
+    }
+    .resize-handle::after {
+        left: -10px;
+        right: -10px;
+    }
+    /* 模态框边缘把手：向内扩展命中区（6px 视觉条位置不变，手指好抓） */
+    .modal-resize-n { height: 24px !important; }
+    .modal-resize-s { height: 24px !important; }
+    .modal-resize-e { width: 24px !important; }
+    .modal-resize-w { width: 24px !important; }
+    .modal-resize-ne, .modal-resize-nw, .modal-resize-se, .modal-resize-sw {
+        width: 28px !important;
+        height: 28px !important;
+    }
+}
+
 .edit-area {
     flex: 1;
     padding: 20px 24px;

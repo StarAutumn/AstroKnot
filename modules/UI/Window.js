@@ -215,7 +215,7 @@ export function bindFullscreenAndTab() {
                   width:400px;box-shadow:var(--panel-shadow);overflow:hidden;">
         <div style="background:var(--header-bg);padding:14px 20px;
                     display:flex;align-items:center;gap:10px;">
-          <span style="font-size:18px;">⏻</span>
+          <span style="font-size:18px;display:flex;align-items:center;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v8"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/></svg></span>
           <span style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">关闭应用程序</span>
           <span id="closeModalX" style="width:26px;height:26px;border-radius:8px;
                     background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;

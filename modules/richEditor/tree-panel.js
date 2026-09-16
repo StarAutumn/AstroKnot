@@ -167,6 +167,30 @@ export function initSidebar2DViewForTarget(containerId, canvasId) {
     drawSidebar2D(s);
   }, { passive: false });
 
+  // 打开命中的节点（双击鼠标 / 双触手指共用）
+  const openNodeFromHit = (hit) => {
+    if (!hit?.id) return;
+    const node = appState.nodeMap.get(hit.id);
+    // 网页节点双击 → 打开内置浏览器加载页面
+    if (node && node.displayMode === 'webpage') {
+      if (window.AppRunner) {
+        let url = node.webUrl || '';
+        // URL智能识别：不含协议前缀时补 https://
+        if (url && !/^https?:\/\//i.test(url) && !url.startsWith('file://') && !url.startsWith('data:')) {
+          url = (url.includes('.') && !url.includes(' ')) ? 'https://' + url : 'https://www.bing.com/search?q=' + encodeURIComponent(url);
+        }
+        window.AppRunner.open({ id: 'webpage-' + hit.id, name: node.name || '网页', type: 'browser', defaultUrl: url || undefined });
+      }
+      return;
+    }
+    // 如果双击的是当前正在编辑的节点，弹出提示而非重新打开
+    if (hit.id === appState.currentEditNodeId) {
+      showToast('该节点已在编辑中');
+      return;
+    }
+    openRichEditor(hit.id);
+  };
+
   canvas.addEventListener('dblclick', (e) => {
     const rect = canvas.getBoundingClientRect();
     const pos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -175,28 +199,116 @@ export function initSidebar2DViewForTarget(containerId, canvasId) {
       worldPos.x >= area.x && worldPos.x <= area.x + area.width &&
       worldPos.y >= area.y && worldPos.y <= area.y + area.height
     );
-    if (hit?.id) {
-      const node = appState.nodeMap.get(hit.id);
-      // 网页节点双击 → 打开内置浏览器加载页面
-      if (node && node.displayMode === 'webpage') {
-        if (window.AppRunner) {
-          let url = node.webUrl || '';
-          // URL智能识别：不含协议前缀时补 https://
-          if (url && !/^https?:\/\//i.test(url) && !url.startsWith('file://') && !url.startsWith('data:')) {
-            url = (url.includes('.') && !url.includes(' ')) ? 'https://' + url : 'https://www.bing.com/search?q=' + encodeURIComponent(url);
-          }
-          window.AppRunner.open({ id: 'webpage-' + hit.id, name: node.name || '网页', type: 'browser', defaultUrl: url || undefined });
-        }
-        return;
-      }
-      // 如果双击的是当前正在编辑的节点，弹出提示而非重新打开
-      if (hit.id === appState.currentEditNodeId) {
-        showToast('该节点已在编辑中');
-        return;
-      }
-      openRichEditor(hit.id);
+    openNodeFromHit(hit);
+  });
+
+  // ── 触摸手势（平板端）：单指拖拽平移、双指捏合缩放、点按选择、双触打开 ──
+  canvas.style.touchAction = 'none'; // 禁止浏览器滚动/系统手势抢占触摸事件
+  s._touch = { pointers: new Map(), pinch: null, singleDragging: false, lastTap: null };
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return; // 鼠标走原 mousedown 逻辑
+    if (window._notePickerCallback) return; // 笔记选择模式：不拦截，由合成 mouse 事件走原点击流程
+    e.preventDefault(); // 抑制触摸合成的 mouse 事件，避免与原拖拽逻辑双重处理
+    blurActiveEditor();
+    canvas.focus();
+    s.highlightedNodeId = null;
+    if (s._touch.pointers.size >= 2) return; // 最多跟踪两指
+    canvas.setPointerCapture(e.pointerId);
+    const rect = canvas.getBoundingClientRect();
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    s._touch.pointers.set(e.pointerId, p);
+    if (s._touch.pointers.size === 1) {
+      // 单指：开始平移（复用鼠标拖拽的偏移状态字段）
+      s._touch.singleDragging = true;
+      draggingInstanceId = canvasId;
+      s.dragStart = { x: p.x - s.transform.offsetX, y: p.y - s.transform.offsetY };
+      canvas.style.cursor = 'grabbing';
+    } else {
+      // 第二指落下 → 从平移切换为捏合缩放
+      s._touch.singleDragging = false;
+      canvas.style.cursor = '';
+      const pts = [...s._touch.pointers.values()];
+      s._touch.pinch = {
+        dist0: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1,
+        mid0: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 },
+        scale0: s.transform.scale,
+        offset0: { x: s.transform.offsetX, y: s.transform.offsetY }
+      };
     }
   });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse') return;
+    if (!s._touch.pointers.has(e.pointerId)) return;
+    const rect = canvas.getBoundingClientRect();
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    s._touch.pointers.set(e.pointerId, p);
+    if (s._touch.singleDragging) {
+      s.transform.offsetX = p.x - s.dragStart.x;
+      s.transform.offsetY = p.y - s.dragStart.y;
+      drawSidebar2D(s);
+    } else if (s._touch.pinch && s._touch.pointers.size === 2) {
+      const pts = [...s._touch.pointers.values()];
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1;
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      const t = s._touch.pinch;
+      const scale = Math.max(0.1, Math.min(3, t.scale0 * dist / t.dist0));
+      // 缩放围绕捏合中点：中点下的世界坐标保持不动
+      const worldX = (t.mid0.x - t.offset0.x) / t.scale0;
+      const worldY = (t.mid0.y - t.offset0.y) / t.scale0;
+      s.transform.scale = scale;
+      s.transform.offsetX = mid.x - worldX * scale;
+      s.transform.offsetY = mid.y - worldY * scale;
+      drawSidebar2D(s);
+    }
+  });
+
+  const _endTouchPointer = (e) => {
+    if (e.pointerType === 'mouse') return;
+    if (!s._touch.pointers.has(e.pointerId)) return;
+    s._touch.pointers.delete(e.pointerId);
+    if (s._touch.singleDragging) {
+      // 单指抬起 → 结束平移并按落点选择节点（与鼠标 mouseup 行为一致）
+      s._touch.singleDragging = false;
+      canvas.style.cursor = '';
+      if (draggingInstanceId === canvasId) draggingInstanceId = null;
+      const rect = canvas.getBoundingClientRect();
+      const worldPos = canvasToWorld(e.clientX - rect.left, e.clientY - rect.top, s);
+      const hit = s.nodeHitAreas.find(area =>
+        worldPos.x >= area.x && worldPos.x <= area.x + area.width &&
+        worldPos.y >= area.y && worldPos.y <= area.y + area.height
+      );
+      if (hit?.id) {
+        setSelectedNode(hit.id, false);
+        // 双触打开：同一节点 400ms 内两次点按
+        const now = Date.now();
+        if (s._touch.lastTap && s._touch.lastTap.nodeId === hit.id && now - s._touch.lastTap.time < 400) {
+          s._touch.lastTap = null;
+          openNodeFromHit(hit);
+        } else {
+          s._touch.lastTap = { nodeId: hit.id, time: now };
+        }
+      } else {
+        clearSelected();
+        s._touch.lastTap = null;
+      }
+      drawSidebar2D(s);
+    } else if (s._touch.pinch) {
+      s._touch.pinch = null;
+      // 抬起一指后剩一指 → 无缝切回单指平移
+      if (s._touch.pointers.size === 1) {
+        const p = [...s._touch.pointers.values()][0];
+        s._touch.singleDragging = true;
+        s.dragStart = { x: p.x - s.transform.offsetX, y: p.y - s.transform.offsetY };
+        canvas.style.cursor = 'grabbing';
+      } else if (s._touch.pointers.size === 0 && draggingInstanceId === canvasId) {
+        draggingInstanceId = null;
+      }
+    }
+  };
+  canvas.addEventListener('pointerup', _endTouchPointer);
+  canvas.addEventListener('pointercancel', _endTouchPointer);
 
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -1424,6 +1536,41 @@ export function bindTreeSidebar() {
       requestAnimationFrame(() => {
         for (const [_, s] of instances) resizeSidebarCanvas(s);
       });
+    });
+
+    // ── 触摸拖拽调宽（平板端）：按住分割线左右拖动，鼠标路径不受影响 ──
+    resizeHandle.style.touchAction = 'none'; // 禁止浏览器滚动/系统手势抢占触摸事件
+    resizeHandle.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return; // 鼠标走原 mousedown 逻辑
+      if (treeSidebar.classList.contains('collapsed')) return;
+      e.preventDefault();
+      resizeHandle.setPointerCapture(e.pointerId);
+      const startX = e.clientX;
+      const startWidth = treeSidebar.offsetWidth;
+      resizeHandle.classList.add('active');
+      treeSidebar.classList.add('resizing'); // 禁用 width 过渡，避免追赶滞后
+
+      const tMove = (ev) => {
+        const w = Math.max(150, startWidth + (ev.clientX - startX));
+        treeSidebar.style.width = w + 'px';
+      };
+      const tEnd = () => {
+        resizeHandle.removeEventListener('pointermove', tMove);
+        resizeHandle.removeEventListener('pointerup', tEnd);
+        resizeHandle.removeEventListener('pointercancel', tEnd);
+        // 落定最终宽度并保存
+        const finalWidth = parseFloat(treeSidebar.style.width) || startWidth;
+        savedWidth = finalWidth;
+        treeSidebar.classList.remove('resizing');
+        resizeHandle.classList.remove('active');
+        // canvas 重绘延后到下一帧，避免与抬起手势回流叠加
+        requestAnimationFrame(() => {
+          for (const [_, s] of instances) resizeSidebarCanvas(s);
+        });
+      };
+      resizeHandle.addEventListener('pointermove', tMove);
+      resizeHandle.addEventListener('pointerup', tEnd);
+      resizeHandle.addEventListener('pointercancel', tEnd);
     });
   }
 

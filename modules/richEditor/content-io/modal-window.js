@@ -428,7 +428,7 @@ function initModalResize() {
     let handle = document.createElement('div');
     handle.className = 'modal-resize-handle modal-resize-' + e.dir;
     handle.style.cssText =
-      'position:absolute;z-index:10;pointer-events:auto;cursor:' + e.cursor + ';' +
+      'position:absolute;z-index:10;pointer-events:auto;touch-action:none;cursor:' + e.cursor + ';' +
       (e.top ? 'top:' + e.top + ';' : '') +
       (e.bottom ? 'bottom:' + e.bottom + ';' : '') +
       (e.left ? 'left:' + e.left + ';' : '') +
@@ -486,6 +486,59 @@ function initModalResize() {
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+    });
+
+    // ── 触摸拖拽缩放（平板端）：与鼠标同一套几何逻辑，鼠标路径不受影响 ──
+    handle.addEventListener('pointerdown', function (ev) {
+      if (ev.pointerType === 'mouse') return; // 鼠标走原 mousedown 逻辑
+      if (_modalWindowState !== 'windowed') return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      handle.setPointerCapture(ev.pointerId);
+
+      let rect = content.getBoundingClientRect();
+      let sx = ev.clientX;
+      let sy = ev.clientY;
+      let sLeft = rect.left;
+      let sTop = rect.top;
+      let sWidth = rect.width;
+      let sHeight = rect.height;
+      let dir = e.dir;
+      content.style.transition = 'none';
+
+      function tMove(mev) {
+        let dx = mev.clientX - sx;
+        let dy = mev.clientY - sy;
+        let nw = sWidth;
+        let nh = sHeight;
+        let nl = sLeft;
+        let nt = sTop;
+
+        if (dir.indexOf('e') >= 0) nw = Math.max(minW, sWidth + dx);
+        if (dir.indexOf('w') >= 0) { nw = Math.max(minW, sWidth - dx); nl = sLeft + dx; }
+        if (dir.indexOf('s') >= 0) nh = Math.max(minH, sHeight + dy);
+        if (dir.indexOf('n') >= 0) { nh = Math.max(minH, sHeight - dy); nt = sTop + dy; }
+
+        content.style.left = nl + 'px';
+        content.style.top = nt + 'px';
+        content.style.width = nw + 'px';
+        content.style.height = nh + 'px';
+      }
+
+      function tEnd() {
+        content.style.transition = '';
+        _windowedLeft = parseFloat(content.style.left) || 0;
+        _windowedTop = parseFloat(content.style.top) || 0;
+        _windowedWidth = content.style.width || (content.offsetWidth + 'px');
+        _windowedHeight = content.style.height || (content.offsetHeight + 'px');
+        handle.removeEventListener('pointermove', tMove);
+        handle.removeEventListener('pointerup', tEnd);
+        handle.removeEventListener('pointercancel', tEnd);
+      }
+
+      handle.addEventListener('pointermove', tMove);
+      handle.addEventListener('pointerup', tEnd);
+      handle.addEventListener('pointercancel', tEnd);
     });
   });
 }
