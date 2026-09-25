@@ -343,6 +343,104 @@ export async function saveNetworkToFile() {
   }
 }
 
+/** 快速字符串哈希（djb2，批量保存变化检测用） */
+function _quickHash(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return String(h);
+}
+
+/**
+ * 保存单个项目（AstroKnot 菜单右键"保存"与批量保存共用）
+ * @param {object} proj 项目对象（需含 data）
+ * @param {string} [parentPathIn] 保存根目录（项目文件夹的父目录），不传用当前设置
+ * @returns {Promise<{status: 'saved'|'unchanged'|'failed'|'canceled', rootPath?: string, path?: string}>}
+ *          saved=有更新已保存；unchanged=内容无变化（仍落盘）；canceled=用户取消；failed=失败
+ */
+export async function saveProjectOne(proj, parentPathIn) {
+  if (!window.api) return { status: 'failed' };
+  if (!proj || !proj.data) return { status: 'skipped' };  // 未打开的轻量条目（磁盘扫描生成），无数据可保存
+  const data = proj.data;
+  if (!data.methodsTree) return { status: 'failed' };
+
+  const projectName = proj.name || 'knowledge_graph';
+  let parentPath = parentPathIn || appState.currentProjectSavePath;
+
+  // 序列化 3D 位置（proj.data.positions 是 Map<Vector3>）
+  let po = {};
+  if (data.positions) {
+    for (let [id, v] of data.positions.entries()) {
+      po[id] = { x: v.x, y: v.y, z: v.z };
+    }
+  }
+
+  // 序列化 2D 位置（proj.data.positions2D 是 Map<{x,y}>，需展开为普通对象）
+  let p2d = {};
+  if (data.positions2D) {
+    const entries = data.positions2D instanceof Map
+      ? data.positions2D.entries()
+      : Object.entries(data.positions2D);
+    for (let [id, v] of entries) {
+      p2d[id] = { x: v.x, y: v.y };
+    }
+  }
+
+  const projectData = {
+    projectName,
+    methodsTree: data.methodsTree,
+    crossEdges: data.crossEdges || [],
+    positions: po,
+    positions2D: p2d,
+    collapsed2D: data.collapsed2D || [],
+    layers: data.layers || [],
+    currentLayerId: data.currentLayerId,
+    nodeRichContents: data.nodeRichContents || {},
+    overlayImages: data.nodeOverlayImages || {},
+    nodeHtmlSources: data.nodeHtmlSources || {},
+    nodeFileSystems: data.nodeFileSystems || {},
+    nodeSandboxHistories: data.nodeSandboxHistories || {},
+    treeEdgeLabels: data.treeEdgeLabels || {},
+    savePath: parentPath,
+    cameraView: data.cameraView || {
+      position: { x: 6, y: 4.5, z: 8 },
+      target: { x: 0, y: 0.2, z: 0 }
+    }
+  };
+
+  // 变化检测：与上次保存的序列化 hash 对比（持久化到 localStorage，重启后仍有参照；
+  // cameraView/savePath 属视图与环境状态，不参与"内容变化"判定，但仍会正常落盘）
+  // 键用稳定标识：桌面每次加载项目都会生成新 id（disk_<时间戳>_<随机>），id 不能作键；
+  // folderPath（磁盘项目）/ projectName 为稳定标识
+  const stableKey = 'astroknot_savehash_' + (proj.folderPath || projectName || proj.id);
+  const dataHash = _quickHash(JSON.stringify({ ...projectData, cameraView: undefined, savePath: undefined }));
+  let persistedHash = null;
+  try { persistedHash = localStorage.getItem(stableKey); } catch (e) { /* 存储不可用时退化为"有更新" */ }
+  const changed = persistedHash !== dataHash;
+
+  try {
+    const result = await window.api.saveProject(projectData);
+    if (result.canceled) return { status: 'canceled' };
+    if (result.success) {
+      proj.__lastSaveHash = dataHash;
+      try { localStorage.setItem(stableKey, dataHash); } catch (e) { /* 忽略 */ }
+      // 记录项目实际保存的文件夹路径，供版本图定位 .versiongraph 目录
+      if (result.path) {
+        proj.folderPath = result.path;
+      }
+      // 记录保存时的历史记录长度，用于关闭时判断是否有未保存的修改
+      // 只有当前项目才更新（因为历史记录只属于当前项目）
+      if (proj.id === appState.currentProjectId && appState.history) {
+        proj._savedUndoLength = appState.history.undoStack.length;
+      }
+      return { status: changed ? 'saved' : 'unchanged', rootPath: result.rootPath, path: result.path };
+    }
+    return { status: 'failed' };
+  } catch (err) {
+    console.error('[保存项目] 失败:', proj.name, err);
+    return { status: 'failed' };
+  }
+}
+
 /**
  * 批量保存知识网络列表中所有项目
  * 每个项目保存到父目录下的独立子文件夹（以项目名命名）
@@ -358,84 +456,28 @@ export async function saveAllProjects() {
 
   let savedCount = 0;
   let failedCount = 0;
+  let unchangedCount = 0; // 内容与上次保存一致、跳过计入更新的项目数
+  let skippedCount = 0;   // 未打开的轻量条目（磁盘扫描生成），无数据可保存
   // parentPath 是保存根目录（项目文件夹的父目录），用户设置的就是这个
   let parentPath = appState.currentProjectSavePath;
 
   for (const proj of appState.projects) {
-    const data = proj.data;
-    if (!data || !data.methodsTree) { failedCount++; continue; }
-
-    const projectName = proj.name || 'knowledge_graph';
-
-    // 序列化 3D 位置（proj.data.positions 是 Map<Vector3>）
-    let po = {};
-    if (data.positions) {
-      for (let [id, v] of data.positions.entries()) {
-        po[id] = { x: v.x, y: v.y, z: v.z };
-      }
-    }
-
-    // 序列化 2D 位置（proj.data.positions2D 是 Map<{x,y}>，需展开为普通对象）
-    let p2d = {};
-    if (data.positions2D) {
-      const entries = data.positions2D instanceof Map
-        ? data.positions2D.entries()
-        : Object.entries(data.positions2D);
-      for (let [id, v] of entries) {
-        p2d[id] = { x: v.x, y: v.y };
-      }
-    }
-
-    let projectData = {
-      projectName,
-      methodsTree: data.methodsTree,
-      crossEdges: data.crossEdges || [],
-      positions: po,
-      positions2D: p2d,
-      collapsed2D: data.collapsed2D || [],
-      layers: data.layers || [],
-      currentLayerId: data.currentLayerId,
-      nodeRichContents: data.nodeRichContents || {},
-      overlayImages: data.nodeOverlayImages || {},
-      nodeHtmlSources: data.nodeHtmlSources || {},
-      nodeFileSystems: data.nodeFileSystems || {},
-      nodeSandboxHistories: data.nodeSandboxHistories || {},
-      treeEdgeLabels: data.treeEdgeLabels || {},
-      savePath: parentPath,
-      cameraView: data.cameraView || {
-        position: { x: 6, y: 4.5, z: 8 },
-        target: { x: 0, y: 0.2, z: 0 }
-      }
-    };
-
-    try {
-      const result = await window.api.saveProject(projectData);
-      if (result.canceled) return;  // 用户取消
-      if (result.success) {
-        savedCount++;
-        // 用返回的 rootPath（保存根目录）供后续项目使用
-        if (result.rootPath) {
-          parentPath = result.rootPath;
-        }
-        // 记录项目实际保存的文件夹路径，供版本图定位 .versiongraph 目录
-        if (result.path) {
-          proj.folderPath = result.path;
-        }
-        // 记录保存时的历史记录长度，用于关闭时判断是否有未保存的修改
-        // 只有当前项目才更新（因为历史记录只属于当前项目）
-        if (proj.id === appState.currentProjectId && appState.history) {
-          proj._savedUndoLength = appState.history.undoStack.length;
-        }
-      } else {
-        failedCount++;
-      }
-    } catch (err) {
+    const r = await saveProjectOne(proj, parentPath);
+    if (r.status === 'canceled') return;  // 用户取消
+    if (r.status === 'saved') {
+      savedCount++;
+      if (r.rootPath) parentPath = r.rootPath;  // 用返回的 rootPath（保存根目录）供后续项目使用
+    } else if (r.status === 'unchanged') {
+      unchangedCount++;
+      if (r.rootPath) parentPath = r.rootPath;
+    } else if (r.status === 'skipped') {
+      skippedCount++;  // 未打开的轻量条目，无数据可保存
+    } else {
       failedCount++;
-      console.error('[批量保存] 失败:', proj.name, err);
     }
   }
 
-  showToast(`批量保存完成: ${savedCount} 成功${failedCount > 0 ? ', ' + failedCount + ' 失败' : ''}`);
+  showToast(`批量保存完成: ${savedCount} 个有更新${unchangedCount > 0 ? ', ' + unchangedCount + ' 个无变化' : ''}${skippedCount > 0 ? ', ' + skippedCount + ' 个未打开跳过' : ''}${failedCount > 0 ? ', ' + failedCount + ' 失败' : ''}`);
 
   // 派发保存事件，供版本图模块监听以自动产生版本站点
   window.dispatchEvent(new CustomEvent('astroknot-project-saved'));

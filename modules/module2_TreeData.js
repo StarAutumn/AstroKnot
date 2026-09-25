@@ -947,8 +947,28 @@ function onProjectItemContextMenu(e) {
 
   showItemContextMenu(e.clientX, e.clientY, [
     { label: '💾 保存', action: function () {
-        saveCurrentProjectData();
-        document.getElementById('saveNetworkBtn')?.click();
+        // 当前项目先同步实时状态（非当前项目保存其最近一次同步的快照数据）
+        if (proj && proj.id === appState.currentProjectId) saveCurrentProjectData();
+        if (window.__TABLET__) {
+          // [tablet-fix] 平板文件层已随 saveCurrentProjectData 落盘（ProjectFsShim.projectSaveAll），
+          // 不再模拟点击 saveNetworkBtn 触发批量保存流程（原「批量保存完成」提示与右键单项操作语义不符）
+          const cur = appState.projects.find(p => p.id === appState.currentProjectId);
+          showToast(cur ? '已保存项目: ' + cur.name : '项目已保存');
+          // [tablet-fix] 派发保存事件驱动版本时间线自动产生节点（与桌面保存按钮链路 module9:337 一致）
+          window.dispatchEvent(new CustomEvent('astroknot-project-saved'));
+          return;
+        }
+        // [desktop-fix] 桌面：只保存右键点击的项目（不再模拟点击 saveNetworkBtn 批量保存）
+        import('./module9_FileIO.js').then(async ({ saveProjectOne }) => {
+          const r = await saveProjectOne(proj);
+          if (r.status === 'saved') showToast('已保存项目: ' + proj.name);
+          else if (r.status === 'unchanged') showToast('项目「' + proj.name + '」无变化，已确认落盘');
+          else if (r.status === 'skipped') showToast('项目「' + proj.name + '」未打开，无数据可保存');
+          else if (r.status === 'failed') showToast('保存失败: ' + proj.name);
+          // 派发保存事件，驱动版本时间线自动产生节点（与批量保存尾部一致）
+          // skipped 未落盘，不派发（避免给当前打开项目误提交版本节点）
+          if (r.status !== 'canceled' && r.status !== 'skipped') window.dispatchEvent(new CustomEvent('astroknot-project-saved'));
+        });
     }},
     { label: '📋 复制项目', action: function () { copyCurrentProject(); } },
     { label: '✏️ 重命名', action: function () { startRename(projectItem); } },
