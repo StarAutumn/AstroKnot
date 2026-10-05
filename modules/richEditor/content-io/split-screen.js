@@ -12,7 +12,6 @@ import { getOverlayImagesData, setOverlayImagesData, renderAll } from '../core/o
 import { pctToPx, stripOverlayBlocksFromHTML } from '../core/overlay/index.js';
 import { renderChartContent } from '../core/overlay/overlay-chart.js';
 import { renderExcelContent } from '../core/overlay/overlay-excel.js';
-import { renderSlideshowContent } from '../core/overlay/overlay-slideshow.js';
 import { renderVideoContent } from '../core/overlay/overlay-video.js';
 import { renderAudioContent } from '../core/overlay/overlay-audio.js';
 import { getDrawData, setDrawData } from '../core/toolbar/toolbar-draw.js';
@@ -197,8 +196,6 @@ function _renderPreviewInPanel(panel, node) {
           renderAudioContent(item, imgData);
         } else if (imgData.type === 'video') {
           renderVideoContent(item, imgData);
-        } else if (imgData.type === 'slideshow') {
-          renderSlideshowContent(item, imgData);
         }
 
         blockEl.appendChild(item);

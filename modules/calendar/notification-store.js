@@ -16,13 +16,13 @@
 
 import { state } from './shared-state.js';
 import { appState } from '../module0_AppState.js';
-import { getDayShifts, getShiftSchedule } from './shift-store.js';
-import { getShiftTypeById } from './shift-types-store.js';
+import { getDayShifts, getShiftSchedule } from './shift/shift-store.js';
+import { getShiftTypeById } from './shift/shift-types-store.js';
 import {
   getSchedule, getDayEvents, getMondayOf,
   getWeekNumber, isWeeklyActiveAtWeek, parseSlotRange, fmtDate
-} from './schedule-store.js';
-import { getItems, computeDisplay } from './anniversary-store.js';
+} from './schedule/schedule-store.js';
+import { getItems, computeDisplay } from './anniversary/anniversary-store.js';
 
 // ==================== 事项通知 ====================
 // 事项通知规则：

@@ -87,6 +87,8 @@ contextBridge.exposeInMainWorld('api', {
   syncAppDirectory: (appId, fileSystem) => ipcRenderer.invoke('sync-app-directory', appId, fileSystem),
   // 删除应用目录
   deleteApp: (appId) => ipcRenderer.invoke('delete-app', appId),
+  // 扫描孤儿应用目录（有目录无注册记录）
+  scanOrphanApps: () => ipcRenderer.invoke('scan-orphan-apps'),
   // 在资源管理器中打开应用所在文件夹
   openAppInExplorer: (appId) => ipcRenderer.invoke('open-app-in-explorer', appId),
   // 克隆应用 sandbox 目录

@@ -3,10 +3,11 @@
 // ============================================================
 import * as THREE from 'three';
 import { appState } from './module0_AppState.js';
-import { saveCurrentProjectData, renderProjectList } from './module2_TreeData.js';
+import { saveCurrentProjectData, renderProjectList } from './TreeData/index.js';
 import { buildSceneFromTree } from './VisualComponents/index.js';
 import { hideContextMenu } from './module8_ContextMenu.js';
 import { groupRects, setGroupRects } from './2DView/shared.js';
+import { rebuildFishbone3D } from './Fishbone/render3d.js';
 
 /**
  * 历史记录管理器
@@ -63,7 +64,9 @@ class HistoryManager {
         : null,
       is2DView: !!appState.is2DView,
       // 2D 群组矩形（运行时状态，不持久化但需支持撤销）
-      groupRects: JSON.parse(JSON.stringify(groupRects || []))
+      groupRects: JSON.parse(JSON.stringify(groupRects || [])),
+      // 鱼骨图主干线段
+      fishboneTrunks: JSON.parse(JSON.stringify(appState.fishboneTrunks || []))
     };
   }
 
@@ -116,6 +119,12 @@ class HistoryManager {
       Object.assign(appState.view2DTransform, state.view2DTransform);
     }
     if (state.groupRects) setGroupRects(JSON.parse(JSON.stringify(state.groupRects)));
+
+    // 恢复鱼骨图主干线段并重建 3D 渲染
+    appState.fishboneTrunks = state.fishboneTrunks
+      ? JSON.parse(JSON.stringify(state.fishboneTrunks))
+      : [];
+    rebuildFishbone3D();
 
     // 重建 3D 场景
     buildSceneFromTree();
@@ -284,6 +293,12 @@ export function applyHistoryState(state) {
     Object.assign(appState.view2DTransform, state.view2DTransform);
   }
   if (state.groupRects) setGroupRects(JSON.parse(JSON.stringify(state.groupRects)));
+
+  // 恢复鱼骨图主干线段并重建 3D 渲染
+  appState.fishboneTrunks = state.fishboneTrunks
+    ? JSON.parse(JSON.stringify(state.fishboneTrunks))
+    : [];
+  rebuildFishbone3D();
 
   buildSceneFromTree();
   appState.clearSelected();

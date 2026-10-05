@@ -97,6 +97,10 @@ class AppState {
     this.nodeMeshes = new Map();
     this.lineItems = [];
     this.NODE_RADIUS = 0.22;
+    // 鱼骨图主干线段集合（Fishbone 模块维护）：[{ id, points: [{x, y}] }]
+    this.fishboneTrunks = [];
+    // 鱼骨主干的 3D 连线实例（Fishbone/render3d 维护）：[{ trunkId, line: SpiralFlowLine }]
+    this.fishboneLineItems = [];
 
     // ---------- UI 元素 ----------
     this.contextTargetId = null;
@@ -190,6 +194,12 @@ class AppState {
         if (deletedLayer.positions2D.has(nodeId)) {
           targetLayer.positions2D.set(nodeId, deletedLayer.positions2D.get(nodeId));
         }
+      }
+    }
+    // 鱼骨干线随图层迁移并入目标图层（防止 layerId 悬空导致干线永久不可见）
+    if (targetLayer && this.fishboneTrunks) {
+      for (const t of this.fishboneTrunks) {
+        if (t.layerId === layerId) t.layerId = targetLayer.id;
       }
     }
     this.layers.splice(idx, 1);

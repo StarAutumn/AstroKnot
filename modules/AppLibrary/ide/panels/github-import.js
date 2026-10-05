@@ -6,7 +6,7 @@
 import { GithubApiClient, isBinaryPath } from '../core/github-api.js';
 import { extensionToLanguage } from '../core/virtual-fs.js';
 import { appState } from '../../../module0_AppState.js';
-import { showToast } from '../../../module5_SelectAndEdit.js';
+import { showToast } from '../../../SelectAndEdit/index.js';
 
 /**
  * GitHub 仓库导入面板模块

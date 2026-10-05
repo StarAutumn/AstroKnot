@@ -2,7 +2,7 @@
 //  overlay/overlay-image.js — 图片专属功能
 // ============================================================
 
-import { overlayImages, getNextZIndex, selectImage, transactRender, getInsertY, getInsertX } from './overlay-images.js';
+import { overlayImages, getNextZIndex, selectImage, transactRender, getInsertY, getInsertX } from './overlay-images/index.js';
 import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let _fileInput = null;

@@ -7,7 +7,7 @@
 
 import { appState } from '../../module0_AppState.js';
 import { copySelectedNodes, pasteNodes } from '../../MoveMode/move-mode/index.js';
-import { cancelConnectionMode } from '../../module5_SelectAndEdit.js';
+import { cancelConnectionMode } from '../../SelectAndEdit/index.js';
 import { isInputActive } from '../../UI/shared.js';
 import {
   canvas,
@@ -17,6 +17,8 @@ import {
   isFreeDrawing
 } from '../shared.js';
 import { draw, mark2DDirty, setPostDrawHook } from '../render/index.js';
+import { fishboneAttachMode } from '../../Fishbone/state.js';
+import { cancelFishboneAttach } from '../../Fishbone/ops.js';
 
 // 子模块
 import { syncCardOverlays, removeCardOverlay, removeWebpageOverlay } from './card-overlays.js';
@@ -67,6 +69,9 @@ export function initInteractionEvents() {
       return;
     }
     if (e.key === 'Escape') {
+      if (fishboneAttachMode) {
+        cancelFishboneAttach();   // 「变成支路」选择模式取消
+      }
       if (pendingMultiMove) {
         setPendingMultiMove(false);
         canvas.style.cursor = 'grab';

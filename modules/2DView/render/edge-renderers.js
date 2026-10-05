@@ -31,7 +31,7 @@ export function drawLine(x1, y1, x2, y2, alpha = 1, color = '#2c6e7e', edgeData 
   // 箭头单独画（fill，无法批量 stroke）
   if (drawArrow) {
     if (!_arrowBatch) _arrowBatch = [];
-    _arrowBatch.push({ x1, y1, x2, y2, color });
+    _arrowBatch.push({ x1, y1, x2, y2, color, alpha });   // alpha 随箭头记录：折叠/隐藏时同步淡出
   }
 }
 
@@ -77,6 +77,7 @@ export function flushLineBatch() {
       const angle = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
       const tipX = a.x2 - 4 * Math.cos(angle);
       const tipY = a.y2 - 4 * Math.sin(angle);
+      ctx.globalAlpha = a.alpha !== undefined ? a.alpha : 1;   // 箭头透明度与所属连线一致
       ctx.beginPath();
       ctx.moveTo(tipX, tipY);
       ctx.lineTo(tipX - arrowLen * Math.cos(angle - Math.PI / 7), tipY - arrowLen * Math.sin(angle - Math.PI / 7));

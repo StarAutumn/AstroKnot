@@ -4,7 +4,8 @@
 // ============================================================
 import { appState } from '../module0_AppState.js';
 import { rebuildAllLines } from '../VisualComponents/index.js';
-import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { saveCurrentProjectData } from '../TreeData/index.js';
+import { cancelFishboneArrangeAnimation, rebuildFishbone3D } from '../Fishbone/render3d.js';
 
 // ============================================================
 //  启动排列动画
@@ -67,13 +68,20 @@ export function skipArrangeAnimation() {
   // 应用延迟视觉效果
   _applyDeferredEffects(deferredEffects);
 
+  // 鱼骨线：取消排列动画并按最终模式强制重建落定
+  cancelFishboneArrangeAnimation();
+  rebuildFishbone3D(true);
+
   // 重置动画状态
   _resetAnimState();
 
-  // 重启流光动画
+  // 重启流光动画（从源头流动，与排列动画结束后的表现一致）
   const tm = appState.tm;
   for (let it of appState.lineItems) {
     if (it.line.startFlowAnimation) it.line.startFlowAnimation(tm);
+  }
+  for (const fit of (appState.fishboneLineItems || [])) {
+    if (fit.line.startFlowAnimation) fit.line.startFlowAnimation(tm);
   }
 
   // 保存

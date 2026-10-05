@@ -93,19 +93,6 @@ function saveOverlays(overlaysDir, overlays) {
       delete item.univerSnapshot;
     }
 
-    if (item.type === 'slideshow' && item.slides) {
-      let slideIdx = 0;
-      for (const slide of item.slides) {
-        if (slide.src && slide.src.startsWith('data:')) {
-          slideIdx++;
-          const ext = extractDataUriExt(slide.src);
-          const fileName = `slide_${String(slideIdx).padStart(3, '0')}.${ext}`;
-          fs.writeFileSync(path.join(overlaysDir, fileName), dataUriToBuffer(slide.src));
-          slide.src = fileName;
-        }
-      }
-    }
-
     manifest.push(item);
   }
 
@@ -156,17 +143,6 @@ function loadOverlays(overlaysDir) {
       if (fs.existsSync(filePath)) {
         item.src = bufferToDataUri(filePath, fs.readFileSync(filePath));
         item.srcType = 'dataUrl';
-      }
-    }
-
-    if (item.type === 'slideshow' && item.slides) {
-      for (const slide of item.slides) {
-        if (slide.src && !slide.src.startsWith('data:') && !slide.src.startsWith('http')) {
-          const filePath = path.join(overlaysDir, slide.src);
-          if (fs.existsSync(filePath)) {
-            slide.src = bufferToDataUri(filePath, fs.readFileSync(filePath));
-          }
-        }
       }
     }
   }

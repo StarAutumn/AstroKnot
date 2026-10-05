@@ -269,11 +269,18 @@ AstroKnot/
 │   ├── xterm/                #   xterm.js 终端 + addons（fit + web-links）
 │   └── soundtouch-processor.js  # SoundTouch 音频处理
 │
-└── modules/                  # 核心模块（~317 个源文件）
+└── modules/                  # 核心模块（~370 个源文件）
     │
     ├── # 数据层
     ├── module0_AppState.js        # 全局状态管理器（被所有模块依赖）
-    ├── module2_TreeData.js        # 节点树数据结构、项目持久化、项目配置保存
+    ├── TreeData/                  # 项目/树数据（原 module2，按功能域拆分）
+    │   ├── index.js               #   入口 & 统一导出
+    │   ├── data-factory.js        #   节点/树数据构造
+    │   ├── loadProject.js         #   项目加载（磁盘读取、数据恢复）
+    │   ├── persistence.js         #   持久化保存（project.json/project.md）
+    │   ├── project-crud.js        #   项目增删改查 & 项目配置
+    │   ├── project-ui.js          #   项目列表 UI（开始首页联动）
+    │   └── web-mode.js            #   Web 版模式适配
     ├── module3_History.js         # 撤销/重做历史栈
     ├── module9_FileIO.js          # 文件导入/导出
     ├── nodeDiskSync.js            # 节点级磁盘同步（创建/删除/内容自动保存）
@@ -298,10 +305,25 @@ AstroKnot/
     │       ├── card-label.js      #     3D 卡片标签（文字渲染）
     │       └── card-overlay.js    #     3D 卡片 HTML overlay
     ├── module7_SceneInit.js       # 场景初始化（Bloom 辉光、后处理）
-    ├── module14_Animation.js      # 动画循环（渲染、粒子、HSL 颜色轮转）
+    ├── Animation/                 # 动画循环（原 module14，按功能域拆分）
+    │   ├── index.js               #   主循环入口（帧调度、2D/3D 分支）
+    │   ├── render.js              #   渲染调度
+    │   ├── scene-fx.js            #   场景特效（星空/星云/流星）
+    │   ├── lines-nodes.js         #   连线/节点动画（光环、脉冲）
+    │   ├── node-colors.js         #   节点 HSL 颜色轮转
+    │   ├── labels.js              #   标签动画
+    │   ├── arrange.js             #   2D/3D 排列动画推进
+    │   └── share.js               #   共享状态
     │
     ├── # 交互控制层
-    ├── module5_SelectAndEdit.js   # 节点选中/编辑/Toast
+    ├── SelectAndEdit/             # 节点选中/编辑（原 module5，按功能域拆分）
+    │   ├── index.js               #   入口 & 统一导出
+    │   ├── selection.js           #   选择系统（单选/多选/框选联动）
+    │   ├── node-ops.js            #   节点编辑操作（改名/尺寸/类型）
+    │   ├── connection.js          #   连线系统（自由连线/标签/删除）
+    │   ├── delete.js              #   删除操作（节点/连线级联）
+    │   ├── collapse.js            #   子树折叠/展开
+    │   └── toast.js               #   Toast 提示
     ├── MoveMode/                  # 节点移动模式
     │   ├── index.js               #   入口
     │   ├── LineTooltip.js         #   连线提示
@@ -434,6 +456,18 @@ AstroKnot/
     ├── LayerManager/              # 图层管理
     │   └── index.js               #   图层创建/切换/排序
     │
+    ├── # 鱼骨图
+    ├── Fishbone/                  # 鱼骨图（主干/分支手绘结构，2D/3D 双视图）
+    │   ├── index.js               #   入口 & 统一导出
+    │   ├── mode.js                #   模式管理（进入/退出鱼骨模式）
+    │   ├── state.js               #   绘制状态（拖拽/选中/3D 画线帧）
+    │   ├── render2d.js            #   2D 渲染 & 节点连接投影
+    │   ├── render3d.js            #   3D 渲染（管线/封口球/排列落位）
+    │   ├── interaction.js         #   3D 交互（画线/拖拽/点选）
+    │   ├── ops.js                 #   干线操作（增删/复制/折叠/改名）
+    │   ├── visibility.js          #   显隐管理（隐藏缓存）
+    │   └── context-menu.js        #   鱼骨右键菜单
+    │
     ├── # 版本控制层
     ├── versionGraph/              # 版本控制系统
     │   ├── versionGraph.js        #   提交/分支/diff 核心逻辑
@@ -525,7 +559,13 @@ AstroKnot/
         ├── images-files.js        #   图片/文件管理 & 右键菜单
         ├── insert-toc.js          #   右键添加到目录
         ├── toc.js                 #   目录/大纲侧边栏
-        ├── tree-panel.js          #   节点树 2D 面板（Canvas 渲染）
+        ├── tree-panel/            # 节点树 2D 面板（Canvas 渲染，按功能域拆分）
+        │   ├── index.js           #   入口 & 平移/缩放调度
+        │   ├── render.js          #   Canvas 绘制循环
+        │   ├── draw-nodes.js      #   节点/连线绘制
+        │   ├── interact.js        #   交互（点击/拖拽/双击）
+        │   ├── layer-strip.js     #   图层条
+        │   └── share.js           #   共享状态
         │
         ├── content-io/            # 内容读写子系统
         │   ├── index.js           #   入口 & 聚合导出
@@ -592,8 +632,7 @@ AstroKnot/
         │       ├── overlay-audio.js      #   音频覆盖层
         │       ├── overlay-audio-editor.js #  音频编辑器（EQ/压缩/混响）
         │       ├── overlay-video.js      #   视频覆盖层
-        │       ├── overlay-slides.js     #   幻灯片页
-        │       └── overlay-slideshow.js  #   幻灯片放映
+        │       └── overlay-slides.js     #   幻灯片页
 ```
 
 ## 架构分层

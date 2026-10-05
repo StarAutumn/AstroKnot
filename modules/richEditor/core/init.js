@@ -11,7 +11,7 @@ import { stripLineNumbersFromHTML } from './code-blocks.js';
 import { stripOverlayBlocksFromHTML } from './overlay/index.js';
 import { bindFormulaEditor } from './formula.js';
 import { saveCurrentContentCK, openRichEditorCK, closeModalCK, initSplitScreenDrag } from '../content-io/index.js';
-import { refreshTreePanel, bindTreeSidebar, centerOnNode } from '../tree-panel.js';
+import { refreshTreePanel, bindTreeSidebar, centerOnNode } from '../tree-panel/index.js';
 
 import { injectToolbarGridCSS } from './toolbar-layout.js';
 import { registerToolbarButtons } from './toolbar-buttons.js';
@@ -86,7 +86,7 @@ export function initCKEditor() {
       // ══════ 编辑 ══════
       'searchreplace selectall',
       // ══════ 插入 ══════
-      'customtable insertTinyImage customformula customlink codeeditor customcharmap customemoticons customdatetime insertnote insertcheckbox | insertOverlayBlock customexcel customchart customimage customshape customtextbox customaudio customvideo customslideshow customdocument fullscreen',
+      'customtable insertTinyImage customformula customlink codeeditor custommindmap customcharmap customemoticons customdatetime insertnote insertcheckbox | insertOverlayBlock customexcel customchart customimage customshape customtextbox customaudio customvideo customdocument fullscreen',
       // ══════ 审阅 ══════
       'customslidebreak custompresentation',
       // ══════ 布局 ══════
@@ -163,7 +163,7 @@ export function initCKEditor() {
       span: 'color,font-size,font-family,font-style,font-weight,letter-spacing,text-decoration,vertical-align,background-color,background-image,background,margin-right,margin-left,margin-top,margin-bottom,text-emphasis,-webkit-text-emphasis,text-emphasis-position,-webkit-text-emphasis-position,line-height,white-space,pointer-events,text-align,text-align-last,text-indent,padding-left,padding-right,padding-top,padding-bottom,border,border-radius,-webkit-text-fill-color,-webkit-background-clip,background-clip',
       '*': 'color,font-size,font-family,font-style,font-weight,letter-spacing,text-decoration,vertical-align,background-color,background-image,background,transform,transform-origin,display,height,width,margin,margin-right,margin-left,margin-top,margin-bottom,padding,padding-left,padding-right,padding-top,padding-bottom,border,text-align,text-align-last,text-indent,float,border-radius,opacity,box-shadow,text-emphasis,-webkit-text-emphasis,text-emphasis-position,-webkit-text-emphasis-position,position,left,bottom,line-height,white-space,pointer-events,overflow,-webkit-text-fill-color,-webkit-background-clip,background-clip,gap,align-items,flex-direction,flex-wrap,justify-content,cursor,user-select'
     },
-    extended_valid_elements: 'svg[*],line[*],polygon[*],rect[*],ellipse[*],path[*],circle[*],g[*],defs[*],use[*],text[*],div[contenteditable|data-block-id|data-min-height|class|style|min-height],span[contenteditable|data-checked|class|style|title]',
+    extended_valid_elements: 'svg[*],line[*],polygon[*],rect[*],ellipse[*],path[*],circle[*],g[*],defs[*],use[*],text[*],div[contenteditable|data-block-id|data-min-height|data-mindmap|class|style|min-height],span[contenteditable|data-checked|class|style|title]',
     setup: function (editor) {
       editor.on('GetContent', function (e) {
         e.content = stripLineNumbersFromHTML(e.content);

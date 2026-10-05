@@ -16,6 +16,7 @@ import {
 import { _disposeCardLabel } from './card-label.js';
 import { handleLabelClick } from './interaction.js';
 import { animateNodeIn, cancelNodeAnimation } from './animations.js';
+import { renderLabelCanvas, LABEL_BASE_SCALE } from './label-canvas.js';
 
 // ── 标签 Sprite 创建 ──
 
@@ -33,51 +34,7 @@ export function labelAnimScale(label, f) {
 }
 
 function _createLabelSprite(text, nodeId) {
-  const fontSize = 28;
-  const padX = 20;
-  const padY = 8;
-  const bgH = fontSize + padY * 2;
-
-  // 先用临时 canvas 测量文字宽度
-  const tmpCanvas = document.createElement('canvas');
-  const tmpCtx = tmpCanvas.getContext('2d');
-  tmpCtx.font = `${fontSize}px system-ui, sans-serif`;
-  const textWidth = tmpCtx.measureText(text).width;
-  const bgW = Math.max(textWidth + padX * 2, bgH * 2.2);
-
-  // 创建精确大小的 canvas
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(bgW);
-  canvas.height = Math.ceil(bgH);
-  const ctx = canvas.getContext('2d');
-
-  // 绘制背景（圆角矩形，充满整个 canvas）
-  const r = bgH / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.85)';
-  ctx.beginPath();
-  ctx.moveTo(r, 0);
-  ctx.lineTo(bgW - r, 0);
-  ctx.arcTo(bgW, 0, bgW, r, r);
-  ctx.lineTo(bgW, bgH - r);
-  ctx.arcTo(bgW, bgH, bgW - r, bgH, r);
-  ctx.lineTo(r, bgH);
-  ctx.arcTo(0, bgH, 0, bgH - r, r);
-  ctx.lineTo(0, r);
-  ctx.arcTo(0, 0, r, 0, r);
-  ctx.closePath();
-  ctx.fill();
-
-  // 绘制边框
-  ctx.strokeStyle = 'rgba(68,68,68,1)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // 绘制文字
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `${fontSize}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, bgW / 2, bgH / 2);
+  const { canvas, bgW, bgH } = renderLabelCanvas(text, null);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
@@ -92,15 +49,49 @@ function _createLabelSprite(text, nodeId) {
 
   const sprite = new THREE.Sprite(material);
   const aspect = bgW / bgH;
-  const scale = 0.02;  // 基础缩放
-  sprite.scale.set(scale * aspect, scale, 1);
+  sprite.scale.set(LABEL_BASE_SCALE * aspect, LABEL_BASE_SCALE, 1);
   // 基准缩放记录：labelAnimScale 按系数缩放/恢复时使用
-  sprite.userData._labelBaseW = scale * aspect;
-  sprite.userData._labelBaseH = scale;
+  sprite.userData._labelBaseW = LABEL_BASE_SCALE * aspect;
+  sprite.userData._labelBaseH = LABEL_BASE_SCALE;
   sprite.userData._labelNodeId = nodeId;
   sprite.userData._labelText = text;
+  sprite.userData._labelBadge = null;
 
   return sprite;
+}
+
+// ==================== 折叠徽标（3D）：重绘标签纹理 ====================
+
+/**
+ * 更新节点 3D 标签的折叠徽标 a/b（badge=null 移除）。
+ * 触发点：collapse.js toggleChildren / expandAllNodes 动画结束时；
+ * 徽标绘制在节点名字右侧，样式与 2D 折叠徽标一致（label-canvas.js）。
+ * @param {string} nodeId 节点 id
+ * @param {{a:number,b:number}|null} badge 徽标数据（a=直接子节点数，b=全部后代数）
+ */
+export function updateNodeLabelBadge(nodeId, badge) {
+  const obj = appState.nodeMeshes.get(nodeId);
+  const sprite = obj?.label;
+  if (!sprite) return;
+  const text = sprite.userData._labelText ?? '';
+  // 边框色与 Animation/lines-nodes.js 每帧推导保持一致（选中金/步骤紫/连接蓝/默认浅蓝），
+  // 避免徽标重绘把选中/连接高亮边框抹回默认色
+  const isSel = appState.selectedNodeIds.has(nodeId);
+  const isConnected = !isSel && (appState.connectedNodeIds ? appState.connectedNodeIds.has(nodeId) : false);
+  const isConnectedStep = !isSel && !isConnected && (appState.connectedStepNodeIds ? appState.connectedStepNodeIds.has(nodeId) : false);
+  const borderColor = isSel ? '#FFD700' : isConnectedStep ? '#AA44FF' : isConnected ? '#4488FF' : '#aaddff';
+  const { canvas, bgW, bgH } = renderLabelCanvas(text, badge || null, borderColor);
+  if (sprite.material.map) sprite.material.map.dispose();
+  sprite.material.map = new THREE.CanvasTexture(canvas);
+  sprite.material.needsUpdate = true;
+  const aspect = bgW / bgH;
+  sprite.scale.set(LABEL_BASE_SCALE * aspect, LABEL_BASE_SCALE, 1);
+  sprite.userData._labelBaseW = LABEL_BASE_SCALE * aspect;
+  sprite.userData._labelBaseH = LABEL_BASE_SCALE;
+  sprite.userData._labelBadge = badge || null;
+  // 同步 Animation/labels.js 的重绘缓存（_setLabelVisible 按缓存判断是否重绘）
+  sprite._lastBorder = borderColor;
+  sprite._lastLabelName = text;
 }
 
 // ==================== 节点几何体 ====================

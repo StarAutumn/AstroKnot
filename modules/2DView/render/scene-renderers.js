@@ -3,6 +3,7 @@
 // ============================================================
 
 import { appState } from '../../module0_AppState.js';
+import { countDescendants } from '../../TreeData/data-factory.js';
 import {
   ctx, canvas,
   groupRects, selectedGroupRectId, HANDLE_SIZE,
@@ -37,7 +38,7 @@ export function _isRectInViewport(x, y, w, h) {
 // ============================================================
 //  递归绘制树
 // ============================================================
-export function drawTreeRecursive(layout, positionMap, parentCollapsedProgress = null, isRoot = true) {
+export function drawTreeRecursive(layout, positionMap, parentCollapsedProgress = null, isRoot = true, deferredCards = null) {
   if (!layout?.node) return;
   const { node, width, height } = layout;
   const nodeId = node.id;
@@ -46,21 +47,32 @@ export function drawTreeRecursive(layout, positionMap, parentCollapsedProgress =
   const isConnectedStep = nodeId && appState.connectedStepNodeIds && appState.connectedStepNodeIds.has(nodeId);
   const pos = _getAnim2DPos(nodeId, positionMap.get(nodeId));
 
+  const isCurrentlyCollapsed = appState.collapsed2D.has(nodeId);
+
   if (pos && !isRoot) {
     const nodeInLayer = isNodeInCurrentLayer(nodeId);
     if (nodeInLayer) {
       // 视口裁剪：跳过屏外节点绘制（card 模式用卡片实际尺寸）
       const { width: nodeW, height: nodeH } = getNodeLayoutSize(node, node.sizeScale || 1);
       if (_isRectInViewport(pos.x, pos.y, nodeW, nodeH)) {
-        let nodeAlpha = 1;
-        if (parentCollapsedProgress !== null) nodeAlpha = parentCollapsedProgress;
+        // 节点透明度：统一走 getNodeVisibilityAlpha（祖先折叠动画链 + 鱼骨支路折叠隐藏/动画），
+        // 2D 卡片显隐与树连线 / 命中判定保持一致
+        const nodeAlpha = getNodeVisibilityAlpha(nodeId);
         const hasCross = nodeId ? hasCrossEdges(nodeId) : false;
-        drawNode(pos.x, pos.y, node, isSelected, nodeAlpha, isConnected, isConnectedStep, hasCross);
+        // 折叠节点：右下角显示 a/b 徽标（a=直接子节点数，b=全部后代节点数）
+        const collapsedBadge = isCurrentlyCollapsed && node.children?.length
+          ? { a: node.children.length, b: countDescendants(node) }
+          : null;
+        // 连线压卡片下：deferredCards 存在时先收集卡片绘制，递归结束后统一画（连线在节点下面）
+        if (deferredCards) {
+          deferredCards.push(() => drawNode(pos.x, pos.y, node, isSelected, nodeAlpha, isConnected, isConnectedStep, hasCross, collapsedBadge));
+        } else {
+          drawNode(pos.x, pos.y, node, isSelected, nodeAlpha, isConnected, isConnectedStep, hasCross, collapsedBadge);
+        }
       }
     }
   }
 
-  const isCurrentlyCollapsed = appState.collapsed2D.has(nodeId);
   const animState = getAnimationProgress(nodeId);
   let effectiveProgress = null;
   if (animState) {
@@ -116,7 +128,10 @@ export function drawTreeRecursive(layout, positionMap, parentCollapsedProgress =
       childInputY = childPos.y + child.height / 2;
     }
 
-    const childAlpha = (effectiveProgress !== null ? effectiveProgress : 1) * _getAnim2DLineAlpha();
+    // 连线透明度：两端节点统一走 getNodeVisibilityAlpha（祖先折叠动画链 + 鱼骨支路折叠隐藏/动画），
+    // 与卡片显隐/命中判定/3D 树连线保持一致
+    const parentAlpha = nodeId ? getNodeVisibilityAlpha(nodeId) : 1;
+    const childAlpha = Math.min(parentAlpha, getNodeVisibilityAlpha(child.node.id)) * _getAnim2DLineAlpha();
     const childInLayer = isNodeInCurrentLayer(child.node.id);
     const edgeData = { edgeType: 'tree', startId: nodeId, endId: child.node.id, label: '', labelHidden: true, customColor: customColorHex };
     const dashPattern = isStepNode ? [8, 3, 2, 3] : [];
@@ -161,16 +176,18 @@ export function drawTreeRecursive(layout, positionMap, parentCollapsedProgress =
         const treeMeta = appState.treeEdgeLabels.get(treeKey);
         const edgeLabel = lineItem?.line.mesh.userData.label || treeMeta?.label;
         const edgeLabelHidden = lineItem?.line.mesh.userData.labelHidden ?? treeMeta?.labelHidden ?? true;
-        if (edgeLabel && !edgeLabelHidden && appState.showAllLabels) {
+        if (edgeLabel && !edgeLabelHidden && appState.showAllLabels && childAlpha > 0.01) {
+          ctx.globalAlpha = Math.min(1, childAlpha);   // 标签随连线透明度显隐（鱼骨折叠/普通折叠动画）
           ctx.fillStyle = '#ffd966';
           ctx.font = '11px system-ui, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(edgeLabel, labelMidX, labelMidY - 8);
+          ctx.globalAlpha = 1;
         }
       }
     }
-    drawTreeRecursive(child, positionMap, effectiveProgress, false);
+    drawTreeRecursive(child, positionMap, effectiveProgress, false, deferredCards);
   }
 }
 

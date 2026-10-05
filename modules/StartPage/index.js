@@ -1,7 +1,7 @@
 import { appState } from '../module0_AppState.js';
-import { createNewProject, loadProject, renderProjectList, saveCurrentProjectData } from '../module2_TreeData.js';
+import { createNewProject, loadProject, renderProjectList, saveCurrentProjectData } from '../TreeData/index.js';
 import { buildSceneFromTree } from '../VisualComponents/index.js';
-import { showToast } from '../module5_SelectAndEdit.js';
+import { showToast } from '../SelectAndEdit/index.js';
 import { applyLoadedData } from '../module9_FileIO.js';
 import * as THREE from 'three';
 

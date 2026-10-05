@@ -163,7 +163,7 @@ async function saveSnapshotIncremental(key, snapshot) {
 /**
  * 递归剥离 overlay 数据中的 base64 媒体（src 字段以 'data:' 开头）
  * 将 base64 字符串提取为独立 blob（存入 blobsToSave），原位置用 srcHash 引用
- * 支持任意嵌套结构（如 slideshow 的 slides[].elements[]）
+ * 支持任意嵌套结构（如音频/视频/图表等元素数组）
  * @param {*} obj - overlay 数据（数组/对象/原始值）
  * @param {Object|null} blobsToSave - 收集媒体 blob 的字典；传 null 时不保存（仅计算结构用于 hash 对比）
  * @returns {*} 剥离媒体后的结构（深拷贝，不修改原对象）

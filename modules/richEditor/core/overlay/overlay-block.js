@@ -6,8 +6,8 @@
 //  块宽度跟随容器自动伸缩，块内元素用百分比水平坐标。
 // ============================================================
 
-import { overlayImages, renderAll, transactRender } from './overlay-images.js';
-import { showToast } from '../../../module5_SelectAndEdit.js';
+import { overlayImages, renderAll, transactRender } from './overlay-images/index.js';
+import { showToast } from '../../../SelectAndEdit/index.js';
 
 let _blockIdCounter = 0;
 let _lastClickedBlockId = null; // 上一次点击的画布块 ID

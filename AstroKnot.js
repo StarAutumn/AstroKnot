@@ -18,7 +18,7 @@ import { appState } from './modules/module0_AppState.js';
 import { createIrregularGlowTexture } from './modules/module1_Textures.js';
 
 // ---------- 模块2：数据结构&项目管理 ----------
-import { initProjects, loadProjectListFromDisk } from './modules/module2_TreeData.js';
+import { initProjects, loadProjectListFromDisk } from './modules/TreeData/index.js';
 // ---------- 模块3：历史记录 ----------
 import './modules/module3_History.js';
 import { applyHistoryState } from './modules/module3_History.js';
@@ -31,7 +31,7 @@ import {
   clearSelected, setSelectedNode, getPrimarySelectedId, updateSelectionUI,
   deleteSelectedNodes, addNode, renamePrimaryNode, addConnection, removeConnection,
   setAsSource, setAsTarget, toggleChildren
-} from './modules/module5_SelectAndEdit.js';
+} from './modules/SelectAndEdit/index.js';
 
 // ---------- 模块6：3D组件 ----------
 import {
@@ -76,13 +76,16 @@ import './modules/taskbar.js';
 import { initMoveMode } from './modules/MoveMode/index.js';
 
 // ---------- 模块14：动画循环 ----------
-import { animate } from './modules/module14_Animation.js';
+import { animate } from './modules/Animation/index.js';
 
 // ---------- 模块15：AI 对话框 ----------
 import { initAIChat } from './modules/AIChat/index.js';
 
 // ---------- 模块16：2D 思维导图视图 ----------
 import { init2DView, toggle2DView } from './modules/2DView/index.js';
+
+// ---------- 鱼骨图模块 ----------
+import { initFishbone } from './modules/Fishbone/index.js';
 
 // ---------- 图层管理模块 ----------
 import { initLayerManager } from './modules/LayerManager/index.js';
@@ -112,6 +115,7 @@ initQuickNotes();
 initAIChat(); 
 bindContextMenuEvents();
 initMoveMode();
+initFishbone();
 
 // 初始化项目并决定是否显示开始首页
 const hasProjects = initProjects();
@@ -321,8 +325,10 @@ document.getElementById('modeToggleBtn').addEventListener('click', toggle2DView)
   const tbMax = document.getElementById('tbMaxBtn');
   const tbClose = document.getElementById('tbCloseBtn');
 
-  // 按钮事件
+  // 按钮事件（先移除闪屏期早绑定的临时处理器，避免双触发）
+  if (tbMin?.__earlyHandler) tbMin.removeEventListener('click', tbMin.__earlyHandler);
   tbMin?.addEventListener('click', () => api.winMinimize());
+  if (tbClose?.__earlyHandler) tbClose.removeEventListener('click', tbClose.__earlyHandler);
   tbClose?.addEventListener('click', () => {
     if (typeof window.requestAppClose === 'function') {
       window.requestAppClose();
@@ -330,6 +336,7 @@ document.getElementById('modeToggleBtn').addEventListener('click', toggle2DView)
       api.winClose(); // 兜底：确认函数尚未初始化时直接关闭
     }
   });
+  if (tbMax?.__earlyHandler) tbMax.removeEventListener('click', tbMax.__earlyHandler);
   tbMax?.addEventListener('click', () => api.winMaximize());
 
   // HMR 开关（仅开发版显示）
@@ -371,7 +378,9 @@ document.getElementById('modeToggleBtn').addEventListener('click', toggle2DView)
     window.dispatchEvent(new CustomEvent('fullscreen-change', { detail: isFullscreen }));
   });
 
-  // 双击标题栏最大化/还原
+  // 双击标题栏最大化/还原（先移除早绑定的临时处理器）
+  const appTitleBarEarly = document.getElementById('appTitleBar');
+  if (appTitleBarEarly?.__earlyDblHandler) appTitleBarEarly.removeEventListener('dblclick', appTitleBarEarly.__earlyDblHandler);
   document.getElementById('appTitleBar')?.addEventListener('dblclick', (e) => {
     if (e.target.tagName === 'BUTTON') return;
     api.winMaximize();

@@ -32,6 +32,8 @@ import {
   drawGroupRects, drawSelectedGroupHandles
 } from './scene-renderers.js';
 import { drawAllAnchorPoints, drawFreeDrawPreview, flushLineBatch } from './edge-renderers.js';
+import { drawFishbone2D } from '../../Fishbone/render2d.js';
+import { hasFishboneAnim } from '../../Fishbone/visibility.js';
 
 // ============================================================
 //  主绘制函数
@@ -95,6 +97,9 @@ export function draw() {
   // 绘制选中组群的把手
   drawSelectedGroupHandles();
 
+  // 绘制鱼骨图主干线段（节点之下、网格/组群之上）
+  drawFishbone2D();
+
   setNodeHitAreas([]);
   setLineHitAreas([]);
   resetCardHitAreas();
@@ -134,7 +139,12 @@ export function draw() {
   }
 
   drawCrossEdges(positionMap);
-  drawTreeRecursive(layout, positionMap);
+  // 连线压卡片下：递归中先画全部连线，卡片延迟收集，递归结束后统一绘制
+  const deferredCards = [];
+  drawTreeRecursive(layout, positionMap, null, true, deferredCards);
+  // 批量刷新所有收集到的连线（必须在卡片之前上屏，否则连线会盖在节点上面；保持世界坐标系）
+  flushLineBatch();
+  for (const drawCard of deferredCards) drawCard();
 
   // 绘制连线模式下的锚点（在节点之上）
   drawAllAnchorPoints(positionMap);
@@ -168,17 +178,14 @@ export function draw() {
 
   drawBoxSelection();
 
-  // 批量刷新所有收集到的连线（在 ctx.restore 之前，保持世界坐标系）
-  flushLineBatch();
-
   ctx.restore();
 
   // 通知外部（Interaction.js）同步卡片正文 DOM overlay
   const hook = getPostDrawHook();
   if (hook) hook();
 
-  // 仅在有动画/自由绘制/折叠变化/悬停/排列动画时自刷新；常规帧由 3D 动画循环驱动 refresh2DView
-  if (visible && (animations.length > 0 || isFreeDrawing || hoveredNodeId || appState.arrangeAnim2DActive)) {
+  // 仅在有动画/自由绘制/折叠变化/悬停/排列动画/鱼骨折叠动画时自刷新；常规帧由 3D 动画循环驱动 refresh2DView
+  if (visible && (animations.length > 0 || isFreeDrawing || hoveredNodeId || appState.arrangeAnim2DActive || hasFishboneAnim())) {
     requestAnimationFrame(() => draw());
   }
 }

@@ -5,7 +5,7 @@
 //    PDF   → pdf.js 直接渲染
 //    DOCX  → docx-preview 渲染
 // ============================================================
-import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
+import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images/index.js';
 import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let _docInput = null;

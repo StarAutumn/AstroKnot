@@ -49,6 +49,9 @@ export function setBoxSelectCanvasEnd(p) { boxSelectCanvasEnd = p; }
 export function setBoxSelectTransform(t) { boxSelectTransform = t; }
 export function setHasValidBoxSelection(v) { hasValidBoxSelection = v; }
 export function clearBoxSelectNodeIds() { boxSelectNodeIds.clear(); }
+// 框选命中的鱼骨线段 key 集合（'trunkId|segId'，与 boxSelectNodeIds 同生命周期）
+export let boxSelectSegKeys = new Set();
+export function clearBoxSelectSegKeys() { boxSelectSegKeys.clear(); }
 
 // -------- 组群矩形 --------
 export let groupRects = [];

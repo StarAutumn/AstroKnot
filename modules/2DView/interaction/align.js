@@ -9,7 +9,7 @@ import {
 } from '../shared.js';
 import { hideContextMenu } from '../../module8_ContextMenu.js';
 import { mark2DDirty, draw } from '../render/index.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
 import { withHistory } from '../../module3_History.js';
 import { getNodeBounds2D } from './group-nodes.js';
 

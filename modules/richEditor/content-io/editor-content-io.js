@@ -8,8 +8,8 @@ import { showSavedToast } from '../utils.js';
 import { showTinyUI } from '../core/code-blocks.js';
 import { initTOC } from '../toc.js';
 import { appState } from '../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
-import { showToast } from '../../module5_SelectAndEdit.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
+import { showToast } from '../../SelectAndEdit/index.js';
 import { getOverlayImagesData, setOverlayImagesData, clearOverlayImages, renderAll } from '../core/overlay/index.js';
 import { stripOverlayBlocksFromHTML } from '../core/overlay/index.js';
 import { getDrawData, setDrawData, clearDrawData } from '../core/toolbar/toolbar-draw.js';
@@ -374,7 +374,7 @@ export function saveCurrentContentCK() {
       if (note._isDiary) {
         const diaryDateStr = note._diaryDateStr;
         if (diaryDateStr) {
-          import('../../calendar/diary-editor.js').then(function (mod) {
+          import('../../calendar/diary/diary-editor.js').then(function (mod) {
             mod.saveDiaryFromEditor(diaryDateStr, htmlContent);
           });
         }
@@ -686,7 +686,7 @@ export function closeModalCK() {
       }
       // 清理日记虚拟笔记
       if (appState.currentQuickNoteId && appState.currentQuickNoteId.startsWith('diary_')) {
-        import('../../calendar/diary-editor.js').then(function (mod) {
+        import('../../calendar/diary/diary-editor.js').then(function (mod) {
           mod.cleanupDiaryNote();
         }).catch(function () {});
       }

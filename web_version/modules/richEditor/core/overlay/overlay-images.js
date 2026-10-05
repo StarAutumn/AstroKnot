@@ -9,7 +9,6 @@ import { renderChartContent } from './overlay-chart.js';
 import { openAudioEditor } from './overlay-audio-editor.js';
 import { openExcelEditor } from './overlay-excel-editor.js';
 import { openChartEditor } from './overlay-chart-editor.js';
-import { renderSlideshowContent, openSlideshowEditor } from './overlay-slideshow.js';
 import { openVideoEditor } from '../video-editor.js';
 import { switchToShapeFormatTab, hideShapeFormatTab } from '../toolbar-layout.js';
 import {
@@ -263,8 +262,6 @@ export function renderAll() {
       renderExcelContent(item, imgData);
     } else if (imgData.type === 'chart') {
       renderChartContent(item, imgData);
-    } else if (imgData.type === 'slideshow') {
-      renderSlideshowContent(item, imgData);
     } else if (imgData.type === 'merged') {
       renderMergedContent(item, imgData);
     } else {
@@ -537,16 +534,6 @@ export function getOverlayImagesData() {
       if (item.chartData) base.chartData = item.chartData;
       if (item.echartsOption) base.echartsOption = item.echartsOption;
       if (item.chartStyle) base.chartStyle = item.chartStyle;
-    } else if (item.type === 'slideshow') {
-      base.title = item.title || '';
-      base.effect = item.effect || 'slide';
-      base.autoplay = item.autoplay || false;
-      base.autoplayDelay = item.autoplayDelay || 3000;
-      base.loop = item.loop !== false;
-      base.showNavigation = item.showNavigation !== false;
-      base.showPagination = item.showPagination !== false;
-      base.speed = item.speed || 500;
-      if (item.slides) base.slides = item.slides;
     } else {
       base.src = item.src;
       // 图片高级格式
@@ -671,24 +658,6 @@ export function setOverlayImagesData(data) {
         item.chartData = d.chartData || { categories: ['类别1', '类别2', '类别3', '类别4'], series: [{ name: '系列1', data: [120, 200, 150, 80] }, { name: '系列2', data: [90, 150, 180, 120] }] };
         item.echartsOption = d.echartsOption || null;
         if (d.chartStyle) item.chartStyle = d.chartStyle;
-      } else if (item.type === 'slideshow') {
-        item.title = d.title || '';
-        item.effect = d.effect || 'slide';
-        item.autoplay = d.autoplay || false;
-        item.autoplayDelay = d.autoplayDelay || 3000;
-        item.loop = d.loop !== false;
-        item.showNavigation = d.showNavigation !== false;
-        item.showPagination = d.showPagination !== false;
-        item.speed = d.speed || 500;
-        if (d.slides && Array.isArray(d.slides) && d.slides.length > 0) {
-          item.slides = d.slides;
-        } else {
-          item.slides = [
-            { id: 'slide-default-0', title: '第 1 页', content: '<p style="text-align:center;color:#aaa;font-size:16px;padding-top:40%;">第 1 页</p>', bgColor: '#1a1a2e', bgImage: '' },
-            { id: 'slide-default-1', title: '第 2 页', content: '<p style="text-align:center;color:#aaa;font-size:16px;padding-top:40%;">第 2 页</p>', bgColor: '#1a1a2e', bgImage: '' },
-            { id: 'slide-default-2', title: '第 3 页', content: '<p style="text-align:center;color:#aaa;font-size:16px;padding-top:40%;">第 3 页</p>', bgColor: '#1a1a2e', bgImage: '' }
-          ];
-        }
       } else if (item.type === 'merged') {
         item.mergeChildren = (d.mergeChildren || []).slice();
         item.src = d.src;

@@ -4,10 +4,12 @@
 import * as THREE from 'three';
 import { appState } from '../module0_AppState.js';
 import { SpiralFlowLine, PolylineFlowLine } from './FlowLines.js';
+import { FISHBONE_3D_SCALE } from '../Fishbone/render3d.js';
 
-// 2D 坐标转 3D 坐标（与 Resize.js arrange3DWith2DLayout 保持一致的比例）
+// 2D 坐标转 3D 坐标（与 Resize.js 节点 2D 排列映射、鱼骨主干共用 FISHBONE_3D_SCALE 等比系数，
+// 保证跨组连线航点与节点/鱼骨在图层平面内严格同比例不错位）
 function to3DFrom2D(x2d, y2d, baseY) {
-  return new THREE.Vector3(x2d * 0.005, baseY, y2d * 0.015);
+  return new THREE.Vector3(x2d * FISHBONE_3D_SCALE, baseY, y2d * FISHBONE_3D_SCALE);
 }
 
 // ==================== 增量添加单条树连线 ====================
@@ -189,5 +191,9 @@ export function updateLinesVis() {
     let sv = appState.nodeMeshes.get(it.startId)?.visible ?? false;
     let ev = appState.nodeMeshes.get(it.endId)?.visible ?? false;
     it.line.setVisible(sv && ev);
+  }
+  // 鱼骨主干连线：不依附节点，始终可见（setVisible 内部会按极简模式同步特效显隐）
+  for (const fit of (appState.fishboneLineItems || [])) {
+    fit.line.setVisible(true);
   }
 }

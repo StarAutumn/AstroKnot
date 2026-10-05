@@ -10,6 +10,5 @@ export { openExcelEditor } from './overlay-excel-editor.js';
 export { addChart, renderChartContent, CHART_TYPES, CHART_THEMES, extractChartData, buildEChartsOption } from './overlay-chart.js';
 export { openChartEditor } from './overlay-chart-editor.js';
 export { insertSlideBreak, startPresentation, exitPresentation, getSlideCount } from './overlay-slides.js';
-export { addSlideshow, renderSlideshowContent, openSlideshowEditor, SLIDE_EFFECTS } from './overlay-slideshow.js';
 export { renderAll, transactRender, clearOverlayImages, selectImage, getSelectedImage, getSelectedImages, deleteSelectedImage, getOverlayImagesData, setOverlayImagesData, bindOverlayEvents, getNextZIndex, resetZIndex, overlayImages, ensureOverlay, rgbaToHex, showContextMenu, hideContextMenu, findImageDataById, getInsertX } from './overlay-images.js';
 export { insertOverlayBlock, getActiveBlockId, getAllBlockIds, ensureOverlayBlock, removeOverlayBlock, getBlockElement, getBlockWidth, updateBlockSizer, updateAllBlockSizers, setupBlockResizeObservers, stripOverlayBlocksFromHTML, pxToPct, pctToPx } from './overlay-block.js';

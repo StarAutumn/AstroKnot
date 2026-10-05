@@ -5,7 +5,7 @@ import { appState } from '../../module0_AppState.js';
 import { saveAllProjects, loadNetworkFromFile, importMarkdownFile } from '../../module9_FileIO.js';
 import { updateLinesVis } from '../../VisualComponents/index.js';
 import { showPrompt } from '../../module4_Confirm.js';
-import { createNewProject } from '../../module2_TreeData.js';
+import { createNewProject } from '../../TreeData/index.js';
 import { saveSettingsToStorage } from '../Theme.js';
 
 export function bindSimpleToolbarButtons() {

@@ -4,8 +4,10 @@
 // ============================================================
 
 import { appState } from '../../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../../TreeData/index.js';
 import { rebuildAllLines } from '../../../VisualComponents/index.js';
+import { boxSelectSegKeys } from '../../../2DView/shared.js';
+import { setFishboneSegColorBatch } from '../../../Fishbone/ops.js';
 import { exitMoveMode } from '../move-core.js';
 
 export function bindMoveControls() {
@@ -79,6 +81,8 @@ export function bindMoveControls() {
         const obj = appState.nodeMeshes.get(sid);
         if (obj && obj.mesh.material) obj.mesh.material.color.set(color);
       }
+      // 框选的鱼骨线段：批量改色（同一次选择器的实时预览）
+      if (boxSelectSegKeys.size) setFishboneSegColorBatch(boxSelectSegKeys, color);
       saveCurrentProjectData();
       if (appState.refresh2DView) appState.refresh2DView();
       if (appState.refreshTreePanel) appState.refreshTreePanel();
@@ -92,6 +96,8 @@ export function bindMoveControls() {
         const obj = appState.nodeMeshes.get(sid);
         if (obj && obj.mesh.material) obj.mesh.material.color.set('#ff6600');
       }
+      // 框选的鱼骨线段：批量恢复默认彩虹色
+      if (boxSelectSegKeys.size) setFishboneSegColorBatch(boxSelectSegKeys, null);
       if (nodeFixedColorPicker) nodeFixedColorPicker.value = '#ffffff';
       saveCurrentProjectData();
       rebuildAllLines();

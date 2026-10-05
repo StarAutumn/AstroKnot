@@ -4,8 +4,8 @@
 // ============================================================
 
 import { appState } from '../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
-import { renamePrimaryNode } from '../../module5_SelectAndEdit.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
+import { renamePrimaryNode } from '../../SelectAndEdit/index.js';
 import {
   isMoveMode, setIsMoveMode,
   moveTargetId, setMoveTargetId,
@@ -20,8 +20,8 @@ import { updateLinesForNodes } from '../../VisualComponents/index.js';
 // ============================================================
 export function enterMoveMode(nodeId) {
   if (appState.arrangeAnimActive) return;  // 排列动画中禁止拖拽
-  if (!appState.nodeMap.has(nodeId)) return;
-  setMoveTargetId(nodeId);
+  if (nodeId && !appState.nodeMap.has(nodeId)) return;   // nodeId 可为 null（鱼骨「移动线路」入口无节点目标）
+  setMoveTargetId(nodeId || null);
   setIsMoveMode(true);
   moveControlBar.style.display = 'flex';
   // 保持 controls 启用，让空白拖动走 OrbitControls 原生旋转逻辑
@@ -48,10 +48,14 @@ export function exitMoveMode(save) {
       }
       updateLinesForNodes([...moveInitialPositions3D.keys()]);
     }
+    // 鱼骨「移动线路」还原钩子：干线 2D 点 / 3D 锚点 / 末端节点 2D 位置 + 3D 重建
+    // （ops.startFishboneMove 注册；节点位置还原已在上方完成，此处补鱼骨自身数据）
+    if (appState._fishboneMoveRestore) appState._fishboneMoveRestore();
   } else {
     updateLinesForNodes([...moveInitialPositions3D.keys()]);
     saveCurrentProjectData();
   }
+  appState._fishboneMoveRestore = null;
   setIsMoveMode(false);
   setMoveTargetId(null);
   setMoveInitialPositions3D(null);

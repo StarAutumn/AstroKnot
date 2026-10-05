@@ -2,7 +2,7 @@
 //  toolbar/toolbar-draw.js — 绘图 tab（画笔工具）
 // ============================================================
 
-import { overlayImages, ensureOverlay, renderAll, transactRender, selectImage, getNextZIndex, getInsertY } from '../overlay/overlay-images.js';
+import { overlayImages, ensureOverlay, renderAll, transactRender, selectImage, getNextZIndex, getInsertY } from '../overlay/overlay-images/index.js';
 
 let drawCanvasEl = null;
 let drawCtx = null;

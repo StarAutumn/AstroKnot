@@ -1,5 +1,5 @@
 import { state } from '../../shared-state.js';
-import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, rgbaToHex, getInsertY, getInsertX, getSelectedImage } from './overlay-images.js';
+import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, rgbaToHex, getInsertY, getInsertX, getSelectedImage } from './overlay-images/index.js';
 import { DEFAULT_COLORS } from './overlay-shapes.js';
 import { getActiveBlockId, getBlockElement, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 

@@ -7,7 +7,7 @@ import { appState } from '../../../module0_AppState.js';
 import {
   renameToggleBtn, contextRenameInput, contextNodeNameSpan
 } from '../../shared.js';
-import { exitMoveMode, saveRenameAndRestore } from '../move-core.js';
+import { enterMoveMode, exitMoveMode, saveRenameAndRestore } from '../move-core.js';
 import { bindBlankContextMenu } from './blank-context-menu.js';
 import { bindNodeContextMenu } from './node-context-menu.js';
 import { bindMoveControls } from './move-controls.js';
@@ -51,6 +51,8 @@ function bindRenameInput() {
 export function initMoveMode() {
   // 注册退出移动模式的钩子，供 history 模块在撤销/重做时自动退出移动模式
   appState.exitMoveMode = (save) => exitMoveMode(save);
+  // 注册进入移动模式钩子：鱼骨「移动线路」复用统一移动模式（nodeId 传 null，规避循环依赖）
+  appState.enterMoveMode = (nodeId) => enterMoveMode(nodeId);
 
   // 1. 重命名输入框
   bindRenameInput();

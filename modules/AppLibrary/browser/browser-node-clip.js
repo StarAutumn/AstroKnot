@@ -7,7 +7,7 @@
 //  node.desc 仅用于 3D 场景标签/提示。因此必须设置 richContent。
 
 import { appState } from '../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
 import { withHistory } from '../../module3_History.js';
 
 /**

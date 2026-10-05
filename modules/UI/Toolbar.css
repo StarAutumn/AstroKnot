@@ -266,7 +266,7 @@ body.light-mode #taskbar {
     white-space: nowrap;
     flex-direction: column;
     gap: 4px;
-    min-width: 170px;
+    min-width: 230px;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -311,6 +311,45 @@ body.light-mode #taskbar {
     height: 1px;
     background: var(--panel-border);
     margin: 4px 8px;
+}
+
+/* 排列实时同步勾选行（勾选后 2D 排列实时同步映射到 3D） */
+.arrange-sync-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px;
+    transition: background 0.15s;
+}
+.arrange-sync-row:hover {
+    background: var(--btn-hover);
+}
+.arrange-sync-row input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* 勾选「排列实时同步」后：「2D模式排列」高亮（同步时自动触发它） */
+.arrange-popup button.sync-active {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+    color: var(--accent);
+}
+
+/* 勾选后禁用「默认排列」（随机散布布局会破坏 2D↔3D 同步映射） */
+.arrange-popup button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.arrange-popup button:disabled:hover {
+    background: var(--btn-bg);
 }
 
 /* ============================================================

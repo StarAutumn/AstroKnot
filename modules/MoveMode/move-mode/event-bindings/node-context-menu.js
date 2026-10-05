@@ -7,7 +7,7 @@ import { appState } from '../../../module0_AppState.js';
 import {
   expandAllNodes, deleteSelectedNodes,
   getPrimarySelectedId, showToast
-} from '../../../module5_SelectAndEdit.js';
+} from '../../../SelectAndEdit/index.js';
 import { hideContextMenu } from '../../../module8_ContextMenu.js';
 import { enterMoveMode } from '../move-core.js';
 import {

@@ -2,7 +2,7 @@
 //  overlay-excel-editor.js — Univer 表格编辑器弹窗
 //  通过 CDN UMD 全局命名空间加载 Univer
 // ============================================================
-import { renderAll, transactRender, overlayImages } from './overlay-images.js';
+import { renderAll, transactRender, overlayImages } from './overlay-images/index.js';
 import { extractChartData, buildEChartsOption } from './overlay-chart.js';
 
 let editorModal = null;

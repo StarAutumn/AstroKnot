@@ -2,7 +2,7 @@
 //  overlay/overlay-slides.js — 幻灯片演示模块（Reveal.js）
 // ============================================================
 
-import { overlayImages, renderAll, transactRender } from './overlay-images.js';
+import { overlayImages, renderAll, transactRender } from './overlay-images/index.js';
 import { getBlockElement, getActiveBlockId } from './overlay-block.js';
 import { buildEChartsOption } from './overlay-chart.js';
 

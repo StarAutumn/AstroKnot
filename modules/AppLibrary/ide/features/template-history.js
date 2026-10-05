@@ -5,7 +5,7 @@
  * 从 index.js 拆分而来，通过 SandboxContext 与其他模块通信。
  */
 
-import { showToast } from '../../../module5_SelectAndEdit.js';
+import { showToast } from '../../../SelectAndEdit/index.js';
 
 class SandboxTemplateHistory {
   /**

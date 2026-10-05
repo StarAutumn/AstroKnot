@@ -6,7 +6,8 @@
 // ============================================================
 import * as THREE from 'three';
 import { appState } from '../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
+import { renderReadonlyMindmaps } from '../../richEditor/core/mindmap-embed/index.js';
 import { CARD_WORLD_SCALE } from './card-canvas.js';
 
 const _cardBodyOverlays3D = new Map();  // nodeId -> HTMLElement
@@ -18,7 +19,10 @@ const _projVec3 = new THREE.Vector3();
 let _viewTransitioning = false;
 
 export function isViewTransitioning() { return _viewTransitioning; }
-export function setViewTransitioning(val) { _viewTransitioning = val; }
+export function setViewTransitioning(val) {
+  _viewTransitioning = val;
+  appState._viewTransitioning = val;   // 同步到 appState：module14 渲染循环过渡期豁免用（免导入防依赖环）
+}
 
 function _injectCardOverlayStyle3D() {
   if (document.getElementById('astroknot-card-overlay-style')) return;
@@ -381,6 +385,7 @@ export function syncCardOverlays3D() {
       if (div._lastHtml !== html) {
         div.innerHTML = html;
         div._lastHtml = html;
+        renderReadonlyMindmaps(div);  // 只读渲染正文中的内嵌脑图块
       }
     }
   }

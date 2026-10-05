@@ -4,6 +4,7 @@
 
 import { appState } from '../../module0_AppState.js';
 import { getAnimationEntry, finalizeAnimation, _frameNow } from './frame-state.js';
+import { isFishboneNodeHidden, getFishboneAnimState } from '../../Fishbone/visibility.js';
 
 // ============================================================
 //  图层过滤
@@ -71,6 +72,12 @@ export function findParentNode(nodeId) {
 // ============================================================
 export function getNodeVisibilityAlpha(nodeId) {
   let alpha = 1;
+  // 鱼骨支路折叠/展开动画：进行中按进度渐隐（与普通节点折叠动画同款 alpha 过渡）
+  const fbAnim = getFishboneAnimState(nodeId);
+  if (fbAnim) alpha *= fbAnim.progress;
+  // 鱼骨支路折叠隐藏：末端节点及其树后代一并隐藏（透明度 0，命中区域随 alpha 守卫失效）；
+  // 折叠动画进行中由进度接管渐隐，不直接归零
+  if (isFishboneNodeHidden(nodeId) && !(fbAnim && fbAnim.direction === 'collapse')) return 0;
   let currentId = nodeId;
   while (currentId) {
     const node = appState.nodeMap.get(currentId);

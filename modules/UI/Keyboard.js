@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { appState } from '../module0_AppState.js';
 import { applyHistoryState } from '../module3_History.js';
-import { processSidebar2DPanning, setSidebar2DKey, isSidebar2DFocused } from '../richEditor/tree-panel.js';
+import { processSidebar2DPanning, setSidebar2DKey, isSidebar2DFocused } from '../richEditor/tree-panel/index.js';
 import { keyboardEventBound, setKeyboardEventBound, keys2D, keys, toggleFullscreen, isInputActive } from './shared.js';
 import { toggleSimple3DMode } from './Theme.js';
 import { hideWindow } from './Window.js';

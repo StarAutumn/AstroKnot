@@ -3,12 +3,13 @@
 // ============================================================
 import * as THREE from 'three';
 import { appState } from '../module0_AppState.js';
-import { processSidebar2DPanning } from '../richEditor/tree-panel.js';
+import { processSidebar2DPanning } from '../richEditor/tree-panel/index.js';
 import { layoutTree, assignCoordinates, extractNodePositions } from '../2DView/index.js';
 import { rebuildAllLines, generateRandomPosition } from '../VisualComponents/index.js';
-import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { saveCurrentProjectData } from '../TreeData/index.js';
 import { groupRects } from '../2DView/shared.js';
 import { startArrangeAnimation, skipArrangeAnimation, startArrangeAnimation2D, skipArrangeAnimation2D } from './ArrangeAnimation.js';
+import { snapshotFishboneArrangeStart, finishFishboneArrangeTarget, rebuildFishbone3D, FISHBONE_3D_SCALE } from '../Fishbone/render3d.js';
 import { computeAutoArrangeTargets } from '../2DView/index.js';
 
 // 3D 按 2D 布局重排函数，由 bindResize() 内部注册
@@ -301,16 +302,20 @@ function arrange3DDefault() {
     // 重新计算并启动
   }
 
+  // 先捕获鱼骨线当前模式渲染点（compute3DDefaultTargets 内部会立即翻转 layer3DLayout）
+  snapshotFishboneArrangeStart();
   _clearLayerVisuals();
   const { targetPositions, deferredEffects } = compute3DDefaultTargets();
   startArrangeAnimation(targetPositions, deferredEffects);
+  // 目标 = 随机模式骨架（末点吸附节点目标位，随节点同步移动）
+  finishFishboneArrangeTarget(false, appState.layer3DSpacing || 4);
 }
 
 // ============================================================
 //  3D 按 2D 布局排列 — 计算目标位置（不应用）
 //  返回 { targetPositions: Map<id, Vector3>, deferredEffects }
 // ============================================================
-function compute3DWith2DLayoutTargets() {
+function compute3DWith2DLayoutTargets(useArrangeTargets = false, allLayers = true) {
   const rootNode = appState.methodsTree;
   if (!rootNode || !rootNode.id) return { targetPositions: new Map(), deferredEffects: { type: '2DLayout' } };
 
@@ -324,10 +329,11 @@ function compute3DWith2DLayoutTargets() {
     curLayer.positions2D = new Map(appState.positions2D);
   }
 
-  // 1. 先用第一个图层跑一次布局，拿到标准位置映射
-  let referencePositions = null;
   const firstLayer = sortedLayers[0];
-  if (firstLayer) {
+  // 1. useArrangeTargets=false：用第一个图层跑一次布局，拿到标准位置映射
+  //    useArrangeTargets=true：跳过（第 2 步逐图层用与「自动排列」同源的 computeAutoArrangeTargets）
+  let referencePositions = null;
+  if (!useArrangeTargets && firstLayer) {
     appState.currentLayerId = firstLayer.id;
     appState.positions2D = firstLayer.positions2D || new Map();
     const rootPos = appState.positions2D.get(rootNode.id) || { x: -500, y: -200 };
@@ -366,7 +372,23 @@ function compute3DWith2DLayoutTargets() {
 
   // 2. 用统一的标准位置映射到各图层的 3D 坐标（写入 targetPositions，不修改 appState.positions/mesh）
   const targetPositions = new Map();
-  if (referencePositions) {
+  if (useArrangeTargets) {
+    // 与 2D「自动排列」完全同源：逐图层 computeAutoArrangeTargets（锚定各图层自己的真实根位置
+    // 重排子树），保证 3D 同步映射 = 2D 排列结果。此前用 layoutTree 自行推导，与排列算法
+    // 不一致导致勾选同步后 3D 布局与 2D 对不上。
+    // allLayers=false：仅映射当前图层（「自动排列」只排当前图层，其余图层 3D 保持原位）
+    const layersToMap = allLayers ? sortedLayers : sortedLayers.filter(l => curLayer && l.id === curLayer.id);
+    for (const layer of layersToMap) {
+      const yBase = sortedLayers.indexOf(layer) * LAYER_SPACING;
+      appState.currentLayerId = layer.id;
+      appState.positions2D = layer.positions2D || new Map();
+      const layerTargets = computeAutoArrangeTargets();
+      for (const [id, pos] of layerTargets) {
+        // x/z 等比映射（FISHBONE_3D_SCALE 全局共用）：3D 布局保持 2D 排列的形状比例
+        targetPositions.set(id, new THREE.Vector3(pos.x * FISHBONE_3D_SCALE, yBase, pos.y * FISHBONE_3D_SCALE));
+      }
+    }
+  } else if (referencePositions) {
     // 找到第一个图层的 primary node（第一个非虚拟根且在图层中的节点）作为锚点
     let anchorPos = null;
     if (firstLayer) {
@@ -399,36 +421,19 @@ function compute3DWith2DLayoutTargets() {
         const adjustedX = pos.x + offsetX;
         const adjustedY = pos.y + offsetY;
         const worldPos = new THREE.Vector3(
-          adjustedX * 0.005,
+          adjustedX * FISHBONE_3D_SCALE,
           yBase,
-          adjustedY * 0.015
+          adjustedY * FISHBONE_3D_SCALE
         );
         targetPositions.set(id, worldPos);
       }
     });
   }
 
-  // 3. 树遍历修正 X 坐标（操作 targetPositions 而非 appState.positions）
-  {
-    const SCALE = 0.015, BASE_W = 120;
-    function applyEdgeOffset(node, parentId, parentBaseX, parentAdjustedX) {
-      const pos = targetPositions.get(node.id);
-      if (!pos) return;
-      const baseX = pos.x;
-      let adjustedX;
-      if (parentId && parentId !== appState.VIRTUAL_ROOT_ID) {
-        const pNode = appState.nodeMap.get(parentId);
-        adjustedX = pNode
-          ? parentAdjustedX + (baseX - parentBaseX) - (pNode.sizeScale || 1) * BASE_W * SCALE
-          : baseX;
-      } else {
-        adjustedX = baseX;
-      }
-      pos.x = adjustedX;
-      (node.children || []).forEach(c => applyEdgeOffset(c, node.id, baseX, adjustedX));
-    }
-    applyEdgeOffset(appState.methodsTree, null, 0, 0);
-  }
+  // 3.（已移除旧的 applyEdgeOffset X 修正）旧逻辑按 0.015 系数把每级子树向 -X 拉回
+  //    一个卡片宽，导致 3D 树沿 -X 镜像生长且与 2D 排列形状不符（用户反馈「比例不对」）。
+  //    现在节点用 FISHBONE_3D_SCALE x/z 等比映射，与节点球连线（球心到球心）天然无遮挡，
+  //    3D 布局与 2D 排列严格同形同向，不再做任何 X 修正。
 
   // 4. 为每层节点创建半透明高亮矩形（不添加到 scene，存入 deferredEffects）
   const layerHighlights = [];
@@ -529,7 +534,8 @@ function compute3DWith2DLayoutTargets() {
   // 5. 绘制3D组群矩形（不添加到 scene，存入 deferredEffects）
   const groupRectMeshes = [];
   {
-    const X_SCALE = 0.005, Z_SCALE = 0.015;
+    // 与节点同一等比映射系数，保证组群矩形与节点不错位
+    const X_SCALE = FISHBONE_3D_SCALE, Z_SCALE = FISHBONE_3D_SCALE;
     for (const gr of groupRects) {
       // 找到组群所属图层
       let layerIdx = -1;
@@ -609,7 +615,7 @@ function compute3DWith2DLayoutTargets() {
 //  3D 按 2D 布局排列（带动画）
 //  注册到模块级导出变量，供图层管理面板调节层间距后调用
 // ============================================================
-arrange3DWith2DLayout = function () {
+arrange3DWith2DLayout = function (useArrangeTargets = false, allLayers = true) {
   // 动画中再点击 → 跳过当前动画后重新排列
   if (appState.arrangeAnimActive) {
     skipArrangeAnimation();
@@ -619,13 +625,17 @@ arrange3DWith2DLayout = function () {
   const rootNode = appState.methodsTree;
   if (!rootNode || !rootNode.id) return;
 
+  // 捕获鱼骨线当前（随机模式）渲染点；layer3DLayout 翻转推迟到 move 结束的 fx 中
+  snapshotFishboneArrangeStart();
   _clearLayerVisuals();
-  const { targetPositions, deferredEffects } = compute3DWith2DLayoutTargets();
+  const { targetPositions, deferredEffects } = compute3DWith2DLayoutTargets(useArrangeTargets, allLayers);
   startArrangeAnimation(targetPositions, deferredEffects);
+  // 目标 = 图层 2D 映射（层间距显式传入，不读运行中的 layer3DLayout）
+  finishFishboneArrangeTarget(true, appState.layer3DSpacing ?? 4);
 };
 
 // 即时应用 2D 布局（无动画），供滑动条实时预览层间距
-apply3DWith2DLayoutImmediate = function () {
+apply3DWith2DLayoutImmediate = function (useArrangeTargets = false, allLayers = true) {
   const rootNode = appState.methodsTree;
   if (!rootNode || !rootNode.id) return;
 
@@ -635,7 +645,7 @@ apply3DWith2DLayoutImmediate = function () {
   }
 
   _clearLayerVisuals();
-  const { targetPositions, deferredEffects } = compute3DWith2DLayoutTargets();
+  const { targetPositions, deferredEffects } = compute3DWith2DLayoutTargets(useArrangeTargets, allLayers);
 
   // 直接应用目标位置（无动画）
   for (const [id, targetPos] of targetPositions) {
@@ -650,8 +660,16 @@ apply3DWith2DLayoutImmediate = function () {
     }
   }
 
+  // 与动画版 deferred fx（ArrangeAnimation.js 的 fx.layer3DLayout）一致：
+  // 2D 布局映射语义 = 图层排列模式，即时落位直接翻转（否则鱼骨等仍按随机模式渲染）
+  appState.layer3DLayout = true;
+
   // 重建连线
   rebuildAllLines();
+
+  // 鱼骨线即时落位：动画版由 finishFishboneArrangeTarget + 逐帧插值处理，
+  // 即时版没有插值过程，直接强制重建，让鱼骨主干与节点同帧落到图层平面的映射位置
+  rebuildFishbone3D(true);
 
   // 恢复连线透明度
   for (let it of appState.lineItems) {
@@ -693,14 +711,55 @@ apply3DWith2DLayoutImmediate = function () {
       }
     });
 
+    // ---------- 排列实时同步 2D→3D 勾选框（状态持久化 + 联动按钮状态）----------
+    const arrange3DSyncCheckbox = document.getElementById('arrange3DSyncCheckbox');
+    // 勾选同步后：「2D模式排列」高亮（2D 排列时自动触发它）；「默认排列」（随机散布）禁用——
+    // 随机布局会破坏 2D↔3D 的同步映射
+    const _updateArrangeSyncUI = () => {
+      const on = !!arrange3DSyncCheckbox?.checked;
+      if (arrange3D2DBtn) {
+        arrange3D2DBtn.classList.toggle('sync-active', on);
+        arrange3D2DBtn.title = on ? '排列实时同步已开启：2D 排列时自动执行此排列' : '';
+      }
+      if (arrange3DDefaultBtn) {
+        arrange3DDefaultBtn.disabled = on;
+        arrange3DDefaultBtn.title = on ? '随机散布会破坏 2D↔3D 同步映射，请先取消勾选「排列实时同步」' : '';
+      }
+    };
+    if (arrange3DSyncCheckbox) {
+      arrange3DSyncCheckbox.checked = localStorage.getItem('astroknot_arrange3DSync') === '1';
+      arrange3DSyncCheckbox.addEventListener('change', () => {
+        localStorage.setItem('astroknot_arrange3DSync', arrange3DSyncCheckbox.checked ? '1' : '0');
+        _updateArrangeSyncUI();
+      });
+      _updateArrangeSyncUI();  // 启动时按持久化状态恢复按钮可用性
+    }
+    // 勾选后：2D 排列启动时同步映射 3D 布局（复用「2D模式排列」逻辑）。
+    // useArrangeTargets=true：3D 目标直接用与「自动排列」同源的 computeAutoArrangeTargets，
+    // 保证 3D 布局 = 2D 排列结果（此前自行推导布局与排列算法不一致导致不同步）。
+    // 3D 模式：3D 排列动画与 2D 排列动画并行播放；
+    // 2D 常驻模式：主循环暂停 updateArrange3D（3D 排列动画不会推进），
+    // 改用即时应用版本直接落位，切到 3D 即为同步后的布局
+    // allLayers：自动排列只排当前图层→false；所有图层排列→true
+    const sync3DIfEnabled = (allLayers) => {
+      if (!arrange3DSyncCheckbox?.checked) return;
+      if (appState.is2DView) {
+        apply3DWith2DLayoutImmediate(true, allLayers);
+      } else {
+        arrange3DWith2DLayout(true, allLayers);
+      }
+    };
+
     document.getElementById('arrangeTreeBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       if (appState.autoArrangeTreeLayout) appState.autoArrangeTreeLayout();
+      sync3DIfEnabled(false);
     });
 
     document.getElementById('arrangeAllLayersBtn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       arrangeAllLayers();
+      sync3DIfEnabled(true);
     });
 
     document.getElementById('arrange3DDefaultBtn')?.addEventListener('click', (e) => {

@@ -7,12 +7,13 @@
 import * as THREE from 'three';
 import { appState } from '../../module0_AppState.js';
 import { withHistory } from '../../module3_History.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
 import {
   generateRandomPosition, createNodeMesh,
   addSingleTreeLine
 } from '../../VisualComponents/index.js';
 import { hideContextMenu, hideBlankContextMenu } from '../../module8_ContextMenu.js';
+import { apply3DWith2DLayoutImmediate } from '../../UI/Resize.js';
 import {
   lastBlankMenuMouse
 } from '../shared.js';
@@ -255,6 +256,8 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
       placeNodeIn3D(newId, basePos);
       const pos = appState.positions.get(newId);
       createNodeMesh(newNode, pos);
+      // 3D 模式创建也同步登记 2D 位置（父节点附近），保证切换到 2D 时新节点就近出现
+      placeNodeIn2D(newId, parentId, offsetX, offsetY);
     }
 
     // 增量添加连线，避免销毁重建导致其他连线粒子动画重置
@@ -274,12 +277,24 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
       hideBlankContextMenu();
       if (appState.refreshTreePanel) appState.refreshTreePanel();
     }
-    if (appState.is2DView && appState.refresh2DView) appState.refresh2DView();
+    // 无条件刷新：refresh2DView 内部仅 2D 可见时才重绘，不可见时只置布局脏标记，
+    // 保证 3D 模式下增删改查后切到 2D 时布局重算（否则新节点不显示/已删节点残留）
+    if (appState.refresh2DView) appState.refresh2DView();
 
-    // 2D 模式下，创建子节点后自动重排子树，避免重叠
-    if (appState.is2DView && parentId && appState.arrangeSubtreeIncremental) {
+    // 创建子节点后自动重排子树，避免重叠（纯数据操作，3D 模式下同样安全）
+    if (parentId && appState.arrangeSubtreeIncremental) {
       appState.arrangeSubtreeIncremental(parentId);
       if (appState.refresh2DView) appState.refresh2DView();
+    }
+
+    // 勾选「排列实时同步」：2D 位置登记+子树重排完成后，把当前 2D 布局整体映射到 3D，
+    // 新节点在 3D 出现在父节点旁的映射位置（而非随机散布），3D 布局始终由 2D 决定。
+    // (true, false)：仅映射当前图层，且与「自动排列」同源（computeAutoArrangeTargets），
+    // 多图层项目下创建非首层节点也能正确同步（旧参数 false 只映射第一图层存储布局）
+    if (typeof localStorage !== 'undefined' &&
+        localStorage.getItem('astroknot_arrange3DSync') === '1' &&
+        typeof apply3DWith2DLayoutImmediate === 'function') {
+      try { apply3DWith2DLayoutImmediate(true, false); } catch (e) { console.warn('[node-factory] 3D 同步映射失败:', e); }
     }
 
     createdNode = newNode;

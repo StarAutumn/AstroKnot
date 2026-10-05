@@ -1,7 +1,7 @@
 // ============================================================
 //  overlay-video.js — 视频播放器 overlay 类型
 // ============================================================
-import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
+import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images/index.js';
 import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let _videoInput = null;

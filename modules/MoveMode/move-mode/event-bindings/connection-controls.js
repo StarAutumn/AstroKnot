@@ -4,7 +4,7 @@
 // ============================================================
 
 import { appState } from '../../../module0_AppState.js';
-import { showToast } from '../../../module5_SelectAndEdit.js';
+import { showToast } from '../../../SelectAndEdit/index.js';
 import { hideContextMenu } from '../../../module8_ContextMenu.js';
 
 export function bindConnectionControls() {

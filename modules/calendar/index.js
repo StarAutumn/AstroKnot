@@ -23,13 +23,13 @@
 // lunar-javascript 由 index.html 以 UMD script 加载，
 // 挂载 Solar/Lunar 到 window，lunar-utils.js / anniversary-store.js 直接读取 window.Solar/Lunar。
 
-import './schedule-store.js';        // 触发 localStorage 加载（副作用）
-import './schedule-forms.js';       // 触发表单/菜单 DOM 创建（副作用）
-import './anniversary-store.js';    // 触发纪念日数据加载（副作用）
-import './anniversary-form.js';     // 触发纪念日表单 DOM 创建（副作用）
-import './shift-form.js';           // 触发排班编辑弹窗 DOM 创建（副作用）
-import './diary-store.js';          // 触发日记数据模块加载（副作用）
-import './diary-context-menu.js';   // 触发日记右键菜单 DOM 创建（副作用）
+import './schedule/schedule-store.js';        // 触发 localStorage 加载（副作用）
+import './schedule/schedule-forms.js';       // 触发表单/菜单 DOM 创建（副作用）
+import './anniversary/anniversary-store.js';    // 触发纪念日数据加载（副作用）
+import './anniversary/anniversary-form.js';     // 触发纪念日表单 DOM 创建（副作用）
+import './shift/shift-form/index.js';     // 触发排班编辑弹窗 DOM 创建（副作用）
+import './diary/diary-store.js';          // 触发日记数据模块加载（副作用）
+import './diary/diary-context-menu.js';   // 触发日记右键菜单 DOM 创建（副作用）
 import { initCalendarPopup } from './calendar-popup.js';
 import { initWeather } from './weather.js';
 import { initNotifications } from './notification-store.js';

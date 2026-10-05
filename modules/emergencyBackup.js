@@ -7,8 +7,8 @@
 //  存储：userData/emergency-backups/（系统级持久），每项目只保留最新一份
 // ============================================================
 import { appState } from './module0_AppState.js';
-import { getEmergencySnapshot, restoreEmergencySnapshot, saveCurrentProjectData, renderProjectList } from './module2_TreeData.js';
-import { showToast } from './module5_SelectAndEdit.js';
+import { getEmergencySnapshot, restoreEmergencySnapshot, saveCurrentProjectData, renderProjectList } from './TreeData/index.js';
+import { showToast } from './SelectAndEdit/index.js';
 
 let _timer = null;          // 定时器句柄
 let _lastHash = '';         // 上次备份的内容哈希，用于跳过无变化写入

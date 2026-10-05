@@ -6,7 +6,7 @@ import { toolbarDock } from '../../dom-refs.js';
 import { getCurrentTinyFontColor, clearEditingFormulaImg } from '../../utils.js';
 import { openTinyMceCodeEditor } from '../code-blocks.js';
 import { insertTinyFile } from '../../images-files.js';
-import { openImagePicker, SHAPE_CATEGORIES, SHAPE_LABELS, buildShapeThumbnail, addShape, addTextBox, openVideoPicker, openAudioPicker, addExcel, addChart, insertSlideBreak, startPresentation, addSlideshow, insertOverlayBlock } from '../overlay/index.js';
+import { openImagePicker, SHAPE_CATEGORIES, SHAPE_LABELS, buildShapeThumbnail, addShape, addTextBox, openVideoPicker, openAudioPicker, addExcel, addChart, insertSlideBreak, startPresentation, insertOverlayBlock } from '../overlay/index.js';
 
 export function registerInsertTab(editor) {
   try {
@@ -388,30 +388,6 @@ export function registerInsertTab(editor) {
     });
   } catch (e) {
     console.error('[TinyMCE] custompresentation 注册失败:', e);
-  }
-
-  // ── 内嵌幻灯片（Swiper） ──
-  try {
-    editor.ui.registry.addIcon('slideshow-icon',
-      '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#aef0ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-      '<rect x="4" y="8" width="40" height="28" rx="3" fill="#16213e" fill-opacity="0.8"/>' +
-      '<line x1="4" y1="20" x2="44" y2="20" stroke-dasharray="3 2"/>' +
-      '<polygon points="18,14 24,17 18,20" fill="#aef0ff" fill-opacity="0.5"/>' +
-      '<polygon points="18,26 24,29 18,32" fill="#aef0ff" fill-opacity="0.5"/>' +
-      '<line x1="28" y1="15" x2="36" y2="19"/>' +
-      '<line x1="28" y1="27" x2="36" y2="31"/>' +
-      '</svg>'
-    );
-    editor.ui.registry.addButton('customslideshow', {
-      icon: 'slideshow-icon',
-      text: '幻灯片',
-      tooltip: '插入内嵌幻灯片（Swiper）',
-      onAction: function () {
-        addSlideshow();
-      }
-    });
-  } catch (e) {
-    console.error('[TinyMCE] customslideshow 注册失败:', e);
   }
 
   // ── 勾选框（可反复点击切换勾选状态） ──

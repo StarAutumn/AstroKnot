@@ -83,7 +83,7 @@ export function initCKEditor() {
       // ══════ 编辑 ══════
       'searchreplace selectall',
       // ══════ 插入 ══════
-      'customtable insertTinyImage customformula customlink codeeditor customcharmap customemoticons customdatetime insertcheckbox | insertOverlayBlock customexcel customchart customimage customshape customtextbox customaudio customvideo customslideshow fullscreen',
+      'customtable insertTinyImage customformula customlink codeeditor customcharmap customemoticons customdatetime insertcheckbox | insertOverlayBlock customexcel customchart customimage customshape customtextbox customaudio customvideo fullscreen',
       // ══════ 审阅 ══════
       'customslidebreak custompresentation',
       // ══════ 布局 ══════

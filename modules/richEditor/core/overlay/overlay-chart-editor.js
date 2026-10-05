@@ -1,7 +1,7 @@
 // ============================================================
 //  overlay-chart-editor.js — 图表编辑器弹窗（ECharts）
 // ============================================================
-import { renderAll, transactRender, overlayImages } from './overlay-images.js';
+import { renderAll, transactRender, overlayImages } from './overlay-images/index.js';
 import { CHART_TYPES, CHART_THEMES, extractChartData, buildEChartsOption } from './overlay-chart.js';
 
 let editorModal = null;

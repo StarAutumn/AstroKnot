@@ -73,10 +73,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.min.css">
     <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.min.js"></script>
 
-    <!-- Swiper.js 内嵌幻灯片/轮播 (MIT) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-
     <!-- Univer 表格编辑器 (Apache-2.0) -->
     <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
@@ -227,6 +223,9 @@
                     <div class="arrange-category">3D 模式</div>
                     <button class="arrange-tree-btn" id="arrange3DDefaultBtn">默认排列</button>
                     <button class="arrange-tree-btn" id="arrange3D2DBtn">2D模式排列</button>
+                    <label class="arrange-sync-row" title="勾选后：2D 自动排列 / 所有图层排列时实时同步映射到 3D，无需再点击「2D模式排列」">
+                        <input type="checkbox" id="arrange3DSyncCheckbox">排列实时同步 2D→3D
+                    </label>
                 </div>
             </div>
         </div>
@@ -1765,12 +1764,12 @@
          <div class="menu-row" id="openCodeEditorRow" style="display:none;">
             <button id="openHtmlEditorBtn" style="background:#4a2c6e;">💻 编辑代码</button>
         </div>
-        <div class="menu-row">
+        <div class="menu-row" id="nodeSizeRow">
             <label>节点大小</label>
             <input type="range" id="nodeSizeSlider" min="0.3" max="3" step="0.1" value="1">
             <span id="nodeSizeValue">1.0</span>
         </div>
-        <div class="menu-row">
+        <div class="menu-row" id="ringSpeedRow">
             <label>光环速度</label>
             <input type="range" id="ringSpeedSlider" min="0" max="5" step="0.1" value="1">
             <span id="ringSpeedValue">1.0</span>
@@ -1780,7 +1779,7 @@
             <input type="color" id="nodeFixedColorPicker" value="#ffffff">
             <button id="clearFixedColorBtn">清除</button>
         </div>
-        <div class="menu-row">
+        <div class="menu-row" id="nodeShapeRow">
             <label>2D节点图形</label>
             <select id="nodeShapeSelect"
                 style="flex:1; background:#07161f; border:1px solid #2c6e7e; color:#eef; padding:3px 6px; border-radius:8px; font-size:12px;">
@@ -1790,7 +1789,7 @@
                 <option value="stadium">跑道形</option>
             </select>
         </div>
-        <div class="menu-row">
+        <div class="menu-row" id="node3DShapeRow">
             <label>3D节点形状</label>
             <select id="node3DShapeSelect"
                 style="flex:1; background:#07161f; border:1px solid #2c6e7e; color:#eef; padding:3px 6px; border-radius:8px; font-size:12px;">
@@ -1841,19 +1840,19 @@
         <div class="menu-row" id="splitScreenRow" style="display:none;">
             <button id="splitScreenBtn" style="background:#2c5a6e;">分屏显示</button>
         </div>
-        <div class="menu-row">
+        <div class="menu-row" id="cardModeRow">
             <button id="toggleCardModeBtn" style="background:#4a5c2c;">📄 显示文本内容</button>
              <button id="toggleWebpageModeBtn" style="background:#2c4a5c;">🌐 变为网页节点</button>
         </div>
 
-        <div class="menu-row">
+        <div class="menu-row" id="connectionRow">
             <button id="addConnectionContextBtn" style="background:#2c6e7e;">添加连线</button>
             <button id="removeConnectionContextBtn" style="background:#6a3c3c;">删除连线</button>
         </div>
-        <div class="menu-row">
+        <div class="menu-row" id="folderRow">
             <button id="showNodeFolderBtn" style="background:#2c4a6c;">📂 打开文件所在位置</button>
         </div>
-        <div class="menu-row">
+        <div class="menu-row" id="opsRow">
             <button id="moveNodeBtn" style="background:#2c6e7e;">移动节点</button>
             <button id="copyNodeBtn" style="background:#2c5a7e;">复制节点</button>
             <button id="deleteNodeContextBtn" style="background:#6a2c2c;">删除该节点</button>
@@ -1870,6 +1869,9 @@
         </div>
         <div class="menu-row">
             <button id="addStepRootNodeBtn" style="background:rgba(106,60,122,0.6);">⬆ 新建步骤根节点</button>
+        </div>
+        <div class="menu-row">
+            <button id="drawFishboneTrunkBtn" style="background:rgba(163,102,45,0.6);">🐟 绘制主干线段</button>
         </div>
         <div class="menu-row" style="border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">
             <button id="undoBtn" title="撤销 (Ctrl+Z)" style="background:rgba(255,255,255,0.06);flex:1;">↩ 撤销</button>
@@ -2551,7 +2553,7 @@
     <div id="layerManagerModal" class="layer-panel" style="display:none;">
         <div class="layer-panel-header" id="layerPanelHeader">
             <span class="layer-panel-drag-handle">⠿</span>
-            <span class="layer-panel-title">🗂️ 图层管理</span>
+            <span class="layer-panel-title">图层管理</span>
             <div class="layer-panel-header-btns">
                 <button id="addLayerBtn" class="layer-header-btn">＋ 新建图层</button>
                 <button id="layerSpacingBtn" class="layer-header-btn layer-ghost-btn" title="3D 排列层间距">📏</button>
@@ -2613,6 +2615,32 @@
       if (typeof SystemStorage !== 'undefined') {
         SystemStorage.install();
       }
+    </script>
+    <!-- 标题栏窗口按钮早绑定：闪屏/模块加载期间即可最小化/最大化/关闭
+         （AstroKnot.js initTitleBar 会移除这些临时处理器并绑定正式逻辑） -->
+    <script>
+      (function () {
+        const api = window.api;
+        if (!api) return;
+        const earlyBind = (id, fn) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.__earlyHandler = fn;
+          el.addEventListener('click', fn);
+        };
+        earlyBind('tbMinBtn', () => api.winMinimize());
+        earlyBind('tbMaxBtn', () => api.winMaximize());
+        earlyBind('tbCloseBtn', () => (window.requestAppClose ? window.requestAppClose() : api.winClose()));
+        // 双击标题栏最大化/还原（正式绑定前的临时版本）
+        const titleBar = document.getElementById('appTitleBar');
+        if (titleBar) {
+          titleBar.__earlyDblHandler = (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            api.winMaximize();
+          };
+          titleBar.addEventListener('dblclick', titleBar.__earlyDblHandler);
+        }
+      })();
     </script>
     <script type="module" src="AstroKnot.js"></script>
 

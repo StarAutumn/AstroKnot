@@ -3,7 +3,7 @@
 // ============================================================
 import * as THREE from 'three';
 import { appState } from '../module0_AppState.js';
-import { setSelectedNode, updateSelectionUI } from '../module5_SelectAndEdit.js';
+import { setSelectedNode, updateSelectionUI } from '../SelectAndEdit/index.js';
 import { openRichEditor } from '../richEditor/index.js';
 import { state as richState } from '../richEditor/shared-state.js';
 

@@ -4,8 +4,10 @@
 import * as THREE from 'three';
 import { appState } from '../module0_AppState.js';
 import { rebuildAllLines } from '../VisualComponents/index.js';
-import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { saveCurrentProjectData } from '../TreeData/index.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { saveFishboneSegLabel, setFishboneSegColor, deleteFishboneSegmentWithHistory } from '../Fishbone/ops.js';
+import { highlightFishboneSeg, clearFishboneSegHighlight } from '../Fishbone/render3d.js';
 
 // 连线信息提示框（全局单例）
 const lineTooltip = document.createElement('div');
@@ -30,6 +32,10 @@ function _getCrossEdge(userData) {
 
 // ─── 辅助：通过 userData 查找 lineItem（引用对比 + ID 回退） ───
 function _getLineItem(userData) {
+  // 鱼骨段：仅在 fishboneLineItems 中引用匹配（不做 ID 回退，防止误配）
+  if (userData.edgeType === 'fishbone') {
+    return (appState.fishboneLineItems || []).find(it => it.line && it.line.mesh.userData === userData) || null;
+  }
   let item = appState.lineItems.find(it => it.line.mesh.userData === userData);
   if (item) return item;
   return appState.lineItems.find(it => {
@@ -42,12 +48,17 @@ function _getLineItem(userData) {
 
 function showLineTooltip(x, y, userData, zIndexOverride) {
   const { edgeType, parentId, startId, endId, label } = userData;
+  // 鱼骨段选中高亮：先清旧高亮（点击普通连线时也清除残留），再高亮当前段
+  clearFishboneSegHighlight();
+  if (edgeType === 'fishbone') highlightFishboneSeg(userData.trunkId, userData.segId);
   const startNode = appState.nodeMap.get(startId);
   const endNode = appState.nodeMap.get(endId);
   const startName = startNode ? startNode.name : startId;
   const endName = endNode ? endNode.name : endId;
   let infoText = '';
-  if (edgeType === 'tree') {
+  if (edgeType === 'fishbone') {
+    infoText = `🐟 鱼骨主干线段（第 ${(userData.segIndex || 0) + 1} 段）`;
+  } else if (edgeType === 'tree') {
     infoText = `父节点：${startName}<br>子节点：${endName}`;
   } else {
     infoText = `源节点：${startName}<br>目标节点：${endName}`;
@@ -65,13 +76,17 @@ function showLineTooltip(x, y, userData, zIndexOverride) {
       <input type="color" id="lineColorPicker" value="${userData.customColor || '#ffffff'}" style="width:36px; height:28px; padding:0; border:none; border-radius:6px; cursor:pointer;">
       <button id="lineColorReset" style="font-size:11px; padding:2px 8px; background:#2c4a5a; border:none; color:white; border-radius:12px; cursor:pointer;">默认</button>
     </div>
-    <div style="margin-top:8px; text-align:center;">
-      <button class="tooltip-save-label" title="保存标签"
-        style="display:inline-flex; align-items:center; gap:4px; background:#2c6e7e; border:none; color:white; padding:4px 18px; border-radius:14px; cursor:pointer; font-size:13px;">
-        <span>💾</span> <span>保存</span>
+    <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+      <button id="addFishboneBranchBtn" title="从该线段拉出一条分支"
+        style="width:100%; display:${userData.edgeType === 'fishbone' ? 'flex' : 'none'}; align-items:center; justify-content:center; gap:4px; background:#3a5a2c; border:none; color:white; padding:4px 10px; border-radius:12px; cursor:pointer; font-size:12px;">
+        <span>🌿</span> <span>添加分支</span>
+      </button>
+      <button id="addFishboneNodeBtn" title="从该线段拉出分支并在末端创建新节点"
+        style="width:100%; display:${userData.edgeType === 'fishbone' ? 'flex' : 'none'}; align-items:center; justify-content:center; gap:4px; background:#2c5a3a; border:none; color:white; padding:4px 10px; border-radius:12px; cursor:pointer; font-size:12px;">
+        <span>🟢</span> <span>新建节点</span>
       </button>
     </div>
-    <div id="lineTooltipDeleteSection" style="${userData.edgeType === 'cross' ? '' : 'display:none;'}margin-top:10px; border-top:1px solid rgba(255,100,100,0.15); padding-top:8px;">
+    <div id="lineTooltipDeleteSection" style="${(userData.edgeType === 'cross' || userData.edgeType === 'fishbone') ? '' : 'display:none;'}margin-top:10px; border-top:1px solid rgba(255,100,100,0.15); padding-top:8px;">
       <button id="deleteLineBtn"
         style="width:100%; display:flex; align-items:center; justify-content:center; gap:4px; background:#3a1515; border:1px solid #6a2a2a; color:#ff6666; padding:4px 10px; border-radius:12px; cursor:pointer; font-size:12px;">
         🗑️ 删除此连线
@@ -80,7 +95,6 @@ function showLineTooltip(x, y, userData, zIndexOverride) {
   `;
 
   const labelSpan = lineTooltip.querySelector('.tooltip-label-text');
-  const saveBtn = lineTooltip.querySelector('.tooltip-save-label');
 
   function ensureLabelObj(lineItem) {
     if (!lineItem.line.labelObj) {
@@ -116,6 +130,22 @@ function showLineTooltip(x, y, userData, zIndexOverride) {
   function saveLabelData() {
     const newContent = labelSpan.innerText.trim();
     const finalLabel = (newContent === '' || newContent === '点击添加标签') ? '' : newContent;
+    if (finalLabel === (userData.label || '')) return;   // 无变化不落盘
+    // 鱼骨段：写入 trunk.segs 元数据并持久化（early return，不走树/交叉连线分支）
+    if (userData.edgeType === 'fishbone') {
+      userData.label = finalLabel;
+      userData.labelHidden = false;
+      const lineItem = _getLineItem(userData);
+      if (lineItem) {
+        lineItem.line.mesh.userData.label = finalLabel;
+        lineItem.line.mesh.userData.labelHidden = false;
+        const labelObj = ensureLabelObj(lineItem);
+        labelObj.element.textContent = finalLabel || ' ';
+        labelObj.visible = lineItem.line.mesh.visible && appState.showAllLabels;
+      }
+      saveFishboneSegLabel(userData, finalLabel);
+      return;
+    }
     userData.label = finalLabel;
     // 统一由缩放面板的全局开关控制显示/隐藏，此处始终设为显示
     userData.labelHidden = false;
@@ -159,18 +189,51 @@ function showLineTooltip(x, y, userData, zIndexOverride) {
     }
   });
 
-  saveBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  // 回车 = 结束编辑；失焦（点击别处/关闭面板）自动保存，无独立保存按钮
+  labelSpan.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      labelSpan.blur();
+    }
+  });
+  labelSpan.addEventListener('blur', () => {
     saveLabelData();
   });
 
-  [labelSpan, saveBtn].forEach(el => {
-    el.addEventListener('mousedown', (e) => e.stopPropagation());
-  });
+  labelSpan.addEventListener('mousedown', (e) => e.stopPropagation());
+
+  // ── 添加分支按钮（仅鱼骨段显示）：关闭标签并进入分支绘制模式 ──
+  const branchBtn = lineTooltip.querySelector('#addFishboneBranchBtn');
+  if (branchBtn) {
+    branchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideLineTooltip();
+      // 经 appState 钩子调用（Fishbone/index.js 注册），规避 LineTooltip → mode.js 循环依赖
+      if (appState.startFishboneBranchDraw) appState.startFishboneBranchDraw();
+    });
+    branchBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  }
+
+  // ── 新建节点按钮（仅鱼骨段显示）：线上选起点 → 空白松手创建节点（松手点 = 左边缘中点）──
+  const nodeBtn = lineTooltip.querySelector('#addFishboneNodeBtn');
+  if (nodeBtn) {
+    nodeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideLineTooltip();
+      if (appState.startFishboneNodeCreate) appState.startFishboneNodeCreate();
+    });
+    nodeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  }
   const colorPicker = lineTooltip.querySelector('#lineColorPicker');
   const resetBtn = lineTooltip.querySelector('#lineColorReset');
 
   function applyLineColor(hexColor) {
+    // 鱼骨段：改色走 Fishbone/ops.js（reset 需重建该段连线），不走 treeEdgeCustomColors
+    if (userData.edgeType === 'fishbone') {
+      setFishboneSegColor(userData, hexColor);
+      userData.customColor = hexColor || null;
+      return;
+    }
     const lineItem = _getLineItem(userData);
     const key = `${userData.startId}->${userData.endId}`;
     // 独立持久化 Map，不依赖 3D lineItem 是否存在
@@ -216,6 +279,12 @@ function showLineTooltip(x, y, userData, zIndexOverride) {
   if (deleteBtn) {
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      // 鱼骨段：走 Fishbone/ops.js（withHistory 撤销体系，中段删除会分裂主干）
+      if (userData.edgeType === 'fishbone') {
+        hideLineTooltip();
+        deleteFishboneSegmentWithHistory(userData);
+        return;
+      }
       if (userData.edgeType !== 'cross') return;
       const edge = _getCrossEdge(userData);
       if (!edge) return;
@@ -236,8 +305,13 @@ function showLineTooltip(x, y, userData, zIndexOverride) {
   lineTooltip.style.display = 'block';
 }
 
-function hideLineTooltip() {
+function hideLineTooltip(keepFishboneHighlight = false) {
+  // 仅在 tooltip 实际显示过时才清鱼骨段高亮：module8 的 document click 监听
+  // 会无条件调 hideContextMenu→hideLineTooltip，tooltip 未显示时不该有清选中副作用
+  //（否则单击鱼骨线选中后，松开触发的 click 就把高亮清掉）
+  const wasVisible = lineTooltip.style.display !== 'none';
   lineTooltip.style.display = 'none';
+  if (!keepFishboneHighlight && wasVisible) clearFishboneSegHighlight();
 }
 
 export { showLineTooltip, hideLineTooltip };

@@ -660,37 +660,87 @@ export function registerListFeatures(editor, state) {
     setTimeout(function () { _syncAllNumberedLists(editor); }, 300);
   });
 
+  // ─── 自动重编号标题序号：增删/升降级标题后自动维护 .toc-num ───
+  // 仅对已启用过标题编号的文档生效（文档中存在 .toc-num 才注入），无变化时零写入
+  var _renumberTimer = null;
+  function _debouncedRenumber() {
+    if (_renumberTimer) clearTimeout(_renumberTimer);
+    _renumberTimer = setTimeout(function () {
+      _renumberTimer = null;
+      try { renumberAllHeadings(editor, false); } catch (e) {}
+    }, 200);
+  }
+  // 换行/删除：新增或移除标题的主要途径
+  editor.on('keyup', function (e) {
+    if (e.keyCode === 13 || e.keyCode === 8 || e.keyCode === 46) _debouncedRenumber();
+  });
+  // 常规输入（含拖拽移动、剪切等程序难以枚举的结构变化）
+  editor.on('input', _debouncedRenumber);
+  // 粘贴/整块替换
+  editor.on('SetContent', function () {
+    setTimeout(function () { try { renumberAllHeadings(editor, false); } catch (e) {} }, 120);
+  });
+  // 切换标题级别（h1↔h2 等）
+  editor.on('ExecCommand', function (e) {
+    var cmd = (e.command || '').toLowerCase();
+    if (/^(formatblock|mceblockformat)$/.test(cmd)) _debouncedRenumber();
+  });
+  // 撤销/重做后序号错位，重新计算
+  editor.on('undo', function () { setTimeout(function () { try { renumberAllHeadings(editor, false); } catch (e) {} }, 40); });
+  editor.on('redo', function () { setTimeout(function () { try { renumberAllHeadings(editor, false); } catch (e) {} }, 40); });
+  // 初始加载
+  editor.on('init', function () {
+    setTimeout(function () { try { renumberAllHeadings(editor, false); } catch (e) {} }, 350);
+  });
+
 }
 
 // ============================================================
 // 公用：重新编号所有语义化标题 (h1-h6 中带 .toc-num 的)
 // ============================================================
 
-export function renumberAllHeadings(editor) {
+export function renumberAllHeadings(editor, force) {
   var body = editor.getBody();
   if (!body) return;
 
   var headings = body.querySelectorAll('h1,h2,h3,h4,h5,h6');
   var counters = [0, 0, 0, 0, 0, 0];
+  var pending = [];   // 需要写入序号变化的标题
+  var hasAny = false; // 文档是否已启用过标题编号（存在 .toc-num）
 
-  editor.undoManager.transact(function () {
-    headings.forEach(function (el) {
-      var lv = parseInt(el.tagName.substring(1));
-      counters[lv - 1]++;
-      for (var i = lv; i < 6; i++) counters[i] = 0;
+  // 先算后写：预计算所有标题的目标序号，与现状比对
+  headings.forEach(function (el) {
+    var lv = parseInt(el.tagName.substring(1));
+    counters[lv - 1]++;
+    for (var i = lv; i < 6; i++) counters[i] = 0;
 
-      var num = counters.slice(0, lv).join('.');
+    var num = counters.slice(0, lv).join('.');
+    var numSpan = el.querySelector('.toc-num');
+    if (numSpan) {
+      hasAny = true;
+      if (numSpan.textContent === num) return;  // 序号已正确，跳过
+    }
+    pending.push({ el: el, num: num, numSpan: numSpan });
+  });
 
-      // 已有编号 span → 只更新文本
-      var numSpan = el.querySelector('.toc-num');
+  // 自动触发门控：文档从未启用过标题编号则不注入序号（保持旧行为，显式「重新编号」/插入目录才启用）
+  if (force === undefined) force = true;
+  if (!force && !hasAny) return;
+  if (pending.length === 0) return;  // 无变化零写入：不污染撤销栈、不扰动光标
+
+  var write = function () {
+    pending.forEach(function (p) {
+      var el = p.el;
+      var numSpan = p.numSpan;
       if (numSpan) {
-        numSpan.textContent = num;
+        // 已有编号 span → 只更新文本（contentEditable=false，不影响光标所在文本节点）
+        numSpan.textContent = p.num;
       } else {
         // 旧格式兼容：在开头插入编号 span
         numSpan = document.createElement('span');
         numSpan.className = 'toc-num';
         numSpan.contentEditable = 'false';
-        numSpan.textContent = num;
+        numSpan.textContent = p.num;
         el.insertBefore(numSpan, el.firstChild);
         el.insertBefore(document.createTextNode(' '), numSpan.nextSibling);
       }
@@ -701,5 +751,15 @@ export function renumberAllHeadings(editor) {
         el.setAttribute('data-toc-title', titleText);
       }
     });
-  });
+  };
+
+  if (force) {
+    // 手动触发：进入撤销栈，可整体撤销
+    editor.undoManager.transact(write);
+  } else if (editor.undoManager.ignore) {
+    // 自动触发：序号是派生数据，不占撤销栈；撤销/重做后会经 undo/redo 事件重新计算
+    editor.undoManager.ignore(write);
+  } else {
+    write();
+  }
 }

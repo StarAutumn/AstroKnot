@@ -8,11 +8,11 @@ import * as THREE from 'three';
 import { appState } from '../../module0_AppState.js';
 import { currentMouseWorld } from '../../2DView/shared.js';
 import { withHistory } from '../../module3_History.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
 import {
   generateRandomPosition, createNodeMesh, rebuildAllLines
 } from '../../VisualComponents/index.js';
-import { showToast } from '../../module5_SelectAndEdit.js';
+import { showToast } from '../../SelectAndEdit/index.js';
 import { generateNodeId } from './shared-internal.js';
 
 // ============================================================

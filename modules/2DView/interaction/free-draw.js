@@ -5,7 +5,7 @@
 import {
   canvas, isFreeDrawing, setFreeDrawing, freeDrawState, setFreeDrawState
 } from '../shared.js';
-import { completeAddConnectionWithWaypoints } from '../../module5_SelectAndEdit.js';
+import { completeAddConnectionWithWaypoints } from '../../SelectAndEdit/index.js';
 
 export function startFreeDraw(sourceNodeId, sourceAnchor) {
   setFreeDrawing(true);

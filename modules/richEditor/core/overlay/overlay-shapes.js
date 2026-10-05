@@ -1,5 +1,5 @@
 import { state } from '../../shared-state.js';
-import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
+import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images/index.js';
 import { getActiveBlockId, getBlockElement, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 let SHAPE_CATEGORIES = {

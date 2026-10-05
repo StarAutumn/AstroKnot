@@ -2,10 +2,10 @@
 //  Guide/index.js — 新手引导入口：交互式操作驱动引导
 //  用户每完成一步操作 → 自动检测 → 成功反馈 → 进入下一步
 // ============================================================
-import { getGuideStateMachine, isGuideCompleted, resetGuide } from './GuideCore.js';
+import { getGuideStateMachine, isGuideCompleted, resetGuide } from './GuideCore/index.js';
 import { GuideOverlay } from './GuideOverlay.js';
 import { Guide3D } from './Guide3D.js';
-import { isProjectEmpty, createTutorialProject, resetTutorialFlag } from './GuideTutorial.js';
+import { createTutorialProject, resetTutorialFlag } from './GuideTutorial.js';
 import { hideWindow } from '../UI/Window.js';
 
 let sm = null;
@@ -20,7 +20,7 @@ let _stepTransitionTimer = null;
 //  公开 API
 // ================================================================
 
-/** 启动引导（自动检测空项目并创建教程数据） */
+/** 启动引导（新建专门的教程项目并填充演示数据，不污染用户当前项目） */
 export async function startGuide() {
   try {
     resetTutorialFlag();
@@ -32,21 +32,22 @@ export async function startGuide() {
     if (!overlay) { overlay = new GuideOverlay(); overlay.mount(); }
     if (!guide3D) { guide3D = new Guide3D(); }
 
-    // 空白项目 → 自动创建教程演示数据
-    if (isProjectEmpty()) {
-      overlay.highlight(null);
-      overlay.updateContent({
-        title: '📦 准备教程项目',
-        html: '<p style="color:#cde;text-align:center;">正在为你创建演示知识图谱…</p>',
-      }, '');
-      overlay.updateButtons(true, false, '');
-      overlay.setBlockClicks(true);
-      overlay.show();
+    // 新建专门的教程项目，避免在用户当前项目中运行引导
+    overlay.highlight(null);
+    overlay.updateContent({
+      title: '📦 准备教程项目',
+      html: '<p style="color:#cde;text-align:center;">正在为你创建演示知识图谱…</p>',
+    }, '');
+    overlay.updateButtons(true, false, '');
+    overlay.setBlockClicks(true);
+    overlay.show();
 
-      const ok = await createTutorialProject();
-      if (!ok) {
-        console.warn('[Guide] 教程项目创建失败，将在空项目中启动引导');
-      }
+    // 动态导入（module2_TreeData 为主数据模块，避免顶层循环依赖）
+    const { createNewProject } = await import('../TreeData/index.js');
+    createNewProject('教程演示');
+    const ok = await createTutorialProject();
+    if (!ok) {
+      console.warn('[Guide] 教程项目创建失败，将在当前项目中启动引导');
     }
 
     sm.active = true;

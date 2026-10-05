@@ -2,7 +2,7 @@
 //  toolbar/toolbar-shape-format.js — 图形格式 tab
 // ============================================================
 
-import { overlayImages, getSelectedImages, renderAll, transactRender, rgbaToHex, deleteSelectedImage } from '../overlay/overlay-images.js';
+import { overlayImages, getSelectedImages, renderAll, transactRender, rgbaToHex, deleteSelectedImage } from '../overlay/overlay-images/index.js';
 import { SHAPE_CATEGORIES, SHAPE_LABELS, buildShapeThumbnail, addShape } from '../overlay/overlay-shapes.js';
 import { addTextBox, enterTextBoxEdit } from '../overlay/overlay-textbox.js';
 import { getActiveBlockId, getBlockWidth } from '../overlay/overlay-block.js';

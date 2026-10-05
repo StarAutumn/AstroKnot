@@ -6,10 +6,14 @@ import { toolbarDock } from '../../dom-refs.js';
 import { getCurrentTinyFontColor, clearEditingFormulaImg } from '../../utils.js';
 import { openTinyMceCodeEditor } from '../code-blocks.js';
 import { insertTinyFile } from '../../images-files.js';
-import { openImagePicker, SHAPE_CATEGORIES, SHAPE_LABELS, buildShapeThumbnail, addShape, addTextBox, openVideoPicker, openAudioPicker, addExcel, addChart, insertSlideBreak, startPresentation, addSlideshow, insertOverlayBlock, openDocumentPicker } from '../overlay/index.js';
-import { showToast } from '../../../module5_SelectAndEdit.js';
+import { openImagePicker, SHAPE_CATEGORIES, SHAPE_LABELS, buildShapeThumbnail, addShape, addTextBox, openVideoPicker, openAudioPicker, addExcel, addChart, insertSlideBreak, startPresentation, insertOverlayBlock, openDocumentPicker } from '../overlay/index.js';
+import { showToast } from '../../../SelectAndEdit/index.js';
+import { insertMindmapBlock, installMindmapEmbedSupport } from '../mindmap-embed/index.js';
 
 export function registerInsertTab(editor) {
+  // 内嵌脑图块：init/SetContent/undo/redo 后自动扫描激活
+  installMindmapEmbedSupport(editor);
+
   try {
     editor.ui.registry.addButton('toolbartoggle', {
       text: '▲',
@@ -244,6 +248,29 @@ export function registerInsertTab(editor) {
   }
 
   try {
+    editor.ui.registry.addIcon('custom-mindmap-icon',
+      '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#aef0ff" stroke-width="2.5" stroke-linecap="round">' +
+      '<rect x="18" y="20" width="12" height="8" rx="2" fill="#2c6e7e" fill-opacity="0.5"/>' +
+      '<rect x="2" y="6" width="10" height="7" rx="2" fill="#2c6e7e" fill-opacity="0.35"/>' +
+      '<rect x="36" y="6" width="10" height="7" rx="2" fill="#2c6e7e" fill-opacity="0.35"/>' +
+      '<rect x="2" y="35" width="10" height="7" rx="2" fill="#2c6e7e" fill-opacity="0.35"/>' +
+      '<rect x="36" y="35" width="10" height="7" rx="2" fill="#2c6e7e" fill-opacity="0.35"/>' +
+      '<path d="M18 24 L12 9.5 M30 24 L36 9.5 M18 28 L12 38.5 M30 28 L36 38.5"/>' +
+      '</svg>'
+    );
+    editor.ui.registry.addButton('custommindmap', {
+      icon: 'custom-mindmap-icon',
+      text: '脑图',
+      tooltip: '插入脑图（与 2D 视图同款操作：拖拽平移/滚轮缩放/双击加子节点/右键删除）',
+      onAction: function () {
+        insertMindmapBlock(editor);
+      }
+    });
+  } catch (e) {
+    console.error('[TinyMCE] custommindmap 注册失败:', e);
+  }
+
+  try {
     editor.ui.registry.addButton('customformula', {
       icon: 'highlight-bg-color',
       text: '公式',
@@ -473,29 +500,5 @@ export function registerInsertTab(editor) {
     });
   } catch (e) {
     console.error('[TinyMCE] custompresentation 注册失败:', e);
-  }
-
-  // ── 内嵌幻灯片（Swiper） ──
-  try {
-    editor.ui.registry.addIcon('slideshow-icon',
-      '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#aef0ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-      '<rect x="4" y="8" width="40" height="28" rx="3" fill="#16213e" fill-opacity="0.8"/>' +
-      '<line x1="4" y1="20" x2="44" y2="20" stroke-dasharray="3 2"/>' +
-      '<polygon points="18,14 24,17 18,20" fill="#aef0ff" fill-opacity="0.5"/>' +
-      '<polygon points="18,26 24,29 18,32" fill="#aef0ff" fill-opacity="0.5"/>' +
-      '<line x1="28" y1="15" x2="36" y2="19"/>' +
-      '<line x1="28" y1="27" x2="36" y2="31"/>' +
-      '</svg>'
-    );
-    editor.ui.registry.addButton('customslideshow', {
-      icon: 'slideshow-icon',
-      text: '幻灯片',
-      tooltip: '插入内嵌幻灯片（Swiper）',
-      onAction: function () {
-        addSlideshow();
-      }
-    });
-  } catch (e) {
-    console.error('[TinyMCE] customslideshow 注册失败:', e);
   }
 }

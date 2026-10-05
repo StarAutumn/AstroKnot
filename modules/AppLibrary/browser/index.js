@@ -2,7 +2,10 @@
 //  browser/index.js — 内置浏览器主入口
 //  编排 BrowserTabs / BrowserBookmarks / BrowserFind /
 //  BrowserZoom / BrowserContextMenu 子模块，
-//  创建 DOM 结构、绑定工具栏事件、处理快捷键
+//  创建 DOM 结构、绑定工具栏事件、处理快捷键；
+//  DevTools 分屏、设置菜单动作与 Cookies 面板方法
+//  以原型混入挂到 BrowserApp（见 browser-devtools.js /
+//  browser-settings.js），constructor 与编排逻辑保留在此
 // ============================================================
 
 import { BrowserTabs } from './browser-tabs.js';
@@ -14,6 +17,8 @@ import { BrowserZoom } from './browser-zoom.js';
 import { BrowserContextMenu } from './browser-context-menu.js';
 import { BrowserReader } from './browser-reader.js';
 import { BrowserPasswords } from './browser-passwords.js';
+import { devToolsMethods } from './browser-devtools.js';
+import { settingsMethods } from './browser-settings.js';
 import { inputToUrl, getSearchEngine, setSearchEngine, SEARCH_ENGINES, NEWTAB_URL, USER_AGENTS, getUserAgent, setUserAgent } from './utils.js';
 
 /** 确保浏览器 CSS 只加载一次 */
@@ -584,7 +589,7 @@ export class BrowserApp {
           scriptFn = window.__extractScheduleScript;
         } else {
           // 动态导入日历模块
-          const mod = await import('../../calendar/schedule-import.js');
+          const mod = await import('../../calendar/schedule/schedule-import.js');
           if (typeof mod.extractScheduleScript === 'function') scriptFn = mod.extractScheduleScript;
         }
         if (!scriptFn) {
@@ -672,232 +677,6 @@ export class BrowserApp {
     if (toggle) toggle.textContent = isPrivate ? '开' : '关';
   }
 
-  /** 处理设置菜单动作 */
-  _handleSettingsAction(action, itemEl) {
-    switch (action) {
-      case 'history':
-        // 触发历史按钮点击
-        this._history._btn.click();
-        break;
-      case 'private':
-        this._togglePrivateMode();
-        break;
-      case 'reader':
-        this._toggleReader(itemEl);
-        break;
-      case 'dark':
-        this._toggleDark(itemEl);
-        break;
-      case 'download':
-        this._changeDownloadDir(itemEl);
-        break;
-      case 'cookies':
-        this._showCookiesPanel();
-        break;
-      case 'password':
-        this._passwords._btn.click();
-        break;
-      case 'devtools':
-        this._toggleDevTools();
-        break;
-    }
-  }
-
-  /** 切换开发者工具（右侧可拖拽侧边栏） */
-  _toggleDevTools() {
-    if (this._devtoolsSidebar) {
-      this._closeDevTools();
-    } else {
-      this._openDevTools();
-    }
-  }
-
-  /** 打开 DevTools 侧边栏 */
-  _openDevTools() {
-    const tab = this._tabs.activeTab;
-    if (!tab || !tab.ready) return;
-
-    // 获取目标 webview 的 webContentsId
-    let targetId;
-    try { targetId = tab.webview.getWebContentsId(); } catch (_) { return; }
-    if (!targetId) return;
-
-    this._devtoolsTargetId = targetId;
-
-    // 创建侧边栏容器（只有标题栏，内容区域由 BrowserWindow 填充）
-    const sidebar = document.createElement('div');
-    sidebar.className = 'app-browser-devtools-sidebar';
-
-    const header = document.createElement('div');
-    header.className = 'app-browser-devtools-header';
-    header.innerHTML = '<span>开发者工具</span><button class="app-browser-devtools-close" title="关闭">✕</button>';
-    sidebar.appendChild(header);
-
-    // 内容区域占位（BrowserWindow 会叠加在此区域上方）
-    const contentArea = document.createElement('div');
-    contentArea.className = 'app-browser-devtools-content-area';
-    sidebar.appendChild(contentArea);
-
-    const resizer = document.createElement('div');
-    resizer.className = 'app-browser-devtools-resizer';
-
-    this._content.appendChild(resizer);
-    this._content.appendChild(sidebar);
-    this._content.classList.add('devtools-open');
-
-    this._devtoolsSidebar = sidebar;
-    this._devtoolsResizer = resizer;
-    this._devtoolsContentArea = contentArea;
-
-    header.querySelector('.app-browser-devtools-close').addEventListener('click', () => this._closeDevTools());
-
-    // 通过 IPC 让主进程创建 DevTools BrowserWindow
-    if (window.api && window.api.browserAttachDevTools) {
-      window.api.browserAttachDevTools(targetId).then(() => {
-        // 等 BrowserWindow 创建后更新位置
-        setTimeout(() => this._updateDevToolsBounds(), 200);
-      });
-    }
-
-    // 监听主窗口移动/调整大小，同步更新 DevTools 位置
-    if (window.api && window.api.onBrowserDevToolsBoundsChanged) {
-      window.api.onBrowserDevToolsBoundsChanged(() => this._updateDevToolsBounds());
-    }
-
-    // 绑定拖拽调整宽度
-    this._bindDevToolsResize();
-  }
-
-  /** 更新 DevTools BrowserWindow 的位置和大小 */
-  _updateDevToolsBounds() {
-    if (!this._devtoolsContentArea) return;
-    const rect = this._devtoolsContentArea.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) return;
-    if (window.api && window.api.browserUpdateDevToolsBounds) {
-      window.api.browserUpdateDevToolsBounds(
-        Math.round(rect.left),
-        Math.round(rect.top),
-        Math.round(rect.width),
-        Math.round(rect.height)
-      );
-    }
-  }
-
-  /** 关闭 DevTools 侧边栏 */
-  _closeDevTools() {
-    if (!this._devtoolsSidebar) return;
-    // 通知主进程关闭 DevTools
-    if (this._devtoolsTargetId && window.api && window.api.browserCloseDevTools) {
-      window.api.browserCloseDevTools(this._devtoolsTargetId);
-    }
-    // 移除 bounds 监听
-    if (window.api && window.api.removeBrowserDevToolsBoundsChanged) {
-      window.api.removeBrowserDevToolsBoundsChanged();
-    }
-    this._devtoolsSidebar.remove();
-    this._devtoolsResizer?.remove();
-    this._content.classList.remove('devtools-open');
-    // 清除内联样式
-    const bodyEl = this._content.querySelector('.app-browser-body');
-    if (bodyEl) bodyEl.style.marginRight = '';
-    this._devtoolsSidebar = null;
-    this._devtoolsResizer = null;
-    this._devtoolsContentArea = null;
-    this._devtoolsTargetId = null;
-  }
-
-  /** 绑定拖拽调整 DevTools 侧边栏宽度 */
-  _bindDevToolsResize() {
-    const resizer = this._devtoolsResizer;
-    if (!resizer) return;
-    resizer.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      const sidebar = this._devtoolsSidebar;
-      if (!sidebar) return;
-      resizer.setPointerCapture(e.pointerId);
-      resizer.classList.add('dragging');
-      const startX = e.clientX;
-      const startWidth = sidebar.offsetWidth;
-      const bodyEl = this._content.querySelector('.app-browser-body');
-
-      const moveHandler = (ev) => {
-        let width = startWidth + (startX - ev.clientX);
-        if (width < 200) width = 200;
-        if (width > 800) width = 800;
-        sidebar.style.width = width + 'px';
-        resizer.style.right = width + 'px';
-        if (bodyEl) bodyEl.style.marginRight = width + 'px';
-        // 同步更新 DevTools 窗口位置
-        this._updateDevToolsBounds();
-      };
-      const upHandler = (ev) => {
-        resizer.classList.remove('dragging');
-        try { resizer.releasePointerCapture(ev.pointerId); } catch (_) {}
-        resizer.removeEventListener('pointermove', moveHandler);
-        resizer.removeEventListener('pointerup', upHandler);
-        resizer.removeEventListener('pointercancel', upHandler);
-        this._updateDevToolsBounds();
-      };
-      resizer.addEventListener('pointermove', moveHandler);
-      resizer.addEventListener('pointerup', upHandler);
-      resizer.addEventListener('pointercancel', upHandler);
-    });
-  }
-
-  /** 切换阅读模式 */
-  async _toggleReader(itemEl) {
-    const tabId = this._tabs.activeTabId;
-    if (!tabId) return;
-    const on = await this._reader.toggleReader(tabId);
-    const toggle = itemEl.querySelector('.app-browser-settings-toggle');
-    if (toggle) toggle.textContent = on ? '开' : '关';
-  }
-
-  /** 切换暗色模式 */
-  async _toggleDark(itemEl) {
-    const tabId = this._tabs.activeTabId;
-    if (!tabId) return;
-    const on = await this._reader.toggleDark(tabId);
-    const toggle = itemEl.querySelector('.app-browser-settings-toggle');
-    if (toggle) toggle.textContent = on ? '开' : '关';
-  }
-
-  /** 修改下载目录 */
-  async _changeDownloadDir(itemEl) {
-    if (window.api && window.api.selectFolder) {
-      const result = await window.api.selectFolder();
-      if (result && !result.canceled && result.path) {
-        const newPath = result.path;
-        if (window.api.browserSetDownloadDir) {
-          await window.api.browserSetDownloadDir(newPath);
-        }
-        const label = itemEl.querySelector('.app-browser-settings-download-path');
-        if (label) {
-          const parts = newPath.replace(/\\/g, '/').split('/');
-          label.textContent = parts.slice(-2).join('/');
-          label.title = newPath;
-        }
-      }
-    }
-  }
-
-  /** 初始化下载路径显示 */
-  async _initDownloadPathDisplay(settingsDropdown) {
-    try {
-      if (window.api && window.api.browserGetDownloadDir) {
-        const dir = await window.api.browserGetDownloadDir();
-        if (dir) {
-          const label = settingsDropdown.querySelector('.app-browser-settings-download-path');
-          if (label) {
-            const parts = dir.replace(/\\/g, '/').split('/');
-            label.textContent = parts.slice(-2).join('/');
-            label.title = dir;
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
   /** 网页截图 */
   async _captureScreenshot() {
     const tab = this._tabs.activeTab;
@@ -920,89 +699,6 @@ export class BrowserApp {
     }
   }
 
-  /** 显示 Cookies 管理面板 */
-  async _showCookiesPanel() {
-    const cookiesPanel = this._content.querySelector('.app-browser-cookies-panel');
-    if (!cookiesPanel) return;
-    if (cookiesPanel.style.display !== 'none') {
-      cookiesPanel.style.display = 'none';
-      return;
-    }
-    const partition = this._tabs.privateMode ? 'private-browsersession' : 'persist:browsersession';
-    let cookies = [];
-    if (window.api && window.api.browserGetCookies) {
-      const result = await window.api.browserGetCookies(partition);
-      if (Array.isArray(result)) cookies = result;
-    }
-    // 按域名分组
-    const groups = {};
-    for (const c of cookies) {
-      const domain = c.domain || '(unknown)';
-      if (!groups[domain]) groups[domain] = [];
-      groups[domain].push(c);
-    }
-    let html = `
-      <div class="app-browser-cookies-header">
-        <span>Cookies 管理 (${cookies.length})</span>
-        <button class="app-browser-cookies-clear-btn" title="清空所有 Cookies">清空</button>
-      </div>
-      <div class="app-browser-cookies-list">
-    `;
-    if (cookies.length === 0) {
-      html += '<div class="app-browser-cookies-empty">暂无 Cookies</div>';
-    } else {
-      for (const [domain, items] of Object.entries(groups)) {
-        html += `<div class="app-browser-cookies-group">
-          <div class="app-browser-cookies-domain">${domain.replace(/</g, '&lt;')} <span class="app-browser-cookies-count">${items.length}</span></div>`;
-        for (const c of items) {
-          const valDisplay = (c.value || '').length > 30 ? (c.value).substring(0, 30) + '…' : (c.value || '');
-          const url = `http${c.secure ? 's' : ''}://${(c.domain || '').replace(/^\./, '')}${c.path || '/'}`;
-          html += `<div class="app-browser-cookie-item" data-url="${url.replace(/"/g, '&quot;')}" data-name="${(c.name || '').replace(/"/g, '&quot;')}">
-            <span class="app-browser-cookie-name">${(c.name || '').replace(/</g, '&lt;')}</span>
-            <span class="app-browser-cookie-value">${valDisplay.replace(/</g, '&lt;')}</span>
-            <button class="app-browser-cookie-delete" title="删除">✕</button>
-          </div>`;
-        }
-        html += '</div>';
-      }
-    }
-    html += '</div>';
-    cookiesPanel.innerHTML = html;
-    cookiesPanel.style.display = 'block';
-
-    // 绑定删除事件
-    cookiesPanel.querySelectorAll('.app-browser-cookie-delete').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const item = btn.closest('.app-browser-cookie-item');
-        const url = item?.dataset.url;
-        const name = item?.dataset.name;
-        if (url && name && window.api && window.api.browserDeleteCookie) {
-          await window.api.browserDeleteCookie(partition, url, name);
-          this._showCookiesPanel(); // 刷新
-        }
-      });
-    });
-    // 清空事件
-    const clearBtn = cookiesPanel.querySelector('.app-browser-cookies-clear-btn');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', async () => {
-        if (window.api && window.api.browserClearCookies) {
-          await window.api.browserClearCookies(partition);
-          this._showCookiesPanel();
-        }
-      });
-    }
-    // 点击外部关闭
-    const closeHandler = (e) => {
-      if (!cookiesPanel.contains(e.target)) {
-        cookiesPanel.style.display = 'none';
-        document.removeEventListener('mousedown', closeHandler);
-      }
-    };
-    setTimeout(() => document.addEventListener('mousedown', closeHandler), 0);
-  }
-
   /** 显示 Toast 提示 */
   _showToast(msg) {
     let toast = this._content.querySelector('.app-browser-toast');
@@ -1017,3 +713,7 @@ export class BrowserApp {
     this._toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 2000);
   }
 }
+
+// ── 功能块混入：DevTools 分屏 / 设置菜单动作 + Cookies 面板 ──
+// 方法体使用 this 访问实例状态，原型混入与写在 class 体内完全等价
+Object.assign(BrowserApp.prototype, devToolsMethods, settingsMethods);

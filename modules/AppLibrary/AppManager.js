@@ -7,7 +7,7 @@
 import { GithubApiClient } from './ide/core/github-api.js';
 import { VirtualFileSystem } from './ide/core/virtual-fs.js';
 import { createNodeInProject } from '../MoveMode/move-mode/index.js';
-import { saveCurrentProjectData } from '../module2_TreeData.js';
+import { saveCurrentProjectData } from '../TreeData/index.js';
 import { appState } from '../module0_AppState.js';
 
 // ── 二进制文件扩展名（与 main.js 保持一致）──
@@ -243,29 +243,33 @@ export class AppManager {
 
       log('ok', `读取完成: ${succeeded} 个文件`);
 
-      // 8. 写入磁盘
+      // 8. 写入磁盘 —— 此后任何异常都回滚已写入的应用目录，
+      // 避免 npm install/构建中断时留下「有目录无注册记录」的孤儿目录
+      let diskWritten = false;
+      try {
       log('info', '同步到磁盘...');
       const fileSystem = vfs.toJSON();
       const syncResult = await window.api.syncAppDirectory(appId, fileSystem);
+      diskWritten = !!(syncResult && syncResult.success);
 
       // 9. 检测 package.json 并自动安装依赖
       const hasPackageJson = files.some(f => f.path === 'package.json');
       if (hasPackageJson && syncResult.success && syncResult.diskPath) {
         log('info', '检测到 package.json，准备安装依赖...');
-        
+
         try {
           log('info', '正在安装依赖 (npm install)...');
           const installResult = await window.api.runCommand('npm install', syncResult.diskPath);
-          
+
           if (installResult.code !== 0) {
             log('warn', `npm install 失败: ${installResult.stderr || installResult.stdout}`);
           } else {
             log('ok', '依赖安装完成');
-            
+
             // 尝试构建
             log('info', '正在构建项目 (npm run build)...');
             const buildResult = await window.api.runCommand('npm run build', syncResult.diskPath);
-            
+
             if (buildResult.code !== 0) {
               log('warn', `构建失败（可忽略）: ${buildResult.stderr?.split('\n')[0] || ''}`);
             } else {
@@ -316,6 +320,16 @@ export class AppManager {
       this._notifyUpdate();
 
       return app;
+      } catch (err) {
+        // 回滚：删除已写入但未注册的应用目录
+        if (diskWritten) {
+          try {
+            await window.api.deleteApp(appId);
+            log('warn', '导入失败，已回滚残留的应用目录');
+          } catch (_) { /* 回滚失败则留待启动时孤儿扫描清理 */ }
+        }
+        throw err;
+      }
 
     } finally {
       this._abortController = null;
@@ -489,6 +503,9 @@ export class AppManager {
     if (app && app.builtin) {
       throw new Error('内置应用不可删除');
     }
+    // 先停止运行中的实例（关闭窗口/iframe + 停掉静态服务器），
+    // 避免 Windows 下文件占用导致 rmSync 中途失败留下半删目录
+    try { window.AppRunner?.close?.(appId); } catch (_) { /* 未打开则忽略 */ }
     await window.api.deleteApp(appId);
     this._apps = this._apps.filter(a => a.id !== appId);
     await this._saveAppList();

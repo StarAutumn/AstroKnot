@@ -461,6 +461,32 @@ function bindAppLibraryIPC(mainWindow) {
     }
   });
 
+  // 扫描「有目录无注册记录」的孤儿应用目录（导入中断/回滚失败的产物）
+  ipcMain.handle('scan-orphan-apps', async () => {
+    try {
+      const appsDir = dataSettings.getAppsDir();
+      if (!fs.existsSync(appsDir)) return { success: true, orphans: [] };
+      let manifest = { apps: [] };
+      const indexPath = path.join(appsDir, 'index.json');
+      if (fs.existsSync(indexPath)) {
+        try {
+          manifest = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) || { apps: [] };
+        } catch (_) { /* 清单损坏则按空处理，只报目录 */ }
+      }
+      const registered = new Set((manifest.apps || []).map(a => a.id));
+      const orphans = [];
+      for (const name of fs.readdirSync(appsDir)) {
+        // 应用目录格式：app_<时间戳>_<随机码>，其余（index.json/ports.json 等）跳过
+        if (!/^app_[0-9]+_[0-9a-z]+$/.test(name)) continue;
+        if (!registered.has(name)) orphans.push(name);
+      }
+      return { success: true, orphans };
+    } catch (err) {
+      console.error('[scan-orphan-apps] 错误:', err);
+      return { success: false, error: err.message, orphans: [] };
+    }
+  });
+
   // 在资源管理器中打开应用所在文件夹
   ipcMain.handle('open-app-in-explorer', async (event, appId) => {
     try {

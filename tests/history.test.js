@@ -9,7 +9,7 @@ vi.mock('../modules/VisualComponents/index.js', () => ({
   buildSceneFromTree: vi.fn(),
 }));
 
-vi.mock('../modules/module2_TreeData.js', () => ({
+vi.mock('../modules/TreeData/index.js', () => ({
   saveCurrentProjectData: vi.fn(),
   renderProjectList: vi.fn(),
 }));

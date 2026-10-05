@@ -1,10 +1,10 @@
 // ============================================================
 //  UI/Toolbar/index.js — 工具栏协调器
 // ============================================================
-import { initSettingsPopup } from './settings-popup.js';
+import { initSettingsPopup } from './settings-popup/index.js';
 import { bindSimpleToolbarButtons } from './toolbar-buttons.js';
 import { initVersionMapModal } from './version-map-modal.js';
-import { initGitHubLogin } from './github-login.js';
+import { initGitHubLogin } from './github-login/index.js';
 import { showPrompt } from '../../module4_Confirm.js';
 
 export function bindToolbarButtons() {

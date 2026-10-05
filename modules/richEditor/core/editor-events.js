@@ -26,6 +26,8 @@ export function bindEditorPostInit(editors) {
       if (editorDoc) {
         editorDoc.addEventListener('contextmenu', function (e) {
           if (!body.contains(e.target)) return;
+          // 内嵌脑图块：右键菜单由块内 canvas 自绘（capture 阶段先于块内监听，这里直接放行）
+          if (e.target.closest && e.target.closest('.mindmap-embed')) return;
           let overlayImg = e.target.closest('.oly-img-item');
           if (overlayImg) return;
           let wrapper = e.target.closest('.tmce-resizable-image-wrapper');

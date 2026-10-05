@@ -22,9 +22,10 @@
 
 import * as THREE from 'three';
 import { appState } from './module0_AppState.js';
-import { saveCurrentProjectData, renderProjectList } from './module2_TreeData.js';
+import { saveCurrentProjectData, renderProjectList } from './TreeData/index.js';
 import { buildSceneFromTree } from './VisualComponents/index.js';
-import { clearSelected, showToast } from './module5_SelectAndEdit.js';
+import { clearSelected, showToast } from './SelectAndEdit/index.js';
+import { rebuildFishbone3D } from './Fishbone/render3d.js';
 
 
 /**
@@ -175,8 +176,16 @@ export function applyLoadedData(data, folderName, folderPath) {
     }
   }
 
+  // 7d. 恢复鱼骨图主干线段
+  appState.fishboneTrunks = Array.isArray(data.fishboneTrunks)
+    ? JSON.parse(JSON.stringify(data.fishboneTrunks))
+    : [];
+
   // 8. 重建 3D 场景和连线
   buildSceneFromTree();
+
+  // 8b. 重建鱼骨主干的 3D 渲染
+  rebuildFishbone3D();
 
   // 9. 恢复相机视角
   const cv = data.cameraView || { position: { x: 6, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } };
@@ -300,6 +309,7 @@ export async function saveNetworkToFile() {
     nodeSandboxHistories: sandboxHistories,
     nodeActiveModes: activeModes,
     treeEdgeLabels: tel,
+    fishboneTrunks: JSON.parse(JSON.stringify(appState.fishboneTrunks || [])),
     savePath: appState.currentProjectSavePath,
     cameraView: {
       position: { x: appState.camera?.position?.x || 6, y: appState.camera?.position?.y || 4.5, z: appState.camera?.position?.z || 8 },

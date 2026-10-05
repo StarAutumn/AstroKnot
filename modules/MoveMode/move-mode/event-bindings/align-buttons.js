@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { appState } from '../../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../../TreeData/index.js';
 import { createNodeMesh, rebuildAllLines } from '../../../VisualComponents/index.js';
 import { hideContextMenu } from '../../../module8_ContextMenu.js';
 

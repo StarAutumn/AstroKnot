@@ -3,7 +3,8 @@
 // ============================================================
 
 import { appState } from '../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
+import { renderReadonlyMindmaps } from '../../richEditor/core/mindmap-embed/index.js';
 import {
   canvas, visible, transform,
   BASE_NODE_WIDTH, BASE_NODE_HEIGHT
@@ -395,6 +396,7 @@ export function syncCardOverlays() {
       if (div._lastHtml !== html) {
         div.innerHTML = html;
         div._lastHtml = html;
+        renderReadonlyMindmaps(div);  // 只读渲染正文中的内嵌脑图块
       }
     }
   }

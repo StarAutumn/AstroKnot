@@ -1,4 +1,4 @@
-import { showToast } from '../../../module5_SelectAndEdit.js';
+import { showToast } from '../../../SelectAndEdit/index.js';
 
 export class SandboxMenuBar {
   constructor(ctx) {

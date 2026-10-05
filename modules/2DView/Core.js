@@ -5,8 +5,8 @@
 
 import { appState } from '../module0_AppState.js';
 import { updateLinesVis, clearAllCardOverlays3D, fadeCardOverlays3D, setViewTransitioning } from '../VisualComponents/index.js';
-import { saveCurrentProjectData } from '../module2_TreeData.js';
-import { showToast } from '../module5_SelectAndEdit.js';
+import { saveCurrentProjectData } from '../TreeData/index.js';
+import { showToast } from '../SelectAndEdit/index.js';
 import {
   initCanvas, canvas, ctx, container, visible, setVisible,
   transform, setTransform, TRANSITION_DURATION,
@@ -90,6 +90,9 @@ export function show2DView(noAnimation) {
   setViewTransitioning(true);
   sync2DSettings();
   resizeCanvas();
+  // 兜底置脏：3D 模式期间的任何数据变更（增删节点/连线等）在进入 2D 时强制重算布局，
+  // 保证 2D 呈现与 3D 操作实时同步（新节点出现、已删节点消失）
+  mark2DDirty();
   draw();
   updateModeBtnText();
   if (appState.updateGlowBtnText) appState.updateGlowBtnText();

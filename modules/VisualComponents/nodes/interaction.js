@@ -4,7 +4,8 @@
 // ============================================================
 import * as THREE from 'three';
 import { appState } from '../../module0_AppState.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
+import { renderLabelCanvas, LABEL_BASE_SCALE } from './label-canvas.js';
 
 // 慢双击重命名状态
 let _lastLabelClickId = null;
@@ -117,48 +118,9 @@ function _startLabelRenameSprite(node) {
   });
 }
 
-// 更新 Sprite 标签的纹理文字
+// 更新 Sprite 标签的纹理文字（保留折叠徽标状态）
 function _updateLabelSpriteTexture(sprite, text) {
-  const fontSize = 28;
-  const padX = 20;
-  const padY = 8;
-  const bgH = fontSize + padY * 2;
-
-  const tmpCanvas = document.createElement('canvas');
-  const tmpCtx = tmpCanvas.getContext('2d');
-  tmpCtx.font = `${fontSize}px system-ui, sans-serif`;
-  const textWidth = tmpCtx.measureText(text).width;
-  const bgW = Math.max(textWidth + padX * 2, bgH * 2.2);
-
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(bgW);
-  canvas.height = Math.ceil(bgH);
-  const ctx = canvas.getContext('2d');
-
-  const r = bgH / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.85)';
-  ctx.beginPath();
-  ctx.moveTo(r, 0);
-  ctx.lineTo(bgW - r, 0);
-  ctx.arcTo(bgW, 0, bgW, r, r);
-  ctx.lineTo(bgW, bgH - r);
-  ctx.arcTo(bgW, bgH, bgW - r, bgH, r);
-  ctx.lineTo(r, bgH);
-  ctx.arcTo(0, bgH, 0, bgH - r, r);
-  ctx.lineTo(0, r);
-  ctx.arcTo(0, 0, r, 0, r);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(68,68,68,1)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `${fontSize}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, bgW / 2, bgH / 2);
+  const { canvas, bgW, bgH } = renderLabelCanvas(text, sprite.userData._labelBadge || null);
 
   if (sprite.material.map) sprite.material.map.dispose();
   sprite.material.map = new THREE.CanvasTexture(canvas);
@@ -167,6 +129,7 @@ function _updateLabelSpriteTexture(sprite, text) {
 
   // 更新 Sprite 宽高比
   const aspect = bgW / bgH;
-  const scale = 0.02;
-  sprite.scale.set(scale * aspect, scale, 1);
+  sprite.scale.set(LABEL_BASE_SCALE * aspect, LABEL_BASE_SCALE, 1);
+  sprite.userData._labelBaseW = LABEL_BASE_SCALE * aspect;
+  sprite.userData._labelBaseH = LABEL_BASE_SCALE;
 }

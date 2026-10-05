@@ -8,24 +8,24 @@ import {
   getMondayOf, getWeekNumber, isWeeklyActiveAtWeek,
   colorForTitle, parseSlotRange,
   removeEvent, removeWeeklyAt, clearAll, getStats
-} from './schedule-store.js';
+} from './schedule/schedule-store.js';
 import {
   openEventForm, openWeeklyForm, openSlotMenu,
   hideEventForm, hideSlotMenu, hideSlotTimeForm, hideFirstWeekForm,
   addSlotClicked, openFirstWeekForm
-} from './schedule-forms.js';
+} from './schedule/schedule-forms.js';
 import {
   renderAnniversaryView, bindAnniversaryEvents,
   setRefreshAnniversary
-} from './anniversary-view.js';
-import { hideAnniversaryForm } from './anniversary-form.js';
+} from './anniversary/anniversary-view.js';
+import { hideAnniversaryForm } from './anniversary/anniversary-form.js';
 import { getTabs, addTab, removeTab } from './items-tabs-store.js';
 import { openAddTabForm, hideAddTabForm } from './add-tab-form.js';
-import { openShiftForm, editShiftForm } from './shift-form.js';
-import { getShiftSchedules, getDayShifts, removeShiftSchedule, loadActiveShiftId, saveActiveShiftId } from './shift-store.js';
+import { openShiftForm, editShiftForm } from './shift/shift-form/index.js';
+import { getShiftSchedules, getDayShifts, removeShiftSchedule, loadActiveShiftId, saveActiveShiftId } from './shift/shift-store.js';
 import { getNotificationHistory, clearNotificationHistory, removeNotificationItem } from './notification-store.js';
-import { loadDiaryIndex, hasDiary, fmtDiaryDate } from './diary-store.js';
-import { openDiaryMenu, hideDiaryMenu } from './diary-context-menu.js';
+import { loadDiaryIndex, hasDiary, fmtDiaryDate } from './diary/diary-store.js';
+import { openDiaryMenu, hideDiaryMenu } from './diary/diary-context-menu.js';
 
 const { monthNames, weekHeaders, weekDayNames, weekColOrder } = state;
 
@@ -817,7 +817,7 @@ function bindPopupEvents() {
     if (importBtn && state.calView === 'week') {
       e.stopPropagation();
       // 动态导入，避免循环依赖
-      import('./schedule-import.js').then(function (mod) {
+      import('./schedule/schedule-import.js').then(function (mod) {
         if (typeof mod.openScheduleImport === 'function') {
           mod.openScheduleImport(refreshPopup);
         }

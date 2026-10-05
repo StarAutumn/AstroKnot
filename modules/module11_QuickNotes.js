@@ -5,9 +5,9 @@
 // ============================================================
 
 import { appState } from './module0_AppState.js';
-import { escapeHtml, hideItemContextMenu, showItemContextMenu, saveCurrentProjectData } from './module2_TreeData.js';
+import { escapeHtml, hideItemContextMenu, showItemContextMenu, saveCurrentProjectData } from './TreeData/index.js';
 import { showConfirm } from './module4_Confirm.js';
-import { showToast } from './module5_SelectAndEdit.js';
+import { showToast } from './SelectAndEdit/index.js';
 import { withHistory } from './module3_History.js';
 import { openRichEditorCK, initCKEditor } from './richEditor/index.js';
 

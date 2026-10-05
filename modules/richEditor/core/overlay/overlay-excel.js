@@ -1,7 +1,7 @@
 // ============================================================
 //  overlay-excel.js — 表格 overlay 类型（Univer 预览 + 编辑）
 // ============================================================
-import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY } from './overlay-images.js';
+import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY } from './overlay-images/index.js';
 import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 import { openExcelEditor } from './overlay-excel-editor.js';
 

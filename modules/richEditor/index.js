@@ -4,7 +4,7 @@
 
 // ─── 原有导出 ───
 export { initCKEditor, saveCurrentContent, openRichEditor, closeModal, initRichEditor } from './core/init.js';
-export { refreshTreePanel, bindTreeSidebar, processSidebar2DPanning, setSidebar2DKey, isSidebar2DFocused, initSidebar2DView, bindSidebarSearch } from './tree-panel.js';
+export { refreshTreePanel, bindTreeSidebar, processSidebar2DPanning, setSidebar2DKey, isSidebar2DFocused, initSidebar2DView, bindSidebarSearch } from './tree-panel/index.js';
 export { insertFormulaToTiny, bindFormulaEditor } from './core/formula.js';
 export { saveCurrentContentCK, openRichEditorCK, closeModalCK, setQuillReference, getCKEditorContent, setCKEditorContent, loadTinyContent, activateSplitScreen, deactivateSplitScreen, initSplitScreenDrag, setModalState, initModalWindowControls, initModalTitleRename, _renderBreadcrumb } from './content-io/index.js';
 export { openTinyImagePicker, insertTinyFile, insertTinyFileFromFile, showTinyImageContextMenu, showFileLinkContextMenu } from './images-files.js';

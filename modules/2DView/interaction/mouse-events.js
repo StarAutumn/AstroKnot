@@ -1,25 +1,25 @@
 // ============================================================
-//  2DView / interaction / mouse-events.js — 鼠标/滚轮/双击事件 + 慢双击重命名
+//  2DView / interaction / mouse-events.js — 鼠标/滚轮/双击事件编排
+//  纯编排层：按优先级依次询问各交互模式并控制事件消费；
+//  鱼骨 2D 编辑见 fishbone-mouse.js，慢双击重命名见 double-click-rename.js
 // ============================================================
 
 import { appState } from '../../module0_AppState.js';
-import { setSelectedNode, clearSelected, completeAddConnection, completeRemoveConnection } from '../../module5_SelectAndEdit.js';
+import { setSelectedNode, clearSelected, completeAddConnection, completeRemoveConnection, showToast } from '../../SelectAndEdit/index.js';
 import { openRichEditor } from '../../richEditor/index.js';
 import { hideContextMenu, completeConvertChildMode } from '../../module8_ContextMenu.js';
-import { saveCurrentProjectData } from '../../module2_TreeData.js';
-import { copySelectedNodes, pasteNodes } from '../../MoveMode/move-mode/index.js';
+import { saveCurrentProjectData } from '../../TreeData/index.js';
 import {
   canvas, transform,
-  isDragging, setDragging, setDragStart, dragStart, setMouseDownPos, mouseDownPos,
+  isDragging, setDragging, dragStart, setMouseDownPos, mouseDownPos,
   isNodeDragging, setNodeDragging, setMoveStartWorld, moveStartWorld, moveNodeId,
   moveInitialPositions, clearMoveInitialPositions,
   isBoxSelecting, setBoxSelecting,
-  boxSelectStart, setBoxSelectStart, boxSelectEnd, setBoxSelectEnd,
-  boxSelectCanvasStart, setBoxSelectCanvasStart,
-  boxSelectCanvasEnd, setBoxSelectCanvasEnd,
-  boxSelectNodeIds, clearBoxSelectNodeIds,
+  setBoxSelectStart, setBoxSelectEnd,
+  setBoxSelectCanvasStart, setBoxSelectCanvasEnd,
+  clearBoxSelectNodeIds,
   setBoxSelectTransform,
-  hasValidBoxSelection, setHasValidBoxSelection,
+  setHasValidBoxSelection,
   groupRects, selectedGroupRectId, setSelectedGroupRectId,
   isGroupDragging, setGroupDragging,
   isGroupResizing, setGroupResizing,
@@ -27,7 +27,7 @@ import {
   groupResizeInfo, setGroupResizeInfo,
   pendingMultiMove, setPendingMultiMove,
   lineTooltipJustOpened, setLineTooltipJustOpened,
-  currentMouseWorld, setCurrentMouseWorld,
+  setCurrentMouseWorld,
   BASE_NODE_WIDTH, BASE_NODE_HEIGHT,
   nodeHitAreas, lineHitAreas,
   isFreeDrawing, freeDrawState,
@@ -47,12 +47,11 @@ import {
   startFreeDraw, addFreeDrawWaypoint, updateFreeDrawMousePos, cancelFreeDraw, completeFreeDraw
 } from './free-draw.js';
 import { updateBoxSelectedNodes, finishBoxSelection, isInBoxSelectionArea } from './box-select.js';
-import { deleteSelectedGroupRect } from './group-nodes.js';
-
-// ── 慢双击重命名状态（模块内部） ──
-let _last2DClickedId = null;
-let _last2DClickTime = 0;
-let _2dRenameActive = false;
+import { hitTestFishboneSeg2D, collectFishboneSubtree2D } from '../../Fishbone/render2d.js';
+import { fishboneAttachMode } from '../../Fishbone/state.js';
+import { completeFishboneAttachWithHistory } from '../../Fishbone/ops.js';
+import { fishboneMouseDownDeselect, fishboneMouseDown, fishboneMouseMove, fishboneMouseUp } from './fishbone-mouse.js';
+import { checkSlowDoubleClick, resetSlowDoubleClick, is2DRenameActive } from './double-click-rename.js';
 
 // ============================================================
 //  MouseDown
@@ -61,13 +60,32 @@ export function onMouseDown(e) {
   if (e.button === 2) return;
 
   // 重命名输入框活跃时：先关闭输入框再处理点击，避免 e.preventDefault() 阻止 blur
-  if (_2dRenameActive && document.activeElement) {
+  if (is2DRenameActive() && document.activeElement) {
     document.activeElement.blur();
   }
 
   const pos = getCanvasPos(e);
   setMouseDownPos(pos);  // 记录鼠标按下位置，供 onMouseUp 判断是否为点击（非拖拽）
   const worldPos = canvasToWorld(pos.x, pos.y);
+
+  // 「变成支路」选择模式：点击目标鱼骨线段完成挂载（一次性，优先于其他交互）
+  if (fishboneAttachMode) {
+    e.preventDefault();
+    const fishHit = hitTestFishboneSeg2D(worldPos.x, worldPos.y);
+    if (fishHit && fishHit.trunk.id !== fishboneAttachMode.trunkId) {
+      const srcTrunk = (appState.fishboneTrunks || []).find(t => t.id === fishboneAttachMode.trunkId);
+      // 目标不能是自身子树内的干线（会造成父子环）
+      if (srcTrunk && collectFishboneSubtree2D(srcTrunk).some(t => t.id === fishHit.trunk.id)) {
+        showToast('不能挂载到自己或自己的子支上');
+      } else {
+        completeFishboneAttachWithHistory(fishHit.trunk);
+      }
+    }
+    return;
+  }
+
+  // 鱼骨段选中后点击别处：取消选中高亮（不消费事件，继续原流程）— fishbone-mouse.js
+  fishboneMouseDownDeselect(worldPos);
 
   // 快速创建子节点按钮（仅空闲状态下生效）
   if (!appState.connectionMode && !appState.convertChildMode) {
@@ -180,6 +198,10 @@ export function onMouseDown(e) {
     if (appState.showLineTooltip) appState.showLineTooltip(e.clientX, e.clientY, realUserData);
     return;
   }
+
+  // 鱼骨编辑拖动按下（端点优先 / 干段选中与平移候选）— fishbone-mouse.js：
+  // 返回 true 表示事件已被消费
+  if (fishboneMouseDown(e, worldPos)) return;
 
   // 组群矩形把手检测
   if (selectedGroupRectId) {
@@ -312,6 +334,9 @@ export function onMouseMove(e) {
     draw();
     return;
   }
+
+  // ── 鱼骨编辑拖动（端点改向改长 / 弧长滑动 / 线体平移）— fishbone-mouse.js ──
+  if (fishboneMouseMove(e, pos)) return;
 
   if (isGroupResizing) {
     e.preventDefault();
@@ -543,6 +568,9 @@ export function onMouseUp(e) {
     return;
   }
 
+  // ── 鱼骨编辑拖动收尾（3D 同步 / 落盘）— fishbone-mouse.js ──
+  if (fishboneMouseUp()) return;
+
   if (isGroupResizing) {
     setGroupResizing(false);
     setGroupResizeInfo(null);
@@ -642,11 +670,11 @@ export function onDoubleClick(e) {
 }
 
 // ============================================================
-//  Click 处理 + 慢双击重命名
+//  Click 处理
 // ============================================================
 export function handleClick(worldPos, e) {
   if (e.button !== 0) return;
-  if (_2dRenameActive) return;
+  if (is2DRenameActive()) return;
 
   // ── 卡片铅笔按钮命中 → 重命名 ──
   const renameHit = _cardRenameHitAreas.find(a =>
@@ -711,23 +739,18 @@ export function handleClick(worldPos, e) {
     return;
   }
 
+  // 鱼骨线段命中：选中高亮已在 mousedown 设置，此处直接返回保持持续选中；
+  // 否则会落到下方空白点击分支，触发 hideLineTooltip 清掉刚设置的段高亮
+  if (hitTestFishboneSeg2D(worldPos.x, worldPos.y)) return;
+
   const pos = getCanvasPos(e);
   const hit = nodeHitAreas.find(area =>
     worldPos.x >= area.x && worldPos.x <= area.x + area.width &&
     worldPos.y >= area.y && worldPos.y <= area.y + area.height
   );
   if (hit?.id) {
-    const now = Date.now();
-    const hitNode = appState.nodeMap.get(hit.id);
-    // card 模式跳过慢双击重命名（用铅笔按钮替代）
-    const isCard = hitNode && hitNode.displayMode === 'card';
-    if (!isCard && appState.selectedNodeIds.has(hit.id) && _last2DClickedId === hit.id
-        && now - _last2DClickTime > 300 && now - _last2DClickTime < 1500) {
-      _start2DRename(hit);
-      _last2DClickedId = null;
-      _last2DClickTime = 0;
-      return;
-    }
+    // 慢双击重命名判定（double-click-rename.js）：触发则事件到此为止
+    if (checkSlowDoubleClick(hit)) return;
 
     setSelectedNode(hit.id, e.ctrlKey);
     clearBoxSelectNodeIds();
@@ -735,9 +758,6 @@ export function handleClick(worldPos, e) {
     document.getElementById('addChildNodeBtn').style.display = 'block';
     document.getElementById('toggleChildrenContextBtn').style.display = 'block';
     document.getElementById('locateOtherViewBtn').style.display = 'block';
-
-    _last2DClickedId = hit.id;
-    _last2DClickTime = now;
   } else if (!isInBoxSelectionArea(pos)) {
     if (!e.ctrlKey) clearSelected();
     clearBoxSelectNodeIds();
@@ -747,81 +767,8 @@ export function handleClick(worldPos, e) {
       setLineTooltipJustOpened(false);
       appState.hideLineTooltip();
     }
-    _last2DClickedId = null;
+    resetSlowDoubleClick();
   }
-}
-
-// ============================================================
-//  2D 节点内联重命名（在 canvas 上覆盖 input 元素）
-// ============================================================
-function _start2DRename(hitArea) {
-  const node = appState.nodeMap.get(hitArea.id);
-  if (!node) return;
-
-  _2dRenameActive = true;
-  const originalName = node.name;
-
-  // 将世界坐标转为 canvas 屏幕坐标
-  const screenX = hitArea.x * transform.scale + canvas.width / 2 + transform.offsetX;
-  const screenY = hitArea.y * transform.scale + canvas.height / 2 + transform.offsetY;
-  const screenW = hitArea.width * transform.scale;
-  const screenH = hitArea.height * transform.scale;
-
-  // 获取 canvas 的页面位置
-  const rect = canvas.getBoundingClientRect();
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = originalName;
-  input.className = 'node-2d-rename-input';
-  input.style.cssText = `
-    position: fixed;
-    left: ${rect.left + screenX}px;
-    top: ${rect.top + screenY + screenH / 2 - 13}px;
-    width: ${Math.max(screenW, 60)}px;
-    height: 26px;
-    background: #0a1a24;
-    border: 1px solid #0ff;
-    color: #fff;
-    padding: 0 6px;
-    border-radius: 13px;
-    font-size: 12px;
-    outline: none;
-    text-align: center;
-    z-index: 10000;
-    pointer-events: auto;
-  `;
-
-  document.body.appendChild(input);
-  input.focus();
-  input.select();
-
-  let finished = false;
-  const finish = (save) => {
-    if (finished) return;
-    finished = true;
-    _2dRenameActive = false;
-    const newName = save ? (input.value.trim() || originalName) : originalName;
-    try {
-      if (newName !== originalName) {
-        node.name = newName;
-        saveCurrentProjectData();
-        if (typeof window.forceRefreshTreePanel === 'function') window.forceRefreshTreePanel();
-        // 更新 3D 标签
-        const obj = appState.nodeMeshes.get(hitArea.id);
-        if (obj && obj.label) obj.label.element.textContent = newName;
-        draw();
-      }
-    } finally {
-      input.remove();
-    }
-  };
-
-  input.addEventListener('blur', () => finish(true));
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
 }
 
 // ============================================================

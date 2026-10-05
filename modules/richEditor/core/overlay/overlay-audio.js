@@ -1,7 +1,7 @@
 // ============================================================
 //  overlay-audio.js — 音频播放器 overlay 类型
 // ============================================================
-import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images.js';
+import { overlayImages, getNextZIndex, ensureOverlay, renderAll, transactRender, selectImage, getInsertY, getInsertX } from './overlay-images/index.js';
 import { getActiveBlockId, getBlockWidth, pxToPct, requireActiveBlock } from './overlay-block.js';
 
 // SoundTouch 动态加载（避免导入失败导致整个模块崩溃）

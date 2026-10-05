@@ -26,14 +26,14 @@ import { drawNodeShape, getCardSize, getCardOffset } from './shape-utils.js';
 // ============================================================
 //  绘制单个节点
 // ============================================================
-export function drawNode(x, y, node, selected = false, alpha = 1, connected = false, connectedStep = false, hasCrossEdgesFlag = false) {
+export function drawNode(x, y, node, selected = false, alpha = 1, connected = false, connectedStep = false, hasCrossEdgesFlag = false, collapsedBadge = null) {
   // ── 文本显示框模式：走独立绘制路径 ──
   if (node.displayMode === 'card') {
-    return drawNodeCard(x, y, node, selected, alpha, hasCrossEdgesFlag, connected, connectedStep);
+    return drawNodeCard(x, y, node, selected, alpha, hasCrossEdgesFlag, connected, connectedStep, collapsedBadge);
   }
   // ── 网页节点模式：类似卡片但标题为搜索栏 ──
   if (node.displayMode === 'webpage') {
-    return drawNodeWebpage(x, y, node, selected, alpha, hasCrossEdgesFlag, connected, connectedStep);
+    return drawNodeWebpage(x, y, node, selected, alpha, hasCrossEdgesFlag, connected, connectedStep, collapsedBadge);
   }
 
   const scale = node.sizeScale || 1;
@@ -140,6 +140,9 @@ export function drawNode(x, y, node, selected = false, alpha = 1, connected = fa
     _drawQuickAddBtn(w / 2, h, r, '#AA44FF', quickAddHover === 'step', pulse);
   }
 
+  // 折叠节点：右下角显示 a/b 徽标
+  _drawCollapsedBadge(w, h, collapsedBadge, scale);
+
   ctx.restore();
 }
 
@@ -168,10 +171,36 @@ function _drawQuickAddBtn(cx, cy, r, color, isHover, pulse) {
   ctx.restore();
 }
 
+// 绘制折叠徽标 a/b（cornerX/cornerY 为节点右下角，相对节点左上角；a=直接子节点数，b=全部后代数）
+function _drawCollapsedBadge(cornerX, cornerY, badge, scale) {
+  if (!badge) return;
+  const text = `${badge.a}/${badge.b}`;
+  const fontSize = Math.max(9, 11 * scale);
+  ctx.save();
+  ctx.font = `${fontSize}px system-ui, sans-serif`;
+  const tw = ctx.measureText(text).width;
+  const padX = 5 * scale;
+  const bh = fontSize + 5 * scale;
+  const bw = tw + padX * 2;
+  ctx.fillStyle = 'rgba(10, 24, 34, 0.92)';
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.55)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(cornerX - bw / 2, cornerY - bh / 2, bw, bh, bh / 2);
+  else ctx.rect(cornerX - bw / 2, cornerY - bh / 2, bw, bh);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#aef0ff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, cornerX, cornerY + 0.5);
+  ctx.restore();
+}
+
 // ============================================================
 //  文本显示框模式（card）
 // ============================================================
-function drawNodeCard(x, y, node, selected, alpha, hasCrossEdgesFlag = false, connected = false, connectedStep = false) {
+function drawNodeCard(x, y, node, selected, alpha, hasCrossEdgesFlag = false, connected = false, connectedStep = false, collapsedBadge = null) {
   const scale = node.sizeScale || 1;
   const { w: cardW, h: cardH } = getCardSize(node, scale);
   const off = getCardOffset(node, scale);
@@ -310,13 +339,16 @@ function drawNodeCard(x, y, node, selected, alpha, hasCrossEdgesFlag = false, co
 
   // 注：卡片 resize 已改为边缘条带命中（hitTestCardHandle），不再绘制可见把手
 
+  // 折叠节点：右下角显示 a/b 徽标
+  _drawCollapsedBadge(cardW, cardH, collapsedBadge, scale);
+
   ctx.restore();
 }
 
 // ============================================================
 //  绘制网页节点（类似卡片，标题区为搜索栏，正文区为iframe）
 // ============================================================
-function drawNodeWebpage(x, y, node, selected, alpha, hasCrossEdgesFlag = false, connected = false, connectedStep = false) {
+function drawNodeWebpage(x, y, node, selected, alpha, hasCrossEdgesFlag = false, connected = false, connectedStep = false, collapsedBadge = null) {
   const scale = node.sizeScale || 1;
   const { w: cardW, h: cardH } = getCardSize(node, scale);
   const off = getCardOffset(node, scale);
@@ -457,6 +489,9 @@ function drawNodeWebpage(x, y, node, selected, alpha, hasCrossEdgesFlag = false,
   });
 
   // 注：网页节点 resize 已改为边缘条带命中（hitTestCardHandle），不再绘制可见把手
+
+  // 折叠节点：右下角显示 a/b 徽标
+  _drawCollapsedBadge(cardW, cardH, collapsedBadge, scale);
 
   // ── 命中区域 ──
   if (alpha > 0.15) {

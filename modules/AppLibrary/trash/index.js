@@ -6,7 +6,7 @@
 // ============================================================
 
 import { showConfirm } from '../../module4_Confirm.js';
-import { showToast } from '../../module5_SelectAndEdit.js';
+import { showToast } from '../../SelectAndEdit/index.js';
 
 /** 确保回收站 CSS 只加载一次 */
 let _trashCssLoaded = false;
@@ -133,7 +133,7 @@ export class TrashApp {
         this._items = (r && r.success && r.items) ? r.items : [];
       } else {
         // Web 环境：从 localStorage 读取
-        const { _getWebTrash } = await import('../../module2_TreeData.js');
+        const { _getWebTrash } = await import('../../TreeData/index.js');
         const webTrash = _getWebTrash();
         this._items = webTrash.map((p, i) => ({
           trashPath: null,
@@ -251,7 +251,7 @@ export class TrashApp {
         // 读取恢复后的项目数据
         const dataResult = await window.api.readProjectFromFolder(r.folderPath);
         if (dataResult && dataResult.success) {
-          const { addRestoredProject } = await import('../../module2_TreeData.js');
+          const { addRestoredProject } = await import('../../TreeData/index.js');
           addRestoredProject(dataResult.data, r.projectName, r.folderPath);
           showToast('项目已恢复: ' + r.projectName);
         } else {
@@ -261,7 +261,7 @@ export class TrashApp {
         this._loadTrash();
       } else {
         // Web 环境
-        const { _restoreWebTrash, renderProjectList } = await import('../../module2_TreeData.js');
+        const { _restoreWebTrash, renderProjectList } = await import('../../TreeData/index.js');
         const restoredId = _restoreWebTrash(item.index);
         if (restoredId) {
           renderProjectList();
@@ -295,7 +295,7 @@ export class TrashApp {
             }
           } else {
             // Web 环境
-            const { _permanentDeleteWebTrash } = await import('../../module2_TreeData.js');
+            const { _permanentDeleteWebTrash } = await import('../../TreeData/index.js');
             _permanentDeleteWebTrash(item.index);
           }
           showToast('已永久删除: ' + name);
@@ -331,7 +331,7 @@ export class TrashApp {
             }
           } else {
             // Web 环境
-            const { _emptyWebTrash } = await import('../../module2_TreeData.js');
+            const { _emptyWebTrash } = await import('../../TreeData/index.js');
             _emptyWebTrash();
           }
           showToast('回收站已清空');

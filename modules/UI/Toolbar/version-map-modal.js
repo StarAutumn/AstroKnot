@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { appState } from '../../module0_AppState.js';
 import { showConfirm } from '../../module4_Confirm.js';
-import { loadProject } from '../../module2_TreeData.js';
+import { loadProject } from '../../TreeData/index.js';
 import { checkout as versionCheckout, getGraph, renameCommit } from '../../versionGraph/versionGraph.js';
 import { renderVersionMapInto } from '../../versionGraph/versionMap.js';
 

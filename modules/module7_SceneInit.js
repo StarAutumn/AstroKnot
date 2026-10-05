@@ -8,7 +8,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { appState } from './module0_AppState.js';
-import { showToast } from './module5_SelectAndEdit.js';
+import { showToast } from './SelectAndEdit/index.js';
 
 export function initScene() {
   appState.starGroups = [];

@@ -2,11 +2,11 @@
 //  模块8：右键菜单与空白菜单（使用 appState）
 // ============================================================
 import { appState } from './module0_AppState.js';
-import { saveCurrentProjectData, renderProjectList } from './module2_TreeData.js';
+import { saveCurrentProjectData, renderProjectList } from './TreeData/index.js';
 import { updateNodeVisuals, addSingleTreeLine } from './VisualComponents/index.js';
 import { showPrompt, showConfirm } from './module4_Confirm.js';
 import { showLineTooltip, hideLineTooltip } from './MoveMode/LineTooltip.js';
-import { clearSelected, setSelectedNode, getPrimarySelectedId, updateSelectionUI, deleteSelectedNodes, toggleChildren, startAddConnectionMode, startRemoveConnectionMode, cancelConnectionMode, showToast } from './module5_SelectAndEdit.js';
+import { clearSelected, setSelectedNode, getPrimarySelectedId, updateSelectionUI, deleteSelectedNodes, toggleChildren, startAddConnectionMode, startRemoveConnectionMode, cancelConnectionMode, showToast } from './SelectAndEdit/index.js';
 import { withHistory, history } from './module3_History.js';
 import { activateSplitScreen } from './richEditor/content-io/index.js';
 import { removeCardOverlay, removeWebpageOverlay } from './2DView/interaction/index.js';
@@ -165,6 +165,14 @@ export function showContextMenu(x, y, nodeId) {
   document.getElementById('contextNodeName').style.display = 'inline';
   document.getElementById('contextRenameInput').style.display = 'none';
   document.getElementById('contextRenameInput').value = node.name;
+
+  // 恢复被「鱼骨线多选精简菜单」隐藏的节点行（安全幂等，单节点菜单永远显示全部行）
+  ['nodeSizeRow', 'ringSpeedRow', 'nodeShapeRow', 'node3DShapeRow',
+   'cardModeRow', 'connectionRow', 'folderRow', 'opsRow',
+   'resetNodeDefaultsBtn', 'contextRenameToggleBtn'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
 
   const sizeSlider = document.getElementById('nodeSizeSlider');
   sizeSlider.value = node.sizeScale || 1;
@@ -584,6 +592,8 @@ export function bindContextMenuEvents() {
   });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      // 移动模式（节点/鱼骨统一）：Esc = 取消还原（未激活时内部 no-op，继续走下方分支）
+      if (appState.exitMoveMode) appState.exitMoveMode(false);
       if (appState.connectionMode) {
         cancelConnectionMode();
         return;
