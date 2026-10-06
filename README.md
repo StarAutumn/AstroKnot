@@ -110,7 +110,6 @@ AstroKnot 是一个**将知识图谱、分布式 IDE、内置浏览器和日历�
 - **多媒体嵌入** — 音频（WaveSurfer.js 波形可视化 + EQ 均衡器）、视频、幻灯片放映
 - **覆盖层系统** — 自由放置图片/形状/文本框/图表/Excel，拖拽缩放旋转
 - **绘图工具** — 手绘笔/铅笔/荧光笔/彩虹笔，支持撤销重做
-- **AI 对话** — 支持 Chat/Agent 双模式，多模型切换，工具调用（项目上下文感知）
 - **新手引导** — 交互式操作驱动引导，自动检测步骤完成，支持跳过
 - **标题样式模板** — 内置多套标题样式模板，自定义各级标题字体/间距/缩进
 - **字数统计** — 中英文混合字数统计，实时显示
@@ -351,12 +350,6 @@ AstroKnot/
     ├── StartPage/                 # 开始首页
     │   ├── index.js               #   入口 & 显示/隐藏逻辑（滑动动画）
     │   └── style.css              #   飘带光效、磨砂玻璃、按钮样式
-    ├── AIChat/                    # AI 对话模块（原 module15）
-    │   ├── index.js               #   入口 & 消息发送核心逻辑
-    │   ├── api.js                 #   API 调用、模型管理、密钥存储
-    │   ├── config.js              #   模式配置（Chat/Agent）
-    │   ├── tools.js               #   Agent 工具调用（项目上下文/导入等）
-    │   └── ui.js                  #   对话 UI、历史面板、Markdown 预览
     ├── AppLibrary/                # 全局应用库（GitHub 克隆、应用管理、内置应用）
     │   ├── AppManager.js          #   应用管理器（增删改查、注册内置应用）
     │   ├── AppPanel.js            #   应用列表面板（右键菜单、拖拽、图标）
@@ -516,8 +509,6 @@ AstroKnot/
     │   ├── Dock.js                #   快捷启动 Dock
     │   ├── Dock.css               #   快捷启动 Dock 样式
     │   ├── ArrangeAnimation.js    #   布局动画
-    │   ├── AiDialog.js            #   AI 对话框 UI
-    │   ├── AiDialog.css           #   AI 对话框样式
     │   └── window-manager.js      #   窗口管理器（模态窗口、应用窗口）
     │
     ├── # 日历子系统
@@ -644,7 +635,7 @@ AstroKnot/
 | 版本控制层 | `versionGraph/` | 版本图系统（提交、分支、diff、回滚、自动保存） |
 | 3D 视图层 | `module1`, `VisualComponents/`, `module7`, `module14` | 纹理、3D 组件（含卡片全息效果）、场景初始化、动画 |
 | 交互控制层 | `module5`, `MoveMode/` | 节点选中/编辑、拖拽移动、节点创建/剪贴板/右键菜单事件 |
-| UI 层 | `module4`, `module8`, `module11`, `AIChat/`, `UI/`, `richEditor/`, `taskbar.js`, `StartPage/`, `AppLibrary/` | 弹窗、菜单、AI 对话、编辑器、窗口管理、开始首页、全局应用库 |
+| UI 层 | `module4`, `module8`, `module11`, `UI/`, `richEditor/`, `taskbar.js`, `StartPage/`, `AppLibrary/` | 弹窗、菜单、编辑器、窗口管理、开始首页、全局应用库 |
 | 浏览器层 | `AppLibrary/browser/` | 内置浏览器（多标签页、书签、历史、下载、阅读模式、密码管理、网页转节点） |
 | 引导层 | `Guide/` | 新手引导、教程项目 |
 | 视图切换 | `2DView/`, `LayerManager/` | 2D 思维导图、图层管理 |
@@ -671,7 +662,6 @@ AstroKnot/
 | `module11` | `module0`, `module2`, `module4` | 快速笔记 |
 | `module14` | `module0` | 动画循环 |
 | `versionGraph/` | `module0`, `module2` | 版本控制系统（提交、分支、diff） |
-| `AIChat/` | `module0`, `UI/` | AI 对话（Chat/Agent 双模式） |
 | `Guide/` | `module0`, `UI/` | 新手引导 |
 | `richEditor/` | `module0`, `module2`, `UI/` | 富文本编辑（含 sandbox IDE） |
 | `UI/Toolbar/github-login.js` | `module0`, `module2`, `module11` | GitHub 云同步面板（登录、仓库、文件树、上传/下载） |
@@ -755,7 +745,6 @@ AstroKnot/
 - **Dock 快捷启动**：底部 Dock 栏，支持拖放文件/文件夹
 - **天气 & 农历**：任务栏右侧时钟，右键可设置城市
 - **日历排班**：月/周/日三视图，支持排班（上班规律自动识别法定节假日和调休、手动倒班、规律倒班循环），四象限事项管理，纪念日管理，通知提醒
-- **AI 对话**：支持 Chat 模式和 Agent 模式，Agent 模式可调用工具（读取项目上下文、导入 Markdown 等）
 - **版本控制**：工具栏版本图按钮，查看提交历史、创建分支、回滚到历史版本、查看 diff
 - **代码沙盒 IDE**：右键节点 → "💻 以 HTML 方式打开"，进入 VSCode 风格 IDE，支持实时预览、控制台、全局搜索；也可双击应用栏 IDE 图标独立打开
 - **GitHub 项目导入**：IDE 菜单栏 → 文件 → 从 GitHub 导入，输入仓库 URL 自动克隆到沙盒
@@ -856,7 +845,7 @@ AstroKnot-Data/
 
 ### 系统级键值存储（system/storage/）
 
-所有应用自有 localStorage 设置（UI 主题、编辑器配置、日历、AIChat、浏览器、项目数据、新手引导等 36 个 key）通过 `modules/systemStorage.js` 直接持久化到 `AstroKnot-Data/system/storage/*.json`，彻底放弃浏览器 localStorage：
+所有应用自有 localStorage 设置（UI 主题、编辑器配置、日历、浏览器、项目数据、新手引导等 36 个 key）通过 `modules/systemStorage.js` 直接持久化到 `AstroKnot-Data/system/storage/*.json`，彻底放弃浏览器 localStorage：
 
 - **文件布局**：每个 key 对应一个 `{base64url(key)}.json` 文件，内容为 `{ key, value, updatedAt }`
 - **启动时**：`SystemStorage.install()` 接管 `Storage.prototype`，应用 key 的 `getItem/setItem/removeItem` 直接走文件读写

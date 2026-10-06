@@ -8,5 +8,4 @@ export { bindMinimizePanel, bindHelpModal, bindFullscreenAndTab, bindZoomToggle,
 export { bindSearch, bindGlobalSearch } from './Search.js';
 export { bindResize } from './Resize.js';
 export { bindToolbarButtons } from './Toolbar/index.js';
-export { initAIFloatingDialog } from './AiDialog.js';
 export { initTaskbarClock } from '../calendar/index.js';

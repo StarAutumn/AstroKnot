@@ -154,7 +154,6 @@ body.light-mode .three-scene-canvas {
 /* ═══ 浅色模式：标题栏/任务栏/面包屑二次反转 + 浅蓝色背景 ═══ */
 body.light-mode .rich-modal-header,
 body.light-mode #settingsPopup .settings-header,
-body.light-mode #aiFloatingDialog .ai-drag-header,
 body.light-mode #astroKnotMenu,
 body.light-mode #taskbar,
 body.light-mode #appTitleBar,
@@ -166,7 +165,6 @@ body.light-mode #editorBreadcrumb {
 /* 标题栏/任务栏文字也需要二次反转后设深色 */
 body.light-mode .rich-modal-header *,
 body.light-mode #settingsPopup .settings-header *,
-body.light-mode #aiFloatingDialog .ai-drag-header *,
 body.light-mode #astroKnotMenu *,
 body.light-mode #taskbar *,
 body.light-mode #appTitleBar *,
@@ -481,7 +479,6 @@ body.hide-ui .help-modal,
 body.hide-ui #formulaEditorModal,
 body.hide-ui .layer-panel,
 body.hide-ui #layerIconBtn,
-body.hide-ui #aiFloatingDialog,
 body.hide-ui #nodeContextMenu,
 body.hide-ui #blankContextMenu,
 body.hide-ui #moveControlBar,

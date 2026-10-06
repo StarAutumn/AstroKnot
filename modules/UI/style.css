@@ -21,8 +21,5 @@
 /* 左侧悬浮 Dock 面板（对应 Dock.js） */
 @import './Dock.css';
 
-/* AI 对话浮窗（对应 AiDialog.js） */
-@import './AiDialog.css';
-
 /* 时钟日历弹出框（对应 calendar/*.js） */
 @import '../calendar/calendar.css';

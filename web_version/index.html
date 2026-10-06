@@ -174,7 +174,6 @@
         </div>
         <div class="taskbar-tabs" id="taskbarTabs"></div>
         <div class="taskbar-right">
-            <button id="aiTaskbarBtn" class="control-btn" title="AI 助手">🤖</button>
             <div id="zoomToggleWrap" style="position:relative;display:flex;align-items:center;height:100%;">
                 <button id="toggleZoomPanelBtn" class="control-btn" title="缩放控制">🔼</button>
                 <div id="zoomPopup" class="zoom-popup">
@@ -242,50 +241,6 @@
             <div class="menu-bottom-spacer"></div>
             <button id="closeAstroKnotMenuBtn" class="menu-bottom-btn menu-close-btn" title="关闭应用">⏻</button>
         </div>
-    </div>
-
-    <!-- ==================== AI 对话框浮窗 ==================== -->
-    <div id="aiFloatingDialog" class="minimized">
-        <div class="ai-drag-header">
-            <h4>🤻 AI 助手</h4>
-            <div class="ai-header-buttons">
-                <button id="aiSettingsBtn" class="ai-header-btn" title="API 设置">⚙️</button>
-                <button id="aiExportBtn" class="ai-header-btn" title="导出当前对话">⤴️</button>
-                <button id="aiHistoryBtn" class="ai-header-btn" title="历史对话">🕜</button>
-                <button id="aiNewChatBtn" class="ai-header-btn" title="新建对话">+</button>
-            </div>
-        </div>
-        <div class="panel-accent-line"></div>
-        <div class="ai-chat-body" id="aiChatBody">
-            <div class="ai-chat-messages" id="aiChatMessages">
-                <div class="ai-message system">你好！我是AI助手，有什么可以帮你？</div>
-                <div class="ai-message system" style="border-left:3px solid #f0a030;background:rgba(240,160,48,0.08);padding:8px 12px;margin-top:6px;border-radius:4px;">
-                    🚧 <b>AI 助手正在开发中</b> 
-                </div>
-            </div>
-            <div class="ai-input-toolbar">
-                <select id="aiAgentSelect" class="ai-toolbar-select">
-                    <option value="">🤁 选择智能体</option>
-                </select>
-            </div>
-            <div class="ai-chat-input">
-                <textarea id="aiChatInput" placeholder="输入消息..." rows="3"></textarea>
-                <div class="ai-input-footer">
-                    <select id="aiModelSelect" class="ai-model-select">
-                        <option value="">🝥 选择模型</option>
-                    </select>
-                    <button id="aiSendBtn" class="ai-send-btn">发送</button>
-                </div>
-            </div>
-        </div>
-        <div class="floating-resize-handle" data-handle="n"></div>
-        <div class="floating-resize-handle" data-handle="s"></div>
-        <div class="floating-resize-handle" data-handle="e"></div>
-        <div class="floating-resize-handle" data-handle="w"></div>
-        <div class="floating-resize-handle" data-handle="ne"></div>
-        <div class="floating-resize-handle" data-handle="nw"></div>
-        <div class="floating-resize-handle" data-handle="se"></div>
-        <div class="floating-resize-handle" data-handle="sw"></div>
     </div>
 
     <!-- ==================== 2D 视图画布（预留） ==================== -->

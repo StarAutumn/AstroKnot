@@ -60,7 +60,7 @@ import { initQuickNotes } from './modules/module11_QuickNotes.js';
 import {
   bindUndoRedo, bindMinimizePanel, bindHelpModal, bindFullscreenAndTab,
   bindToolbarButtons, bindResize, bindSearch,
-  bindKeyboardMovement, bindGlobalSearch, initUITheme, initAIFloatingDialog, initTaskbarClock, bindZoomToggle
+  bindKeyboardMovement, bindGlobalSearch, initUITheme, initTaskbarClock, bindZoomToggle
 } from './modules/UI/index.js';
 
 // ---------- 任务栏（多进程管理） ----------
@@ -71,9 +71,6 @@ import { initMoveMode } from './modules/MoveMode/index.js';
 
 // ---------- 模块14：动画循环 ----------
 import { animate } from './modules/module14_Animation.js';
-
-// ---------- 模块15：AI 对话框 ----------
-import { initAIChat } from './modules/AIChat/index.js';
 
 // ---------- 模块16：2D 思维导图视图 ----------
 import { init2DView, toggle2DView } from './modules/2DView/index.js';
@@ -94,7 +91,6 @@ import { initGuide, startGuideIfNeeded } from './modules/Guide/index.js';
 // ============================================================
 initRichEditor();
 initQuickNotes();
-initAIChat(); 
 bindContextMenuEvents();
 initMoveMode();
 initProjects();
@@ -115,7 +111,6 @@ bindKeyboardMovement();
 initDock();
 
 // ---------- 停靠面板 ----------
-initAIFloatingDialog();
 initTaskbarClock();
 bindZoomToggle();
 

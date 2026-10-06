@@ -31,7 +31,7 @@
   const APP_KEY_PREFIXES = [
     'astroknot',            // 覆盖 astroknot_*, astroknot-*
     'knowledge_graph',      // 覆盖 knowledge_graph_*
-    'ai',                   // 覆盖 ai* (aiChatHistory, aiApiKey, aiCustomKey_* 等)
+    'ai',                   // 覆盖 ai*（AIChat 已移除，此通配仅兜底接管历史遗留 key）
     'richEditor',           // 覆盖 richEditor_*
     'calendar',             // 覆盖 calendar_*
     'sandbox-ide-settings', // 精确匹配
