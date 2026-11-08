@@ -28,7 +28,7 @@ import {
 import { onContextMenu, hideGroupContextMenu } from './context-menu.js';
 import { cancelFreeDraw } from './free-draw.js';
 import { groupNodes, deleteSelectedGroupRect, startMultiNodeMove } from './group-nodes.js';
-import { alignSelectedNodesHorizontal, alignSelectedNodesVertical } from './align.js';
+import { alignSelectedNodesHorizontal, alignSelectedNodesVertical, distributeSelectedNodesHorizontal, distributeSelectedNodesVertical } from './align.js';
 import {
   autoArrangeTreeLayout, computeAutoArrangeTargets, arrangeSubtreeIncremental
 } from './auto-layout.js';
@@ -111,6 +111,16 @@ export function initInteractionEvents() {
   document.getElementById('alignRightBtn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     alignSelectedNodesVertical('right');
+  });
+
+  // 等距排列按钮（横向/纵向）
+  document.getElementById('distributeHBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    distributeSelectedNodesHorizontal();
+  });
+  document.getElementById('distributeVBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    distributeSelectedNodesVertical();
   });
 
   // 组群按钮

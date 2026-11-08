@@ -126,6 +126,11 @@ export function renderAudioContent(item, imgData) {
   audio.preload = 'metadata';
   audio.dataset.olyAudioId = imgData.id;
 
+  // undo/redo 会整体替换 overlayImages（JSON 副本），控件事件里不能写死旧引用
+  function _curAudioData() {
+    return (item._olyMedia && item._olyMedia.ref) || imgData;
+  }
+
   // 上排：播放按钮 + 文件名 + 音量
   let topRow = document.createElement('div');
   topRow.style.cssText = 'display:flex;align-items:center;gap:10px;flex:1;min-height:0;';
@@ -172,7 +177,7 @@ export function renderAudioContent(item, imgData) {
   volBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     audio.muted = !audio.muted;
-    imgData.muted = audio.muted;
+    _curAudioData().muted = audio.muted;
     volBtn.innerHTML = audio.muted ? '&#128263;' : '&#128264;';
   });
 
@@ -184,7 +189,7 @@ export function renderAudioContent(item, imgData) {
   loopBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     audio.loop = !audio.loop;
-    imgData.loop = audio.loop;
+    _curAudioData().loop = audio.loop;
     loopBtn.style.color = audio.loop ? 'var(--accent,#0ff)' : '#556';
   });
 
@@ -402,4 +407,23 @@ export function renderAudioContent(item, imgData) {
   wrapper.appendChild(topRow);
   wrapper.appendChild(progressWrap);
   item.appendChild(wrapper);
+
+  // 供 renderAll 原地复用时同步状态：不重建 <audio>，避免播放中断与重新解码
+  item._olyMedia = {
+    el: audio,
+    src: imgData.src,
+    ref: imgData,
+    sync: function (data) {
+      this.ref = data;
+      if (this.src !== data.src) {
+        this.src = data.src;
+        audio.src = data.src;
+      }
+      audio.muted = data.muted ?? false;
+      audio.loop = data.loop ?? false;
+      volBtn.innerHTML = audio.muted ? '&#128263;' : '&#128264;';
+      loopBtn.style.color = audio.loop ? 'var(--accent,#0ff)' : '#556';
+      nameEl.textContent = data.fileName || '音频';
+    }
+  };
 }

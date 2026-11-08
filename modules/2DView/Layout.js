@@ -6,7 +6,7 @@
 import { appState } from '../module0_AppState.js';
 import {
   H_GAP, V_GAP,
-  POLYLINE_PEG_X, POLYLINE_PEG_Y, getNodeLayoutSize
+  getNodeLayoutSize, getTreeEdgePegOffset
 } from './shared.js';
 
 // -------- 判断是否为步骤节点（仅通过 isStepFlow 属性判断，与节点命名完全独立） --------
@@ -69,9 +69,10 @@ function layoutTraditionalTree(node) {
   stepTotalWidth += H_GAP * Math.max(0, stepChildren.length - 1);
 
   // 父节点纵向居中偏移：与子节点对称轴对齐
+  // 仅在有普通子节点时垂直居中；步骤子节点在下方，不能拿它的高度来居中父节点
   const parentYOffset = normalChildren.length > 0
     ? Math.max(0, (normalTotalHeight - nodeHeight) / 2)
-    : stepMaxHeight > 0 ? Math.max(0, (stepMaxHeight - nodeHeight) / 2) : 0;
+    : 0;
   layout.parentYOffset = parentYOffset;
   layout.stepMaxHeight = stepMaxHeight;
 
@@ -83,7 +84,8 @@ function layoutTraditionalTree(node) {
   // 右侧正常子节点起始 X（步骤子节点在下方，不参与横向避让）
   const normalStartX = offset + nodeWidth + H_GAP;
   const normalRegionWidth = normalMaxWidth > 0 ? normalStartX + normalMaxWidth : normalStartX;
-  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+  // 步骤子节点的起始位置只需越过父节点自身（及普通子节点块），不能把 stepMaxHeight 计入
+  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
   const stepRegionHeight = stepMaxHeight > 0 ? normalRegionHeight + V_GAP + stepMaxHeight : normalRegionHeight;
 
   layout.subtreeWidth = normalRegionWidth;
@@ -145,9 +147,10 @@ function layoutStepTree(node) {
   if (stepChildren.length > 0) stepTotalWidth += H_GAP * (stepChildren.length - 1);
 
   // 父节点纵向居中偏移：与子节点对称轴对齐
+  // 仅在有普通子节点时垂直居中；步骤子节点在下方，不能拿它的高度来居中父节点
   const parentYOffset = normalChildren.length > 0
     ? Math.max(0, (normalTotalHeight - nodeHeight) / 2)
-    : stepMaxHeight > 0 ? Math.max(0, (stepMaxHeight - nodeHeight) / 2) : 0;
+    : 0;
   layout.parentYOffset = parentYOffset;
   layout.stepMaxHeight = stepMaxHeight;
 
@@ -159,7 +162,8 @@ function layoutStepTree(node) {
   // 右侧正常子节点起始 X（步骤子节点在下方，不参与横向避让）
   const normalStartX = offset + nodeWidth + H_GAP;
   const normalRegionWidth = normalMaxWidth > 0 ? normalStartX + normalMaxWidth : normalStartX;
-  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+  // 步骤子节点的起始位置只需越过父节点自身（及普通子节点块），不能把 stepMaxHeight 计入
+  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
   const stepRegionHeight = stepMaxHeight > 0 ? normalRegionHeight + V_GAP + stepMaxHeight : normalRegionHeight;
 
   layout.subtreeWidth = normalRegionWidth;
@@ -209,8 +213,7 @@ function assignTraditionalCoordinates(layout, x, y) {
     for (let i = 1; i < normalChildren.length; i++) {
       normalTotalHeight += normalChildren[i].offset || 0;
     }
-    const stepMaxHeight = layout.stepMaxHeight || 0;
-    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
     const stepStartY = y + normalRegionHeight + V_GAP;
     let currentX = stepStartX;
     for (const child of stepChildren) {
@@ -262,8 +265,7 @@ function assignStepCoordinates(layout, x, y) {
     for (let i = 1; i < normalChildren.length; i++) {
       normalTotalHeight += normalChildren[i].offset || 0;
     }
-    const stepMaxHeight = layout.stepMaxHeight || 0;
-    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
     const stepStartY = y + normalRegionHeight + V_GAP;
     let currentX = stepStartX;
     for (const child of stepChildren) {
@@ -335,6 +337,18 @@ export function collectDescendantIds(nodeId) {
   return ids;
 }
 
+// 收集拐点拖动时需要跟随平移的下游节点：父节点同向（普通/步骤）子节点 + 各自全部后代
+// 拖动重合的第一段拐点时，整棵下游子树沿连线方向整体平移，保持拐点与子节点的相对形状
+export function collectPegDragNodeIds(parentId, isStep) {
+  const ids = new Set();
+  const parent = appState.nodeMap.get(parentId);
+  if (!parent || !parent.children) return ids;
+  for (const ch of parent.children) {
+    if (isNextStepNode(ch) === isStep) collectDescendantIds(ch.id).forEach(id => ids.add(id));
+  }
+  return ids;
+}
+
 // -------- 节点重叠消除 --------
 export function resolveNodeOverlaps(positionMap, existingIds) {
   let PADDING = 4;
@@ -399,22 +413,26 @@ function collectTreeEdgeLines(layout, positionMap, lines) {
     let pX = pos ? pos.x : layout.x;
     let pY = pos ? pos.y : layout.y;
     if (isStepNode) {
-      // 折线：父下框中点 → 下短距拐点 → 左右延伸到子竖直线 → 下连子上框中点
+      // 折线：父下框中点 → 下拐点 → 左右延伸到子竖直线 → 下连子上框中点
+      // 拐点距离与渲染一致（按父节点共享，读用户拖拽过的自定义长度）
+      let pegDist = getTreeEdgePegOffset(layout.node.id, true);
       let parentOutputX = pX + layout.width / 2;
       let parentOutputY = pY + layout.height;
       let childInputX = childPos.x + child.width / 2;
       let childInputY = childPos.y;
-      let pegY = parentOutputY + POLYLINE_PEG_Y;
+      let pegY = parentOutputY + pegDist;
       lines.push({ x1: parentOutputX, y1: parentOutputY, x2: parentOutputX, y2: pegY, parentId: layout.node.id, childId: child.node.id });
       lines.push({ x1: parentOutputX, y1: pegY, x2: childInputX, y2: pegY, parentId: layout.node.id, childId: child.node.id });
       lines.push({ x1: childInputX, y1: pegY, x2: childInputX, y2: childInputY, parentId: layout.node.id, childId: child.node.id });
     } else {
-      // 折线：父右框中点 → 右短距拐点 → 上下延伸到子水平线 → 右连子左框中点
+      // 折线：父右框中点 → 右拐点 → 上下延伸到子水平线 → 右连子左框中点
+      // 拐点距离与渲染一致（按父节点共享，读用户拖拽过的自定义长度）
+      let pegDist = getTreeEdgePegOffset(layout.node.id, false);
       let parentOutputX = pX + layout.width;
       let parentOutputY = pY + layout.height / 2;
       let childInputX = childPos.x;
       let childInputY = childPos.y + child.height / 2;
-      let pegX = parentOutputX + POLYLINE_PEG_X;
+      let pegX = parentOutputX + pegDist;
       lines.push({ x1: parentOutputX, y1: parentOutputY, x2: pegX, y2: parentOutputY, parentId: layout.node.id, childId: child.node.id });
       lines.push({ x1: pegX, y1: parentOutputY, x2: pegX, y2: childInputY, parentId: layout.node.id, childId: child.node.id });
       lines.push({ x1: pegX, y1: childInputY, x2: childInputX, y2: childInputY, parentId: layout.node.id, childId: child.node.id });

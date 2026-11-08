@@ -17,17 +17,83 @@ import {
 } from './share.js';
 import { renderAll, deleteSelectedImage, deselectImage } from './render.js';
 
+// 浏览器原生拖拽一旦启动，会生成「整个画布块」的半透明拖影跟随鼠标，
+// 并把高频 mousemove 合并成低频 drag 事件，导致自定义拖拽又卡又飘。
+// 画布块内的拖拽全部由本模块的 mousemove 逻辑处理，这里统一掐掉原生拖拽。
+// 注意：必须用 stopImmediatePropagation——TinyMCE 7 的 dragstart 监听同样挂在
+// document 捕获阶段（同节点同阶段），普通 stopPropagation 拦不住它，它会继续
+// cloneNode 整块塞进 mce-drag-container（opacity 0.5）生成拖影。
+document.addEventListener('dragstart', function (e) {
+  let t = e.target;
+  if (t && t.closest && t.closest('.tmce-overlay-block')) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+}, true);
+
 let _preDragState = null;
 let _autoScrollRaf = null;
 let _dragRenderRaf = null;
+
+// 几何字段：拖拽/缩放/旋转只会改动这些字段，
+// undo 快照不再深拷贝整个 overlayImages（可能含 base64 音视频，体积巨大）
+const _GEO_KEYS = ['x', 'y', 'width', 'height', 'rotation', 'leftPct', 'widthPct'];
+
+function _snapshotGeometry() {
+  return overlayImages.map(function (d) {
+    let snap = { id: d.id };
+    for (let i = 0; i < _GEO_KEYS.length; i++) {
+      let k = _GEO_KEYS[i];
+      if (d[k] !== undefined) snap[k] = d[k];
+    }
+    return snap;
+  });
+}
+
+function _applyGeometrySnapshot(snap) {
+  if (!snap) return;
+  for (let i = 0; i < snap.length; i++) {
+    let s = snap[i];
+    let d = findImageDataById(s.id);
+    if (!d) continue;
+    for (let j = 0; j < _GEO_KEYS.length; j++) {
+      let k = _GEO_KEYS[j];
+      if (s[k] === undefined) delete d[k];
+      else d[k] = s[k];
+    }
+  }
+}
+
+// 直接改 DOM 的旋转（不重建元素，避免音视频重解码/图表重建）
+function _applyRotationDom(el, imgData) {
+  el.style.transformOrigin = 'center center';
+  let t = 'rotate(' + (imgData.rotation || 0) + 'deg)';
+  if (imgData.flipH || imgData.flipV) {
+    t += ' scale(' + (imgData.flipH ? -1 : 1) + ',' + (imgData.flipV ? -1 : 1) + ')';
+  }
+  el.style.transform = t;
+}
+
+// 缩放时图表需要重新布局（RAF 节流）
+let _chartResizeRaf = null;
+function _scheduleChartResize(el) {
+  if (_chartResizeRaf || !el) return;
+  let holder = el._olyChart;
+  _chartResizeRaf = requestAnimationFrame(function () {
+    _chartResizeRaf = null;
+    if (holder && holder.inst && !holder.pending) {
+      try { holder.inst.resize(); } catch (e) { /* 忽略 */ }
+    }
+  });
+}
 
 function startAutoScroll(e) {
   stopAutoScroll();
   function tick() {
     let dragInfo = getDragInfo();
-    let body = document.querySelector('#ckEditorContainer .mce-content-body');
+    let body = (dragInfo && dragInfo._bodyEl) || document.querySelector('#ckEditorContainer .mce-content-body');
     if (!body || !dragInfo) { stopAutoScroll(); return; }
-    let rect = body.getBoundingClientRect();
+    let rect = dragInfo._bodyRect || body.getBoundingClientRect();
     let edgeZone = 60;
     let speed = 8;
     let relY = e.clientY - rect.top;
@@ -71,46 +137,55 @@ function _updateDraggedElements() {
   let dx = dragInfo._currentDx || 0;
   let dy = dragInfo._currentDy || 0;
 
-  let body = document.querySelector('#ckEditorContainer .mce-content-body');
-  if (!body) return;
+  // 位移必须用 transform（合成器路径）而非 left/top：
+  // Windows 125% 等非整数 DPR 下，canvas/video 等合成层改 left/top 移动会
+  // 因光栅化 tile 错位在旧位置留下半透明残影（表现为「整个画布框虚影」），
+  // translate 由合成器直接移动整层、不经过重绘，可彻底消除残影。
+  // left/top 固定为拖拽起点，松手后 renderAll 按数据坐标落位并清掉 transform。
+  function _place(el, origX, origY) {
+    el.style.left = origX + 'px';
+    el.style.top = origY + 'px';
+    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  }
 
-  // 多选拖拽：移动所有选中项的 DOM
+  // 优先使用 mousedown 时缓存的元素，避免每帧 querySelector
   if (selectedImageIds.size > 1 && selectedImageIds.has(dragInfo.imgData.id)) {
     selectedImageIds.forEach(function(sid) {
-      let el = body.querySelector('[data-oly-id="' + sid + '"]');
+      let el = (dragInfo._multiEls && dragInfo._multiEls[sid]) ||
+        document.querySelector('[data-oly-id="' + sid + '"]');
       let orig = dragInfo._multiOrigins && dragInfo._multiOrigins[sid];
-      if (el && orig) {
-        el.style.left = (orig.x + dx) + 'px';
-        el.style.top = (orig.y + dy) + 'px';
-      }
+      if (el && orig) _place(el, orig.x, orig.y);
     });
   } else {
-    // 单选拖拽
-    let el = body.querySelector('[data-oly-id="' + dragInfo.imgData.id + '"]');
-    if (el) {
-      el.style.left = (dragInfo.origX + dx) + 'px';
-      el.style.top = (dragInfo.origY + dy) + 'px';
-    }
+    let el = dragInfo.el;
+    if (!el || !el.isConnected) el = document.querySelector('[data-oly-id="' + dragInfo.imgData.id + '"]');
+    if (el) _place(el, dragInfo.origX, dragInfo.origY);
   }
 }
 
 document.addEventListener('mousemove', function (e) {
   let dragInfo = getDragInfo();
   let resizeInfo = getResizeInfo();
+  // 交互标志：供 flush 写盘等重操作判断是否推迟（拖拽中全文序列化会掉帧）
+  state.overlayInteracting = !!(dragInfo || resizeInfo);
   if (dragInfo) {
-    if (!_preDragState) _preDragState = JSON.parse(JSON.stringify(overlayImages));
+    if (!_preDragState) _preDragState = _snapshotGeometry();
     let dx = e.clientX - dragInfo.startX;
     let dy = e.clientY - dragInfo.startY;
     dragInfo._currentDx = dx;
     dragInfo._currentDy = dy;
 
     // 自动滚动：鼠标接近编辑器视口边缘时触发
-    let body = document.querySelector('#ckEditorContainer .mce-content-body');
-    if (body) {
-      let rect = body.getBoundingClientRect();
+    // 缓存滚动容器与其 rect，避免每次 mousemove 都触发布局计算
+    if (!dragInfo._bodyEl || !dragInfo._bodyEl.isConnected) {
+      dragInfo._bodyEl = document.querySelector('#ckEditorContainer .mce-content-body');
+      dragInfo._bodyRect = dragInfo._bodyEl ? dragInfo._bodyEl.getBoundingClientRect() : null;
+    }
+    let bodyRect = dragInfo._bodyRect;
+    if (bodyRect) {
       let edgeZone = 60;
-      let relY = e.clientY - rect.top;
-      if ((relY < edgeZone && relY >= 0) || (relY > rect.height - edgeZone && relY <= rect.height)) {
+      let relY = e.clientY - bodyRect.top;
+      if ((relY < edgeZone && relY >= 0) || (relY > bodyRect.height - edgeZone && relY <= bodyRect.height)) {
         if (!_autoScrollRaf) startAutoScroll(e);
       } else {
         stopAutoScroll();
@@ -122,9 +197,12 @@ document.addEventListener('mousemove', function (e) {
       // 保存每个选中项的原始位置（首次移动时）
       if (!dragInfo._multiOrigins) {
         dragInfo._multiOrigins = {};
+        dragInfo._multiEls = {};
         selectedImageIds.forEach(function(sid) {
           let img = findImageDataById(sid);
           if (img) dragInfo._multiOrigins[sid] = { x: img.x, y: img.y };
+          let el = document.querySelector('[data-oly-id="' + sid + '"]');
+          if (el) dragInfo._multiEls[sid] = el;
         });
       }
       selectedImageIds.forEach(function(sid) {
@@ -133,15 +211,15 @@ document.addEventListener('mousemove', function (e) {
         if (img && orig) {
           img.x = Math.max(-50, orig.x + dx);
           img.y = Math.max(-50, orig.y + dy);
-          // 更新百分比坐标
-          _updatePctFromPx(img);
+          // 更新百分比坐标（用缓存的块宽，避免读 clientWidth 强制重排）
+          _updatePctFromPx(img, dragInfo.blockW);
         }
       });
     } else {
       dragInfo.imgData.x = Math.max(-50, dragInfo.origX + dx);
       dragInfo.imgData.y = Math.max(-50, dragInfo.origY + dy);
-      // 更新百分比坐标
-      _updatePctFromPx(dragInfo.imgData);
+      // 更新百分比坐标（用缓存的块宽，避免读 clientWidth 强制重排）
+      _updatePctFromPx(dragInfo.imgData, dragInfo.blockW);
     }
 
     // 使用 RAF 节流，直接更新 DOM 位置而不重建
@@ -154,10 +232,13 @@ document.addEventListener('mousemove', function (e) {
     return;
   }
   if (resizeInfo) {
-    if (!_preDragState) _preDragState = JSON.parse(JSON.stringify(overlayImages));
+    if (!_preDragState) _preDragState = _snapshotGeometry();
     if (resizeInfo.corner === 'rotate') {
-      let blockEl = getBlockElement(resizeInfo.imgData.blockId || getActiveBlockId());
-      let item = blockEl && blockEl.querySelector('[data-oly-id="' + resizeInfo.imgData.id + '"]');
+      let item = resizeInfo.el;
+      if (!item || !item.isConnected) {
+        let blockEl = getBlockElement(resizeInfo.imgData.blockId || getActiveBlockId());
+        item = blockEl && blockEl.querySelector('[data-oly-id="' + resizeInfo.imgData.id + '"]');
+      }
       let rect = item ? item.getBoundingClientRect() : null;
       if (!rect) return;
       let cx = rect.left + rect.width / 2;
@@ -169,7 +250,8 @@ document.addEventListener('mousemove', function (e) {
         newRotation = Math.round(newRotation / 15) * 15;
       }
       resizeInfo.imgData.rotation = newRotation;
-      renderAll();
+      // 直改 DOM：不重建元素，避免音视频重新解码、ECharts 实例重建
+      _applyRotationDom(item, resizeInfo.imgData);
       return;
     }
 
@@ -221,8 +303,26 @@ document.addEventListener('mousemove', function (e) {
     resizeInfo.imgData.y = newY;
     resizeInfo.imgData.width = newW;
     resizeInfo.imgData.height = newH;
-    _updatePctFromPx(resizeInfo.imgData);
-    renderAll();
+    _updatePctFromPx(resizeInfo.imgData, resizeInfo.blockW);
+
+    // 直改 DOM：仅更新几何样式，音视频/图表内容原地保留
+    let resEl = resizeInfo.el;
+    if (!resEl || !resEl.isConnected) {
+      let resBlockEl = getBlockElement(resizeInfo.imgData.blockId || getActiveBlockId());
+      resEl = resBlockEl && resBlockEl.querySelector('[data-oly-id="' + resizeInfo.imgData.id + '"]');
+    }
+    if (resEl) {
+      // 位置偏移走 transform（合成器路径）：非整数 DPR 下 left/top 移动会留下
+      // 旧位置残影；left/top 固定为缩放起点，松手后 renderAll 按数据坐标落位。
+      let offX = newX - resizeInfo.origX;
+      let offY = newY - resizeInfo.origY;
+      resEl.style.left = resizeInfo.origX + 'px';
+      resEl.style.top = resizeInfo.origY + 'px';
+      resEl.style.transform = 'translate(' + offX + 'px,' + offY + 'px)';
+      resEl.style.width = newW + 'px';
+      resEl.style.height = newH + 'px';
+      if (resEl._olyChart) _scheduleChartResize(resEl);
+    }
     return;
   }
 });
@@ -242,31 +342,34 @@ document.addEventListener('mouseup', function () {
   }
 
   if (_preDragState && state.tinyEditor && state.tinyEditor.undoManager) {
-    var postState = JSON.parse(JSON.stringify(overlayImages));
+    var postState = _snapshotGeometry();
     var preState = _preDragState;
-    state.tinyEditor.undoManager.add({
-      undo: function () {
-        overlayImages.length = 0;
-        Array.prototype.push.apply(overlayImages, JSON.parse(JSON.stringify(preState)));
-        selectedImageIds.clear();
-        renderAll();
-      },
-      redo: function () {
-        overlayImages.length = 0;
-        Array.prototype.push.apply(overlayImages, JSON.parse(JSON.stringify(postState)));
-        selectedImageIds.clear();
-        renderAll();
-      }
-    });
+    // TinyMCE 的 add() 内部会对全文做快照（大文档数百毫秒），
+    // 推迟到下一帧执行，避免松手瞬间主线程卡死
+    setTimeout(function () {
+      state.tinyEditor.undoManager.add({
+        undo: function () {
+          _applyGeometrySnapshot(preState);
+          selectedImageIds.clear();
+          renderAll();
+        },
+        redo: function () {
+          _applyGeometrySnapshot(postState);
+          selectedImageIds.clear();
+          renderAll();
+        }
+      });
+    }, 0);
   }
 
-  // 拖动结束后重新渲染，确保 DOM 与数据同步
-  if (dragInfo) {
+  // 拖动/缩放结束后渲染一次，确保 DOM 与数据同步（图表也会重新布局）
+  if (dragInfo || resizeInfo) {
     renderAll();
   }
 
   setDragInfo(null);
   setResizeInfo(null);
+  state.overlayInteracting = false;
   _preDragState = null;
 });
 

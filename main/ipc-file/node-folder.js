@@ -77,6 +77,7 @@ function bindNodeFolderIPC(mainWindow) {
         layers: [{ id: 'layer_default', name: '默认图层', visible: true, locked: false, nodeIds: [] }],
         currentLayerId: 'layer_default',
         treeEdgeLabels: {},
+        treeEdgePegOffsets: {},
         cameraView: null
       };
       fs.writeFileSync(

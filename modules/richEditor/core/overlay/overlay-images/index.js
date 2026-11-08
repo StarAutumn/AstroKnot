@@ -55,7 +55,8 @@ export function bindOverlayEvents() {
         origH: imgData.height,
         corner: 'rotate',
         initAngle: initAngle,
-        origRotation: imgData.rotation
+        origRotation: imgData.rotation,
+        el: item
       });
       return;
     }
@@ -88,7 +89,9 @@ export function bindOverlayEvents() {
         origW: imgData.width,
         origH: imgData.height,
         corner: corner,
-        aspectLock: true
+        aspectLock: true,
+        el: item,
+        blockW: (item.closest('.tmce-overlay-block') || {}).clientWidth || 0
       });
       return;
     }

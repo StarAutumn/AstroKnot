@@ -425,6 +425,7 @@ export function initVersionMapModal() {
               })),
               currentLayerId: snap.currentLayerId || null,
               treeEdgeLabels: snap.treeEdgeLabels || {},
+              treeEdgePegOffsets: snap.treeEdgePegOffsets || {},
               cameraView: snap.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
             };
             // 更新当前项目的数据

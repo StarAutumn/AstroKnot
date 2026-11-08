@@ -769,6 +769,93 @@ export function addChart() {
   openChartEditor(chartData);
 }
 
+// ── 构建 ECharts option（含用户保存的样式配置）──
+function _buildChartOption(imgData) {
+  let option = buildEChartsOption(imgData.chartType, imgData.chartData, imgData.chartTitle);
+
+  if (imgData.chartStyle) {
+    let cs = imgData.chartStyle;
+    // 颜色主题
+    if (cs.theme && CHART_THEMES[cs.theme]) {
+      option.color = CHART_THEMES[cs.theme].colors;
+    }
+    // 动画
+    if (cs.animation === false) {
+      option.animation = false;
+      if (option.series) option.series.forEach(function (s) { s.animation = false; });
+    }
+    // 数据标签
+    if (cs.showDataLabel && option.series) {
+      option.series.forEach(function (s) {
+        s.label = { show: true, position: 'top', color: '#ccc', fontSize: 10 };
+      });
+    }
+    // 图例位置
+    if (option.legend && typeof option.legend === 'object' && cs.legendPos) {
+      ['top','bottom','left','right'].forEach(function (p) { delete option.legend[p]; });
+      option.legend[cs.legendPos] = 10;
+    }
+    // 网格边距
+    if (option.grid && cs.gridTop != null) {
+      option.grid.top = cs.gridTop;
+      option.grid.bottom = cs.gridBottom;
+      option.grid.left = cs.gridLeft;
+      option.grid.right = cs.gridRight;
+    }
+    // Tooltip
+    if (option.tooltip && cs.tooltipTrigger) {
+      option.tooltip.trigger = cs.tooltipTrigger;
+    }
+  }
+  return option;
+}
+
+// ── 图表内容签名：只有数据/样式真正变化时才重设 option ──
+function _chartSig(imgData) {
+  return [
+    imgData.chartType || '',
+    imgData.chartTitle || '',
+    imgData.sourceExcelId || '',
+    JSON.stringify(imgData.chartData || null),
+    JSON.stringify(imgData.chartStyle || null)
+  ].join('|');
+}
+
+// ── 原地更新图表内容（renderAll 复用时调用，返回 false 表示需重建）──
+export function updateChartContent(item, imgData) {
+  let holder = item._olyChart;
+  if (!holder) return false;
+  // 首帧 ECharts 尚未初始化 → 交给渲染队列，无需重建 DOM
+  if (holder.pending) {
+    holder.data = imgData;
+    return true;
+  }
+  if (!holder.inst) return false;
+  if (holder.inst.isDisposed && holder.inst.isDisposed()) return false;
+
+  holder.data = imgData;
+
+  // 标题栏文字
+  if (holder.titleEl) {
+    let typeLabel = CHART_TYPES[imgData.chartType] ? CHART_TYPES[imgData.chartType].label : '图表';
+    let linkIndicator = imgData.sourceExcelId ? '🔗 ' : '';
+    holder.titleEl.textContent = linkIndicator + (imgData.chartTitle || typeLabel);
+  }
+
+  let sig = _chartSig(imgData);
+  if (sig !== holder.sig) {
+    try {
+      holder.inst.setOption(_buildChartOption(imgData), true);
+      holder.sig = sig;
+    } catch (e) {
+      console.warn('[Chart] 更新失败:', e);
+      return false;
+    }
+  }
+  try { holder.inst.resize(); } catch (e) { /* ignore */ }
+  return true;
+}
+
 // ── 渲染图表预览内容 ──
 export function renderChartContent(item, imgData) {
   let wrapper = document.createElement('div');
@@ -812,67 +899,34 @@ export function renderChartContent(item, imgData) {
   wrapper.appendChild(chartArea);
   item.appendChild(wrapper);
 
+  // holder 持有 ECharts 实例与数据签名，供 updateChartContent 原地更新
+  let holder = { inst: null, sig: '', titleEl: title, data: imgData, pending: true };
+  item._olyChart = holder;
+
   // 使用 ECharts 渲染
   if (typeof echarts !== 'undefined') {
     requestAnimationFrame(function () {
+      // 元素已被移除或已被新一轮渲染替换 → 放弃初始化
+      if (!item.isConnected || item._olyChart !== holder) return;
+
       let chartContainer = document.createElement('div');
       chartContainer.style.cssText = 'width:100%;height:100%;';
       chartArea.appendChild(chartContainer);
 
-      let option = buildEChartsOption(imgData.chartType, imgData.chartData, imgData.chartTitle);
-
-      // 应用保存的样式配置
-      if (imgData.chartStyle) {
-        let cs = imgData.chartStyle;
-        // 颜色主题
-        if (cs.theme && CHART_THEMES[cs.theme]) {
-          option.color = CHART_THEMES[cs.theme].colors;
-        }
-        // 动画
-        if (cs.animation === false) {
-          option.animation = false;
-          if (option.series) option.series.forEach(function (s) { s.animation = false; });
-        }
-        // 数据标签
-        if (cs.showDataLabel && option.series) {
-          option.series.forEach(function (s) {
-            s.label = { show: true, position: 'top', color: '#ccc', fontSize: 10 };
-          });
-        }
-        // 图例位置
-        if (option.legend && typeof option.legend === 'object' && cs.legendPos) {
-          ['top','bottom','left','right'].forEach(function (p) { delete option.legend[p]; });
-          option.legend[cs.legendPos] = 10;
-        }
-        // 网格边距
-        if (option.grid && cs.gridTop != null) {
-          option.grid.top = cs.gridTop;
-          option.grid.bottom = cs.gridBottom;
-          option.grid.left = cs.gridLeft;
-          option.grid.right = cs.gridRight;
-        }
-        // Tooltip
-        if (option.tooltip && cs.tooltipTrigger) {
-          option.tooltip.trigger = cs.tooltipTrigger;
-        }
-      }
       try {
         let chartInstance = echarts.init(chartContainer, null, { renderer: 'canvas' });
-        chartInstance.setOption(option);
-
-        // 保存 SVG 快照
-        try {
-          imgData.chartSvg = chartInstance.getDataURL({ type: 'svg', pixelRatio: 1 });
-        } catch (e) { /* ignore */ }
-
-        // 存储 chart 实例以便后续 resize
-        chartContainer._echartsInstance = chartInstance;
+        chartInstance.setOption(_buildChartOption(holder.data));
+        holder.inst = chartInstance;
+        holder.sig = _chartSig(holder.data);
+        holder.pending = false;
       } catch (e) {
         console.warn('[Chart] ECharts 渲染失败:', e);
+        holder.pending = false;
         chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ff6b6b;font-size:12px;">图表渲染失败</div>';
       }
     });
   } else {
+    holder.pending = false;
     chartArea.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:12px;">ECharts 未加载</div>';
   }
 }

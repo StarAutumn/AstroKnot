@@ -12,10 +12,12 @@ import {
   transform, setTransform, TRANSITION_DURATION,
   setNodeHitAreas, setLineHitAreas,
   setBoxSelecting, clearBoxSelectNodeIds, setHasValidBoxSelection,
-  setAnimations, sync2DSettings
+  setAnimations, sync2DSettings,
+  animations, isFreeDrawing, hoveredNodeId
 } from './shared.js';
 import { draw, mark2DDirty } from './render/index.js';
 export { mark2DDirty };
+import { hasFishboneAnim } from '../Fishbone/visibility.js';
 import { initInteractionEvents, syncCardOverlays } from './interaction/index.js';
 
 // -------- 初始化 2D 视图 --------
@@ -201,8 +203,18 @@ export function refresh2DView() {
 }
 
 // -------- 仅重绘 2D 视图（动画帧用：复用布局缓存，不重算） --------
+// 3D 动画循环每帧调用本函数：动画/交互活跃时全速重绘；
+// 空闲时降频（~8fps）只维持色相循环/呼吸光的最低成本，避免 2D 模式 60fps 常驻全量重绘
+// 把平板等弱性能设备的主线程吃满（交互卡顿的根源）
+let _lastAutoDraw = 0;
 export function redraw2DView() {
-  if (visible) draw();
+  if (!visible) return;
+  const animated = animations.length > 0 || isFreeDrawing || hoveredNodeId ||
+    appState.arrangeAnim2DActive || hasFishboneAnim() || appState._viewTransitioning;
+  const now = performance.now();
+  if (!animated && now - _lastAutoDraw < 120) return;
+  _lastAutoDraw = now;
+  draw();
 }
 
 // -------- 切换到指定图层并刷新 --------

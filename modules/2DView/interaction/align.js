@@ -88,3 +88,71 @@ export const alignSelectedNodesVertical = withHistory(function (type) {
   draw();
   saveCurrentProjectData();
 });
+
+// 横向等距排列：最左/最右节点不动，中间节点按边缘间距均分（等距 gap）
+export const distributeSelectedNodesHorizontal = withHistory(function () {
+  const selectedIds = boxSelectNodeIds.size > 0 ? boxSelectNodeIds : appState.selectedNodeIds;
+  if (!selectedIds || selectedIds.size < 3) return;
+
+  const items = [];
+  for (const id of selectedIds) {
+    const b = getNodeBounds2D(id);
+    if (!b) continue;
+    items.push({ id, x: b.x, width: b.width });
+  }
+  if (items.length < 3) return;
+
+  items.sort((a, b) => a.x - b.x);
+  const first = items[0], last = items[items.length - 1];
+  const sumW = items.reduce((s, it) => s + it.width, 0);
+  const gap = ((last.x + last.width) - first.x - sumW) / (items.length - 1);
+
+  let cursor = first.x;
+  for (const it of items) {
+    const pos = appState.positions2D.get(it.id);
+    if (!pos) continue;
+    appState.positions2D.set(it.id, { x: cursor, y: pos.y });
+    cursor += it.width + gap;
+  }
+
+  hideContextMenu();
+  clearBoxSelectNodeIds();
+  setHasValidBoxSelection(false);
+  mark2DDirty();
+  draw();
+  saveCurrentProjectData();
+});
+
+// 纵向等距排列：最上/最下节点不动，中间节点按边缘间距均分（等距 gap）
+export const distributeSelectedNodesVertical = withHistory(function () {
+  const selectedIds = boxSelectNodeIds.size > 0 ? boxSelectNodeIds : appState.selectedNodeIds;
+  if (!selectedIds || selectedIds.size < 3) return;
+
+  const items = [];
+  for (const id of selectedIds) {
+    const b = getNodeBounds2D(id);
+    if (!b) continue;
+    items.push({ id, y: b.y, height: b.height });
+  }
+  if (items.length < 3) return;
+
+  items.sort((a, b) => a.y - b.y);
+  const first = items[0], last = items[items.length - 1];
+  const sumH = items.reduce((s, it) => s + it.height, 0);
+  const gap = ((last.y + last.height) - first.y - sumH) / (items.length - 1);
+
+  let cursor = first.y;
+  for (const it of items) {
+    const pos = appState.positions2D.get(it.id);
+    if (!pos) continue;
+    appState.positions2D.set(it.id, { x: pos.x, y: cursor });
+    cursor += it.height + gap;
+  }
+
+  hideContextMenu();
+  clearBoxSelectNodeIds();
+  setHasValidBoxSelection(false);
+  mark2DDirty();
+  draw();
+  saveCurrentProjectData();
+});

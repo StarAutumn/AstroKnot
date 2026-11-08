@@ -115,11 +115,13 @@ function findImageDataById(id) {
 /**
  * 根据 px 值更新百分比坐标
  * 在拖拽/缩放后调用
+ * @param {object} imgData
+ * @param {number} [refW] 已缓存的块宽度（拖拽过程中避免每次读 clientWidth 强制重排）
  */
-function _updatePctFromPx(imgData) {
+function _updatePctFromPx(imgData, refW) {
   let blockId = imgData.blockId || getActiveBlockId();
   if (!blockId) return;
-  let blockW = getBlockWidth(blockId);
+  let blockW = refW || getBlockWidth(blockId);
   if (!blockW || blockW <= 0) return;
   imgData.leftPct = pxToPct(imgData.x, blockW);
   imgData.widthPct = pxToPct(imgData.width, blockW);

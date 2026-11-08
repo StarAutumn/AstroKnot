@@ -48,8 +48,8 @@
     <link rel="stylesheet" href="modules/DataSetup/style.css">
     <link rel="stylesheet" href="modules/StartPage/style.css">
 
-    <!-- TinyMCE 7 自托管版（从 jsDelivr CDN 加载，MIT/GPL 许可证） -->
-    <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js"></script>
+    <!-- TinyMCE 7 自托管版（已本地化，离线可用，MIT/GPL 许可证） -->
+    <script src="lib/tinymce.min.js"></script>
 
     <!-- WaveSurfer.js 7 音频波形编辑器（BSD-3-Clause 许可证） -->
     <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
@@ -1756,12 +1756,14 @@
             <button id="alignTopBtn" style="background:#2c4a6e;font-size:12px;">⬆ 上对齐</button>
             <button id="alignHCenterBtn" style="background:#2c4a6e;font-size:12px;">- 水平居中</button>
             <button id="alignBottomBtn" style="background:#2c4a6e;font-size:12px;">⬇ 下对齐</button>
+            <button id="distributeHBtn" style="background:#2c4a6e;font-size:12px;display:none;">⇹ 等距</button>
         </div>
         <div class="menu-row" id="alignRowVertical" style="display:none;">
             <span style="color:#aaa;font-size:11px;">纵向</span>
             <button id="alignLeftBtn" style="background:#2c5a5e;font-size:12px;">⬅ 左对齐</button>
             <button id="alignVCenterBtn" style="background:#2c5a5e;font-size:12px;">- 垂直居中</button>
             <button id="alignRightBtn" style="background:#2c5a5e;font-size:12px;">➡ 右对齐</button>
+            <button id="distributeVBtn" style="background:#2c5a5e;font-size:12px;display:none;">⇕ 等距</button>
         </div>
         <div class="menu-row" id="groupRow" style="display:none;">
             <button id="groupNodesBtn" style="background:#4a3c7e;font-size:12px;"> 新建群组</button>

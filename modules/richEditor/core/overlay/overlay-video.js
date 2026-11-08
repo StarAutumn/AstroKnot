@@ -110,8 +110,14 @@ export function renderVideoContent(item, imgData) {
   video.preload = 'metadata';
   video.playsInline = true;
   video.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
+  video.draggable = false; // 避免原生 drag 生成整个画布块的拖影
   // 不在 video 上 stopPropagation，让父级拖拽系统能接收到 mousedown
   video.dataset.olyVideoId = imgData.id;
+
+  // undo/redo 会整体替换 overlayImages（JSON 副本），控件事件里不能写死旧引用
+  function _curVideoData() {
+    return (item._olyMedia && item._olyMedia.ref) || imgData;
+  }
 
   // 控制栏
   let controls = document.createElement('div');
@@ -168,7 +174,7 @@ export function renderVideoContent(item, imgData) {
   volBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     video.muted = !video.muted;
-    imgData.muted = video.muted;
+    _curVideoData().muted = video.muted;
     volBtn.innerHTML = video.muted ? '&#128263;' : '&#128264;';
   });
 
@@ -180,7 +186,7 @@ export function renderVideoContent(item, imgData) {
   loopBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     video.loop = !video.loop;
-    imgData.loop = video.loop;
+    _curVideoData().loop = video.loop;
     loopBtn.style.color = video.loop ? 'var(--accent,#0ff)' : '#888';
   });
 
@@ -259,4 +265,23 @@ export function renderVideoContent(item, imgData) {
   wrapper.appendChild(centerPlay);
   wrapper.appendChild(controls);
   item.appendChild(wrapper);
+
+  // 供 renderAll 原地复用时同步状态：不重建 <video>，避免重新解码与播放进度丢失
+  item._olyMedia = {
+    el: video,
+    src: imgData.src,
+    ref: imgData,
+    sync: function (data) {
+      this.ref = data;
+      if (this.src !== data.src) {
+        this.src = data.src;
+        video.src = data.src;
+      }
+      video.volume = data.volume ?? 1;
+      video.muted = data.muted ?? false;
+      video.loop = data.loop ?? false;
+      volBtn.innerHTML = video.muted ? '&#128263;' : '&#128264;';
+      loopBtn.style.color = video.loop ? 'var(--accent,#0ff)' : '#888';
+    }
+  };
 }

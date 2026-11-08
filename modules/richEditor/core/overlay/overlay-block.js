@@ -246,19 +246,45 @@ export function updateAllBlockSizers() {
 
 // ── ResizeObserver 监听块宽度变化 ──
 let _blockResizeObserver = null;
+let _lastBlockWidths = new Map(); // blockId → 上次渲染时的宽度（px）
+let _blockResizeRaf = null;
 
+/**
+ * 监听画布块尺寸变化。
+ * 只有「宽度」变化才需要重算 overlay 的百分比坐标：
+ * updateBlockSizer 会改块的高度，若无差别触发会形成
+ * ResizeObserver → renderAll → 改高度 → ResizeObserver 的反馈死循环。
+ */
 export function setupBlockResizeObservers() {
   if (_blockResizeObserver) _blockResizeObserver.disconnect();
+  _lastBlockWidths.clear();
 
   let body = document.querySelector('#ckEditorContainer .mce-content-body');
   if (!body) return;
 
-  _blockResizeObserver = new ResizeObserver(function () {
-    renderAll();
+  _blockResizeObserver = new ResizeObserver(function (entries) {
+    let widthChanged = false;
+    for (let i = 0; i < entries.length; i++) {
+      let el = entries[i].target;
+      let id = el.getAttribute('data-block-id');
+      if (!id) continue;
+      let w = Math.round(el.clientWidth || 0);
+      if (_lastBlockWidths.get(id) === w) continue;
+      _lastBlockWidths.set(id, w);
+      widthChanged = true;
+    }
+    if (!widthChanged) return;
+    // 合并同一帧内的多次触发
+    if (_blockResizeRaf) return;
+    _blockResizeRaf = requestAnimationFrame(function () {
+      _blockResizeRaf = null;
+      renderAll();
+    });
   });
 
   let blocks = body.querySelectorAll('.tmce-overlay-block');
   for (let i = 0; i < blocks.length; i++) {
+    _lastBlockWidths.set(blocks[i].getAttribute('data-block-id'), Math.round(blocks[i].clientWidth || 0));
     _blockResizeObserver.observe(blocks[i]);
   }
 
@@ -271,6 +297,8 @@ export function setupBlockResizeObservers() {
  */
 export function stripOverlayBlocksFromHTML(html) {
   if (!html) return html;
+  // 廉价早退：无画布块的文档跳过全文 string→DOM→string 往返
+  if (html.indexOf('tmce-overlay-block') === -1) return html;
   let div = document.createElement('div');
   div.innerHTML = html;
 

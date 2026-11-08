@@ -100,6 +100,33 @@ export const TRANSITION_DURATION = 500;
 export const POLYLINE_PEG_X = 24;   // 折线向右短距离拐点
 export const POLYLINE_PEG_Y = 20;   // 折线向下短距离拐点（step 节点）
 
+// -------- 树连线拐点（第一段）长度（key: "<parentId>|normal" / "<parentId>|step" → 数字） --------
+// 同一父节点的所有同向子连线第一段完全重合（都从父节点同一输出点出发），
+// 拐点长度按「父节点+方向」存储：拖一个拐点即改整段重合的第一段
+export function treeEdgePegKey(parentId, isStep) {
+  return parentId + (isStep ? '|step' : '|normal');
+}
+// 存于 appState.treeEdgePegOffsets；未设置时用默认短距。通过 window.appState 读取，
+// 避免本模块与 module0_AppState 产生循环导入（与 sync2DSettings 同套路）
+export function getTreeEdgePegOffset(parentId, isStep) {
+  const def = isStep ? POLYLINE_PEG_Y : POLYLINE_PEG_X;
+  try {
+    const v = window.appState?.treeEdgePegOffsets?.get(treeEdgePegKey(parentId, isStep));
+    return typeof v === 'number' && isFinite(v) ? v : def;
+  } catch { return def; }
+}
+
+// -------- 树连线拐点按钮：命中区收集 / 悬停 / 长按拖动 --------
+export const PEG_HIT_RADIUS = 8;    // 拐点按钮命中半径（世界坐标）
+export let pegHitAreas = [];        // 每帧收集：{ parentId, isStep, x, y }（拐点世界坐标，同父同向去重）
+export function setPegHitAreas(arr) { pegHitAreas = arr; }
+// 悬停的拐点 { parentId, isStep } | null（悬停或拖动中均设置，用于绘制按钮）
+export let hoveredEdgePeg = null;
+export function setHoveredEdgePeg(h) { hoveredEdgePeg = h; }
+// 拖动中状态：{ parentId, isStep, startValue, startWorld } | null
+export let pegDragState = null;
+export function setPegDragState(s) { pegDragState = s; }
+
 /** 从 appState 同步 2D 视图几何设置（如需动态调整） */
 export function sync2DSettings() {
   try {

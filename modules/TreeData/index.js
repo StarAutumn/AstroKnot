@@ -106,6 +106,7 @@ export function restoreEmergencySnapshot(snapshotData, projectName) {
     })),
     currentLayerId: snapshotData.currentLayerId || null,
     treeEdgeLabels: snapshotData.treeEdgeLabels || {},
+    treeEdgePegOffsets: snapshotData.treeEdgePegOffsets || {},
     cameraView: snapshotData.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
   };
   // 先保存当前项目（避免丢失未落盘数据）

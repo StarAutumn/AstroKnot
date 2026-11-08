@@ -10,6 +10,7 @@ import {
   BASE_NODE_HEIGHT,
   nodeHitAreas, setNodeHitAreas,
   setLineHitAreas,
+  setPegHitAreas,
   isFreeDrawing, hoveredNodeId,
   getNodeWidth
 } from '../shared.js';
@@ -29,7 +30,7 @@ import { isNodeInCurrentLayer, rebuildParentMap } from './visibility.js';
 import { getCardSize, getCardOffset } from './shape-utils.js';
 import {
   drawTreeRecursive, drawCrossEdges, drawBoxSelection,
-  drawGroupRects, drawSelectedGroupHandles
+  drawGroupRects, drawSelectedGroupHandles, flushPegButtons
 } from './scene-renderers.js';
 import { drawAllAnchorPoints, drawFreeDrawPreview, flushLineBatch } from './edge-renderers.js';
 import { drawFishbone2D } from '../../Fishbone/render2d.js';
@@ -102,6 +103,7 @@ export function draw() {
 
   setNodeHitAreas([]);
   setLineHitAreas([]);
+  setPegHitAreas([]);
   resetCardHitAreas();
 
   // 布局缓存：平移/缩放时跳过重算，仅数据变更时重新计算
@@ -144,6 +146,8 @@ export function draw() {
   drawTreeRecursive(layout, positionMap, null, true, deferredCards);
   // 批量刷新所有收集到的连线（必须在卡片之前上屏，否则连线会盖在节点上面；保持世界坐标系）
   flushLineBatch();
+  // 拐点拖动按钮（悬停显示）：连线批量上屏后绘制，避免被折线盖住
+  flushPegButtons();
   for (const drawCard of deferredCards) drawCard();
 
   // 绘制连线模式下的锚点（在节点之上）
@@ -188,4 +192,13 @@ export function draw() {
   if (visible && (animations.length > 0 || isFreeDrawing || hoveredNodeId || appState.arrangeAnim2DActive || hasFishboneAnim())) {
     requestAnimationFrame(() => draw());
   }
+}
+
+// rAF 合帧：交互热路径（mousemove/滚轮/触摸等高频事件）用本函数替代直接 draw()，
+// 一帧内的多次请求合并为下一帧只画一次，避免事件频率超过帧预算时主线程被同步全量重绘淹没（平板卡顿主因之一）
+let _drawFramePending = false;
+export function scheduleDraw() {
+  if (_drawFramePending) return;
+  _drawFramePending = true;
+  requestAnimationFrame(() => { _drawFramePending = false; draw(); });
 }

@@ -34,7 +34,7 @@ import { appState } from '../module0_AppState.js';
 // ── 增量存储字段分组配置 ──
 // 顶层结构字段：整体作为一个 blob 存储（变化时整体重写，但这些字段本身较小）
 const TOP_FIELDS = ['methodsTree', 'crossEdges', 'positions', 'positions2D',
-  'collapsed2D', 'treeEdgeLabels', 'cameraView', 'layers'];
+  'collapsed2D', 'treeEdgeLabels', 'treeEdgePegOffsets', 'cameraView', 'layers'];
 // 节点级字段：按 nodeId 拆分，每个节点独立 blob（真正实现"只存变化的部分"）
 const NODE_FIELDS = ['nodeRichContents', 'nodeOverlayImages', 'nodeFileSystems', 'nodeHtmlSources'];
 

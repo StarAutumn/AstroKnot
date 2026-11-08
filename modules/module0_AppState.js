@@ -58,6 +58,7 @@ class AppState {
     this.ringVisible = true;
     this.showAllLabels = true;
     this.treeEdgeLabels = new Map();  // key: "startId->endId" → { label, labelHidden }, 树连线标签后备存储
+    this.treeEdgePegOffsets = new Map();  // key: "<节点id>|normal"/"<节点id>|step" → number, 树连线第一段折线长度（拐点拖拽，按父节点+方向共享）
     this.skyRotationSpeed = 1.0;
     this.startupMode = '3d_simple';  // 默认启动模式：3D 极简
     this.startPageBackground = 'ribbon';  // 'ribbon' | 'custom'

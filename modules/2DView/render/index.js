@@ -11,7 +11,7 @@
 //      draw.js           主绘制函数 draw()
 // ============================================================
 
-export { draw } from './draw.js';
+export { draw, scheduleDraw } from './draw.js';
 
 export {
   mark2DDirty,

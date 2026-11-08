@@ -259,6 +259,7 @@ function _serializeProjectForIPC(proj) {
     layers,
     currentLayerId: d.currentLayerId || null,
     treeEdgeLabels: d.treeEdgeLabels || {},
+    treeEdgePegOffsets: d.treeEdgePegOffsets || {},
     cameraView: d.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
   };
 }
@@ -315,6 +316,7 @@ export function addRestoredProject(data, folderName, folderPath) {
       layers: data.layers || [],
       currentLayerId: data.currentLayerId || null,
       treeEdgeLabels: data.treeEdgeLabels || {},
+      treeEdgePegOffsets: data.treeEdgePegOffsets || {},
       cameraView: data.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
     }
   };

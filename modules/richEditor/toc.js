@@ -69,6 +69,10 @@ export function initTOC(editor) {
   sidebar.appendChild(body);
   wrapper.appendChild(sidebar);
 
+  // 供 togglePanel 展开时补建目录使用
+  sidebar._tocEditor = editor;
+  sidebar._tocContainer = treeBody;
+
   buildTOC(editor, treeBody);
 
   editor.on('NodeChange', () => {
@@ -86,11 +90,19 @@ function togglePanel(sidebar) {
   const tab = sidebar.querySelector('.toc-tab');
   tab.textContent = collapsed ? '\u25B6' : '\u25C0';
   tab.title = collapsed ? '\u6298\u53E0\u76EE\u5F55' : '\u5C55\u5F00\u76EE\u5F55';
+  // 折叠期间跳过了目录重建，展开时补建一次
+  if (collapsed && sidebar._tocEditor && sidebar._tocContainer) {
+    buildTOC(sidebar._tocEditor, sidebar._tocContainer);
+  }
 }
 
 export function buildTOC(editor, container) {
   const docBody = editor.getBody();
   if (!docBody) return;
+  // 侧边栏折叠时不做全文扫描重建：NodeChange 触发极频繁（光标移动即触发），
+  // 折叠状态下重建结果不可见，纯属浪费
+  const sidebar = container && container.closest ? container.closest('#tocSidebar') : null;
+  if (sidebar && sidebar.getAttribute('data-collapsed') === 'true') return;
 
   const allElements = docBody.querySelectorAll('h1, h2, h3, h4, h5, h6, li');
   if (allElements.length === 0) {

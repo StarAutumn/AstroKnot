@@ -8,7 +8,8 @@ import {
   nodeHitAreas, groupRects,
   HANDLE_SIZE, getGroupHandlePositions,
   ANCHOR_HIT_RADIUS, ANCHOR_KEYS, getNodeAnchors,
-  QUICK_ADD_HIT_RADIUS
+  QUICK_ADD_HIT_RADIUS,
+  pegHitAreas, PEG_HIT_RADIUS
 } from '../shared.js';
 
 // 锚点命中检测：返回 { nodeId, anchorKey } 或 null
@@ -72,6 +73,19 @@ export function quickAddChildNode(parentId, type) {
       parentId, offsetX: 160, offsetY: 10
     });
   }
+}
+
+// 树连线拐点命中检测（悬停/长按拖动改第一段折线长度，按父节点+方向共享）
+// 返回 { parentId, isStep } 或 null
+export function hitTestEdgePeg(worldX, worldY) {
+  for (const peg of pegHitAreas) {
+    const dx = worldX - peg.x;
+    const dy = worldY - peg.y;
+    if (dx * dx + dy * dy <= PEG_HIT_RADIUS * PEG_HIT_RADIUS) {
+      return { parentId: peg.parentId, isStep: peg.isStep };
+    }
+  }
+  return null;
 }
 
 // 组群矩形把手命中检测：返回 'nw'|'ne'|'sw'|'se'|null

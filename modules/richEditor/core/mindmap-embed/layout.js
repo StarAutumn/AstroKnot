@@ -63,9 +63,10 @@ function _layoutTrad(node) {
   stepCoreWidth += MM_H_GAP * Math.max(0, stepChildren.length - 1);
 
   // 父节点纵向居中偏移：与子节点对称轴对齐
+  // 仅在有普通子节点时垂直居中；步骤子节点在下方，不能拿它的高度来居中父节点
   const parentYOffset = normalChildren.length > 0
     ? Math.max(0, (normalTotalHeight - nodeHeight) / 2)
-    : stepMaxHeight > 0 ? Math.max(0, (stepMaxHeight - nodeHeight) / 2) : 0;
+    : 0;
   layout.parentYOffset = parentYOffset;
   layout.stepMaxHeight = stepMaxHeight;
 
@@ -75,7 +76,8 @@ function _layoutTrad(node) {
   // 右侧正常子节点起始 X（步骤子节点在下方，不参与横向避让）
   const normalStartX = layout.offset + nodeWidth + MM_H_GAP;
   const normalRegionWidth = normalMaxWidth > 0 ? normalStartX + normalMaxWidth : normalStartX;
-  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+  // 步骤子节点的起始位置只需越过父节点自身（及普通子节点块），不能把 stepMaxHeight 计入
+  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
   const stepRegionHeight = stepMaxHeight > 0 ? normalRegionHeight + MM_V_GAP + stepMaxHeight : normalRegionHeight;
 
   layout.subtreeW = normalRegionWidth;
@@ -116,9 +118,10 @@ function _layoutStep(node) {
   }
   if (stepChildren.length > 0) stepCoreWidth += MM_H_GAP * (stepChildren.length - 1);
 
+  // 仅在有普通子节点时垂直居中；步骤子节点在下方，不能拿它的高度来居中父节点
   const parentYOffset = normalChildren.length > 0
     ? Math.max(0, (normalTotalHeight - nodeHeight) / 2)
-    : stepMaxHeight > 0 ? Math.max(0, (stepMaxHeight - nodeHeight) / 2) : 0;
+    : 0;
   layout.parentYOffset = parentYOffset;
   layout.stepMaxHeight = stepMaxHeight;
 
@@ -126,7 +129,8 @@ function _layoutStep(node) {
 
   const normalStartX = layout.offset + nodeWidth + MM_H_GAP;
   const normalRegionWidth = normalMaxWidth > 0 ? normalStartX + normalMaxWidth : normalStartX;
-  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+  // 步骤子节点的起始位置只需越过父节点自身（及普通子节点块），不能把 stepMaxHeight 计入
+  const normalRegionHeight = normalTotalHeight > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
   const stepRegionHeight = stepMaxHeight > 0 ? normalRegionHeight + MM_V_GAP + stepMaxHeight : normalRegionHeight;
 
   layout.subtreeW = normalRegionWidth;
@@ -171,8 +175,7 @@ function _assignTrad(layout, x, y) {
     for (const child of normalChildren) normalTotalHeight += child.subtreeH;
     normalTotalHeight += MM_V_GAP * Math.max(0, normalChildren.length - 1);
     for (let i = 1; i < normalChildren.length; i++) normalTotalHeight += normalChildren[i].offset || 0;
-    const stepMaxHeight = layout.stepMaxHeight || 0;
-    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
     const stepStartY = y + normalRegionHeight + MM_V_GAP;
     let currentX = stepStartX;
     for (const child of stepChildren) {
@@ -214,8 +217,7 @@ function _assignStep(layout, x, y) {
     for (const child of normalChildren) normalTotalHeight += child.subtreeH;
     normalTotalHeight += MM_V_GAP * Math.max(0, normalChildren.length - 1);
     for (let i = 1; i < normalChildren.length; i++) normalTotalHeight += normalChildren[i].offset || 0;
-    const stepMaxHeight = layout.stepMaxHeight || 0;
-    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : stepMaxHeight > 0 ? Math.max(nodeHeight, stepMaxHeight) : nodeHeight;
+    const normalRegionHeight = normalChildren.length > 0 ? Math.max(nodeHeight, normalTotalHeight) : nodeHeight;
     const stepStartY = y + normalRegionHeight + MM_V_GAP;
     let currentX = stepStartX;
     for (const child of stepChildren) {

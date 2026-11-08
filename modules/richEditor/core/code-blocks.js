@@ -71,6 +71,8 @@ export function syncLineNumbersDebounced(editor) {
 
 export function stripLineNumbersFromHTML(html) {
   if (!html) return html;
+  // 廉价早退：绝大多数文档没有代码块，跳过全文 string→DOM→string 往返
+  if (html.indexOf('tmce-code-wrapper') === -1) return html;
   let div = document.createElement('div');
   div.innerHTML = html;
   let wrappers = div.querySelectorAll('.tmce-code-wrapper');

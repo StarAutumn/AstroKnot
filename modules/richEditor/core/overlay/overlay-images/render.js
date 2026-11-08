@@ -14,7 +14,7 @@ import { renderVideoContent } from '../overlay-video.js';
 import { renderAudioContent } from '../overlay-audio.js';
 import { renderImageContent } from '../overlay-image.js';
 import { renderExcelContent } from '../overlay-excel.js';
-import { renderChartContent } from '../overlay-chart.js';
+import { renderChartContent, updateChartContent } from '../overlay-chart.js';
 import { openAudioEditor } from '../overlay-audio-editor/index.js';
 import { openExcelEditor } from '../overlay-excel-editor.js';
 import { openChartEditor } from '../overlay-chart-editor.js';
@@ -48,6 +48,269 @@ function ensureOverlay() {
   }
 }
 
+// ── 原地复用辅助 ──
+
+/** 移除选中框/把手（保留内容节点，供复用） */
+function _clearChrome(item) {
+  const stale = item.querySelectorAll('.oly-resize-handle, .oly-rotate-handle, .oly-rotate-line');
+  for (let i = 0; i < stale.length; i++) {
+    // 只删直接子节点，避免误删内容内部的同名元素
+    if (stale[i].parentNode === item) stale[i].remove();
+  }
+}
+
+/** 移除内容节点（保留 chrome 由调用方处理），复用前的重建路径使用 */
+function _clearContent(item) {
+  const children = Array.prototype.slice.call(item.children);
+  children.forEach(function (child) {
+    if (child.classList.contains('oly-resize-handle') ||
+        child.classList.contains('oly-rotate-handle') ||
+        child.classList.contains('oly-rotate-line')) return;
+    child.remove();
+  });
+}
+
+/** 释放元素占用的资源：暂停音视频、销毁图表实例 */
+function _disposeItem(item) {
+  const media = item._olyMedia;
+  if (media && media.el) {
+    try { media.el.pause(); media.el.removeAttribute('src'); media.el.load(); } catch (e) { /* 忽略 */ }
+  }
+  const chart = item._olyChart;
+  if (chart && chart.inst) {
+    try { chart.inst.dispose(); } catch (e) { /* 忽略 */ }
+  }
+  item._olyMedia = null;
+  item._olyChart = null;
+  item.remove();
+}
+
+/** 更新几何样式（位置/尺寸/层级/旋转/翻转/阴影/透明度） */
+function _applyFrame(item, imgData, displayX, displayW) {
+  item.style.position = 'absolute';
+  item.style.left = displayX + 'px';
+  item.style.top = imgData.y + 'px';
+  item.style.width = displayW + 'px';
+  item.style.height = imgData.height + 'px';
+  item.style.zIndex = imgData.zIndex;
+  item.style.cursor = 'move';
+  item.style.boxSizing = 'content-box';
+
+  // 复用路径需要先清空上一次的内联样式，避免残留
+  item.style.transform = '';
+  item.style.transformOrigin = '';
+  item.style.filter = '';
+  item.style.opacity = '';
+
+  if (imgData.rotation) {
+    item.style.transformOrigin = 'center center';
+    item.style.transform = 'rotate(' + imgData.rotation + 'deg)';
+  }
+
+  if (imgData.flipH || imgData.flipV) {
+    let sx = imgData.flipH ? -1 : 1;
+    let sy = imgData.flipV ? -1 : 1;
+    let existing = item.style.transform || '';
+    item.style.transformOrigin = 'center center';
+    item.style.transform = existing + ' scale(' + sx + ',' + sy + ')';
+  }
+
+  if (imgData.shadow) {
+    item.style.filter = (item.style.filter || '') + ' drop-shadow(' + imgData.shadow + ')';
+  }
+
+  if (imgData.opacity != null && imgData.opacity !== 1) {
+    item.style.opacity = imgData.opacity;
+  }
+}
+
+/** 更新选中框与把手 */
+function _applyChrome(item, imgData) {
+  item.style.outline = '';
+  item.style.outlineOffset = '';
+  item.style.boxShadow = '';
+
+  if (!selectedImageIds.has(imgData.id)) return;
+
+  let isEditingTextBox = imgData.type === 'textbox' && imgData._editing;
+  item.style.outline = isEditingTextBox ? '3px solid #00e5ff' : '2px solid #00ffff';
+  item.style.outlineOffset = '1px';
+  if (isEditingTextBox) {
+    item.style.boxShadow = '0 0 12px rgba(0,229,255,0.25)';
+  }
+
+  let handles = isEditingTextBox ? [] : ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'];
+
+  handles.forEach(function (handleId) {
+    let handle = document.createElement('div');
+    handle.className = 'oly-resize-handle oly-resize-' + handleId;
+    handle.style.cssText =
+      'position:absolute;width:12px;height:12px;' +
+      'background:#2c6e7e;border:1px solid #aef0ff;border-radius:50%;z-index:10;';
+
+    if (handleId === 'nw' || handleId === 'n' || handleId === 'ne') handle.style.top = '-6px';
+    if (handleId === 'sw' || handleId === 's' || handleId === 'se') handle.style.bottom = '-6px';
+    if (handleId === 'nw' || handleId === 'w' || handleId === 'sw') handle.style.left = '-6px';
+    if (handleId === 'ne' || handleId === 'e' || handleId === 'se') handle.style.right = '-6px';
+    if (handleId === 'n' || handleId === 's') { handle.style.left = '50%'; handle.style.marginLeft = '-6px'; }
+    if (handleId === 'w' || handleId === 'e') { handle.style.top = '50%'; handle.style.marginTop = '-6px'; }
+
+    if (handleId === 'nw') handle.style.cursor = 'nw-resize';
+    else if (handleId === 'n') handle.style.cursor = 'n-resize';
+    else if (handleId === 'ne') handle.style.cursor = 'ne-resize';
+    else if (handleId === 'w') handle.style.cursor = 'w-resize';
+    else if (handleId === 'e') handle.style.cursor = 'e-resize';
+    else if (handleId === 'sw') handle.style.cursor = 'sw-resize';
+    else if (handleId === 's') handle.style.cursor = 's-resize';
+    else if (handleId === 'se') handle.style.cursor = 'se-resize';
+    item.appendChild(handle);
+  });
+
+  if (!isEditingTextBox) {
+    let rotHandle = document.createElement('div');
+    rotHandle.className = 'oly-rotate-handle';
+    rotHandle.style.cssText =
+      'position:absolute;top:-26px;left:50%;margin-left:-6px;' +
+      'width:12px;height:12px;' +
+      'background:#00e5ff;border:2px solid #aef0ff;' +
+      'border-radius:50%;z-index:10;cursor:grab;';
+    rotHandle.title = '旋转';
+    let rotLine = document.createElement('div');
+    rotLine.className = 'oly-rotate-line';
+    rotLine.style.cssText =
+      'position:absolute;top:-14px;left:50%;' +
+      'width:1px;height:10px;' +
+      'background:#00e5ff;z-index:9;';
+    item.appendChild(rotLine);
+    item.appendChild(rotHandle);
+  }
+}
+
+/** 按类型渲染内容节点 */
+function _renderContent(item, imgData) {
+  item.dataset.olyType = imgData.type || 'image';
+  if (imgData.type === 'shape') {
+    renderShapeContent(item, imgData);
+  } else if (imgData.type === 'textbox') {
+    renderTextBoxContent(item, imgData);
+  } else if (imgData.type === 'video') {
+    renderVideoContent(item, imgData);
+  } else if (imgData.type === 'audio') {
+    renderAudioContent(item, imgData);
+  } else if (imgData.type === 'excel') {
+    renderExcelContent(item, imgData);
+  } else if (imgData.type === 'chart') {
+    renderChartContent(item, imgData);
+  } else if (imgData.type === 'document') {
+    renderDocumentContent(item, imgData);
+  } else if (imgData.type === 'merged') {
+    renderMergedContent(item, imgData);
+  } else {
+    renderImageContent(item, imgData);
+  }
+}
+
+/**
+ * 复用已有节点时尽量只做原地更新：
+ * 音视频/图表重建代价最高（重新解码媒体、重建 ECharts 实例），优先原地同步；
+ * 其余类型内容重建成本低，直接重建。
+ * @returns {boolean} true=已原地更新，false=需要重建内容
+ */
+function _tryUpdateContent(item, imgData) {
+  if (imgData.type === 'video' || imgData.type === 'audio') {
+    if (item._olyMedia && typeof item._olyMedia.sync === 'function') {
+      item._olyMedia.sync(imgData);
+      return true;
+    }
+    return false;
+  }
+  if (imgData.type === 'chart') {
+    return updateChartContent(item, imgData);
+  }
+  return false;
+}
+
+/**
+ * 取当前数据对象：undo/redo 会用 JSON 副本整体替换数组，
+ * 闭包里捕获的旧引用会失效，因此每次交互时按 id 重新查找。
+ */
+function _liveData(item, fallback) {
+  return findImageDataById(item.dataset.olyId) || fallback;
+}
+
+function _bindItemEvents(item, imgData) {
+  item.addEventListener('mousedown', function (e) {
+    if (e.target.classList.contains('oly-resize-handle')) return;
+    let data = _liveData(item, imgData);
+    if (data.type === 'textbox' && data._editing) {
+      return;
+    }
+    // 右键点击已多选的元素时，保持多选状态不变（让 contextmenu 处理）
+    if (e.button === 2 && selectedImageIds.size > 1 && selectedImageIds.has(imgData.id)) {
+      e.preventDefault();
+      return;
+    }
+    e.preventDefault();
+    selectImage(data.id, e.ctrlKey || e.metaKey);
+    // 获取所在画布块的 rect
+    let blockEl = item.closest('.tmce-overlay-block');
+    let overlayRect = blockEl ? blockEl.getBoundingClientRect() : { left: 0, top: 0 };
+    setDragInfo({
+      imgData: data,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: data.x,
+      origY: data.y,
+      overlayLeft: overlayRect.left,
+      overlayTop: overlayRect.top,
+      // 缓存元素与块宽：拖拽过程中不再每帧 querySelector / 读 clientWidth（会强制重排）
+      el: item,
+      blockEl: blockEl,
+      blockW: blockEl ? blockEl.clientWidth : 0
+    });
+  });
+
+  if (imgData.type === 'textbox') {
+    item.addEventListener('dblclick', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      let data = _liveData(item, imgData);
+      selectImage(data.id);
+      data._editing = true;
+      renderAll();
+      setTimeout(function () {
+        let blockEl = getBlockElement(data.blockId || getActiveBlockId());
+        let editable = blockEl && blockEl.querySelector('[data-oly-id="' + data.id + '"] [contenteditable]');
+        if (editable) editable.focus();
+      }, 50);
+    });
+  }
+
+  if (imgData.type === 'audio') {
+    item.addEventListener('dblclick', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openAudioEditor(_liveData(item, imgData));
+    });
+  }
+
+  if (imgData.type === 'excel') {
+    item.addEventListener('dblclick', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openExcelEditor(_liveData(item, imgData));
+    });
+  }
+
+  if (imgData.type === 'chart') {
+    item.addEventListener('dblclick', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openChartEditor(_liveData(item, imgData));
+    });
+  }
+}
+
 export function renderAll() {
   ensureOverlay();
 
@@ -62,11 +325,31 @@ export function renderAll() {
     }
   }
 
-  // 清理所有画布块内的旧 .oly-img-item 和 .tmce-overlay-sizer
-  body.querySelectorAll('.tmce-overlay-block .oly-img-item').forEach(function (el) { el.remove(); });
-  body.querySelectorAll('.tmce-overlay-block .tmce-overlay-sizer').forEach(function (el) { el.remove(); });
+  // 收集现有元素，按 id 建索引以便原地复用（不再整片删除重建，
+  // 否则每次选中/拖动都会重新解码音视频、重建 ECharts 实例）
+  // 同一 id 出现多个节点时（TinyMCE 内容回滚可能留下副本），
+  // 保留持有音视频/图表实例的那个，其余作为重复项清理
+  let existing = new Map();
+  let duplicates = [];
+  body.querySelectorAll('.tmce-overlay-block .oly-img-item').forEach(function (el) {
+    let id = el.dataset.olyId;
+    if (!id) { duplicates.push(el); return; }
+    if (!existing.has(id)) { existing.set(id, el); return; }
 
-  // 按 blockId 分组渲染
+    let prev = existing.get(id);
+    let prevHasRes = !!(prev._olyMedia || prev._olyChart);
+    let curHasRes = !!(el._olyMedia || el._olyChart);
+    if (!prevHasRes && curHasRes) {
+      existing.set(id, el);
+      duplicates.push(prev);
+    } else {
+      duplicates.push(el);
+    }
+  });
+  duplicates.forEach(_disposeItem);
+  duplicates = null;
+  let reusedIds = new Set();
+
   let blockIds = getAllBlockIds();
 
   // 兼容：没有 blockId 的元素归入第一个块
@@ -105,10 +388,32 @@ export function renderAll() {
       displayW = (imgData.width || 200) * scaleX;
     }
 
-    let item = document.createElement('div');
+    let item = existing.get(imgData.id);
+    let canReuse = item && item.isConnected &&
+      item.dataset.olyType === (imgData.type || 'image') &&
+      item.dataset.blockId === targetBlockId;
+
+    if (canReuse) {
+      _applyFrame(item, imgData, displayX, displayW);
+      _clearChrome(item);
+      _applyChrome(item, imgData);
+      if (!_tryUpdateContent(item, imgData)) {
+        _clearContent(item);
+        _renderContent(item, imgData);
+      }
+      reusedIds.add(imgData.id);
+      return;
+    }
+
+    // 新建（或类型/所属块变化 → 重建）
+    if (item) _disposeItem(item);
+
+    item = document.createElement('div');
     item.className = 'oly-img-item';
     item.dataset.olyId = imgData.id;
     item.dataset.blockId = targetBlockId;
+    // 关掉原生拖拽：否则 Chromium 会为 img/video 等元素生成拖影并抢占鼠标事件
+    item.draggable = false;
     item.style.cssText =
       'position:absolute;' +
       'left:' + displayX + 'px;' +
@@ -119,168 +424,18 @@ export function renderAll() {
       'cursor:move;' +
       'box-sizing:content-box;';
 
-    if (imgData.rotation) {
-      item.style.transformOrigin = 'center center';
-      item.style.transform = 'rotate(' + imgData.rotation + 'deg)';
-    }
-
-    if (imgData.flipH || imgData.flipV) {
-      let sx = imgData.flipH ? -1 : 1;
-      let sy = imgData.flipV ? -1 : 1;
-      let existing = item.style.transform || '';
-      item.style.transformOrigin = 'center center';
-      item.style.transform = existing + ' scale(' + sx + ',' + sy + ')';
-    }
-
-    if (imgData.shadow) {
-      item.style.filter = (item.style.filter || '') + ' drop-shadow(' + imgData.shadow + ')';
-    }
-
-    if (imgData.opacity != null && imgData.opacity !== 1) {
-      item.style.opacity = imgData.opacity;
-    }
-
-    if (selectedImageIds.has(imgData.id)) {
-      let isEditingTextBox = imgData.type === 'textbox' && imgData._editing;
-      item.style.outline = isEditingTextBox ? '3px solid #00e5ff' : '2px solid #00ffff';
-      item.style.outlineOffset = '1px';
-      if (isEditingTextBox) {
-        item.style.boxShadow = '0 0 12px rgba(0,229,255,0.25)';
-      }
-
-      let handles = isEditingTextBox ? [] : ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'];
-
-      handles.forEach(function (handleId) {
-        let handle = document.createElement('div');
-        handle.className = 'oly-resize-handle oly-resize-' + handleId;
-        handle.style.cssText =
-          'position:absolute;width:12px;height:12px;' +
-          'background:#2c6e7e;border:1px solid #aef0ff;border-radius:50%;z-index:10;';
-
-        if (handleId === 'nw' || handleId === 'n' || handleId === 'ne') handle.style.top = '-6px';
-        if (handleId === 'sw' || handleId === 's' || handleId === 'se') handle.style.bottom = '-6px';
-        if (handleId === 'nw' || handleId === 'w' || handleId === 'sw') handle.style.left = '-6px';
-        if (handleId === 'ne' || handleId === 'e' || handleId === 'se') handle.style.right = '-6px';
-        if (handleId === 'n' || handleId === 's') { handle.style.left = '50%'; handle.style.marginLeft = '-6px'; }
-        if (handleId === 'w' || handleId === 'e') { handle.style.top = '50%'; handle.style.marginTop = '-6px'; }
-
-        if (handleId === 'nw') handle.style.cursor = 'nw-resize';
-        else if (handleId === 'n') handle.style.cursor = 'n-resize';
-        else if (handleId === 'ne') handle.style.cursor = 'ne-resize';
-        else if (handleId === 'w') handle.style.cursor = 'w-resize';
-        else if (handleId === 'e') handle.style.cursor = 'e-resize';
-        else if (handleId === 'sw') handle.style.cursor = 'sw-resize';
-        else if (handleId === 's') handle.style.cursor = 's-resize';
-        else if (handleId === 'se') handle.style.cursor = 'se-resize';
-        item.appendChild(handle);
-      });
-
-      if (!isEditingTextBox) {
-        let rotHandle = document.createElement('div');
-        rotHandle.className = 'oly-rotate-handle';
-        rotHandle.style.cssText =
-          'position:absolute;top:-26px;left:50%;margin-left:-6px;' +
-          'width:12px;height:12px;' +
-          'background:#00e5ff;border:2px solid #aef0ff;' +
-          'border-radius:50%;z-index:10;cursor:grab;';
-        rotHandle.title = '旋转';
-        let rotLine = document.createElement('div');
-        rotLine.className = 'oly-rotate-line';
-        rotLine.style.cssText =
-          'position:absolute;top:-14px;left:50%;' +
-          'width:1px;height:10px;' +
-          'background:#00e5ff;z-index:9;';
-        item.appendChild(rotLine);
-        item.appendChild(rotHandle);
-      }
-    }
-
-    if (imgData.type === 'shape') {
-      renderShapeContent(item, imgData);
-    } else if (imgData.type === 'textbox') {
-      renderTextBoxContent(item, imgData);
-    } else if (imgData.type === 'video') {
-      renderVideoContent(item, imgData);
-    } else if (imgData.type === 'audio') {
-      renderAudioContent(item, imgData);
-    } else if (imgData.type === 'excel') {
-      renderExcelContent(item, imgData);
-    } else if (imgData.type === 'chart') {
-      renderChartContent(item, imgData);
-    } else if (imgData.type === 'document') {
-      renderDocumentContent(item, imgData);
-    } else if (imgData.type === 'merged') {
-      renderMergedContent(item, imgData);
-    } else {
-      renderImageContent(item, imgData);
-    }
-
-    item.addEventListener('mousedown', function (e) {
-      if (e.target.classList.contains('oly-resize-handle')) return;
-      if (imgData.type === 'textbox' && imgData._editing) {
-        return;
-      }
-      // 右键点击已多选的元素时，保持多选状态不变（让 contextmenu 处理）
-      if (e.button === 2 && selectedImageIds.size > 1 && selectedImageIds.has(imgData.id)) {
-        e.preventDefault();
-        return;
-      }
-      e.preventDefault();
-      selectImage(imgData.id, e.ctrlKey || e.metaKey);
-      // 获取所在画布块的 rect
-      let blockEl = item.closest('.tmce-overlay-block');
-      let overlayRect = blockEl ? blockEl.getBoundingClientRect() : { left: 0, top: 0 };
-      setDragInfo({
-        imgData: imgData,
-        startX: e.clientX,
-        startY: e.clientY,
-        origX: imgData.x,
-        origY: imgData.y,
-        overlayLeft: overlayRect.left,
-        overlayTop: overlayRect.top
-      });
-    });
-
-    if (imgData.type === 'textbox') {
-      item.addEventListener('dblclick', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        selectImage(imgData.id);
-        imgData._editing = true;
-        renderAll();
-        setTimeout(function () {
-          let blockEl = getBlockElement(imgData.blockId || getActiveBlockId());
-          let editable = blockEl && blockEl.querySelector('[data-oly-id="' + imgData.id + '"] [contenteditable]');
-          if (editable) editable.focus();
-        }, 50);
-      });
-    }
-
-    if (imgData.type === 'audio') {
-      item.addEventListener('dblclick', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openAudioEditor(imgData);
-      });
-    }
-
-    if (imgData.type === 'excel') {
-      item.addEventListener('dblclick', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openExcelEditor(imgData);
-      });
-    }
-
-    if (imgData.type === 'chart') {
-      item.addEventListener('dblclick', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openChartEditor(imgData);
-      });
-    }
+    _applyFrame(item, imgData, displayX, displayW);
+    _applyChrome(item, imgData);
+    _renderContent(item, imgData);
+    _bindItemEvents(item, imgData);
 
     blockEl.appendChild(item);
+    reusedIds.add(imgData.id);
+  });
+
+  // 清理已删除的数据对应的 DOM（顺带暂停媒体、销毁图表实例）
+  existing.forEach(function (el, id) {
+    if (!reusedIds.has(id)) _disposeItem(el);
   });
 
   // 更新所有块的 sizer 高度

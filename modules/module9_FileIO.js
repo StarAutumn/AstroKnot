@@ -176,6 +176,14 @@ export function applyLoadedData(data, folderName, folderPath) {
     }
   }
 
+  // 7c-2. 恢复树连线拐点长度后备存储
+  appState.treeEdgePegOffsets = new Map();
+  if (data.treeEdgePegOffsets) {
+    for (let [key, val] of Object.entries(data.treeEdgePegOffsets)) {
+      appState.treeEdgePegOffsets.set(key, val);
+    }
+  }
+
   // 7d. 恢复鱼骨图主干线段
   appState.fishboneTrunks = Array.isArray(data.fishboneTrunks)
     ? JSON.parse(JSON.stringify(data.fishboneTrunks))
@@ -291,6 +299,12 @@ export async function saveNetworkToFile() {
     tel[key] = val;
   }
 
+  // 序列化 treeEdgePegOffsets
+  let tep = {};
+  for (let [key, val] of (appState.treeEdgePegOffsets || new Map()).entries()) {
+    tep[key] = val;
+  }
+
   // 构建导出数据对象
   let projectData = {
     projectName: projectName,
@@ -309,6 +323,7 @@ export async function saveNetworkToFile() {
     nodeSandboxHistories: sandboxHistories,
     nodeActiveModes: activeModes,
     treeEdgeLabels: tel,
+    treeEdgePegOffsets: tep,
     fishboneTrunks: JSON.parse(JSON.stringify(appState.fishboneTrunks || [])),
     savePath: appState.currentProjectSavePath,
     cameraView: {
@@ -410,6 +425,7 @@ export async function saveProjectOne(proj, parentPathIn) {
     nodeFileSystems: data.nodeFileSystems || {},
     nodeSandboxHistories: data.nodeSandboxHistories || {},
     treeEdgeLabels: data.treeEdgeLabels || {},
+    treeEdgePegOffsets: data.treeEdgePegOffsets || {},
     savePath: parentPath,
     cameraView: data.cameraView || {
       position: { x: 6, y: 4.5, z: 8 },
@@ -684,7 +700,8 @@ export async function importMarkdownFile() {
         position: { x: 6, y: 4.5, z: 8 },
         target: { x: 0, y: 0.2, z: 0 }
       },
-      treeEdgeLabels: {}
+      treeEdgeLabels: {},
+      treeEdgePegOffsets: {}
     };
 
     // 保存当前项目

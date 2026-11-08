@@ -61,6 +61,13 @@ export function loadProject(projectId) {
       appState.treeEdgeLabels.set(key, val);
     }
   }
+  // 恢复树连线拐点长度（plain object → Map）
+  appState.treeEdgePegOffsets = new Map();
+  if (data.treeEdgePegOffsets) {
+    for (let [key, val] of Object.entries(data.treeEdgePegOffsets)) {
+      appState.treeEdgePegOffsets.set(key, val);
+    }
+  }
   appState.rebuildNodeMapFromTree();   // 重建节点映射
   appState.positions.clear();
   for (let [k, v] of data.positions.entries()) appState.positions.set(k, v.clone());

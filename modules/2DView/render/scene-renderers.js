@@ -7,11 +7,13 @@ import { countDescendants } from '../../TreeData/data-factory.js';
 import {
   ctx, canvas,
   groupRects, selectedGroupRectId, HANDLE_SIZE,
-  POLYLINE_PEG_X, POLYLINE_PEG_Y,
   boxSelectStart, boxSelectEnd, boxSelectTransform, boxSelectNodeIds, isBoxSelecting,
   getGroupHandlePositions,
   getNodeAnchors,
-  getNodeLayoutSize
+  getNodeLayoutSize,
+  getTreeEdgePegOffset, treeEdgePegKey,
+  pegHitAreas, setPegHitAreas,
+  hoveredEdgePeg, pegDragState
 } from '../shared.js';
 import { isNextStepNode } from '../Layout.js';
 import {
@@ -142,32 +144,51 @@ export function drawTreeRecursive(layout, positionMap, parentCollapsedProgress =
       const childInView = _isRectInViewport(childPos.x, childPos.y, childW, childH);
       let labelMidX = null, labelMidY = null;
       if (parentInView || childInView) {
+        // 第一段折线长度：读用户拖拽过的自定义拐点（按父节点+方向共享，未设置用默认短距）
+        const pegDist = getTreeEdgePegOffset(nodeId, isStepNode);
+        let pegPtX, pegPtY;
         if (isStepNode) {
-          // Step 连线改为折线：父下框中点 → 下短距拐点 → 左右延伸到子节点竖直线 → 下连到子上框中点
-          const pegY = parentOutputY + POLYLINE_PEG_Y;
+          // Step 连线改为折线：父下框中点 → 下拐点 → 左右延伸到子节点竖直线 → 下连到子上框中点
+          pegPtX = parentOutputX;
+          pegPtY = parentOutputY + pegDist;
           const polyPoints = [
             { x: parentOutputX, y: parentOutputY },
-            { x: parentOutputX, y: pegY },
-            { x: childInputX,  y: pegY },
-            { x: childInputX,  y: childInputY }
+            { x: pegPtX,        y: pegPtY },
+            { x: childInputX,   y: pegPtY },
+            { x: childInputX,   y: childInputY }
           ];
           drawPolyline(polyPoints, childAlpha, lineColor, edgeData, dashPattern, isGlowing, glowColor);
           const mid = getPolylineThirdSegmentMidpoint(polyPoints);
           labelMidX = mid.x;
           labelMidY = mid.y;
         } else {
-          // 普通父子连线改为折线：父右框中点 → 右短距拐点 → 上下延伸到子节点水平线 → 右拐连到子左框中点
-          const pegX = parentOutputX + POLYLINE_PEG_X;
+          // 普通父子连线改为折线：父右框中点 → 右拐点 → 上下延伸到子节点水平线 → 右拐连到子左框中点
+          pegPtX = parentOutputX + pegDist;
+          pegPtY = parentOutputY;
           const polyPoints = [
             { x: parentOutputX, y: parentOutputY },
-            { x: pegX,         y: parentOutputY },
-            { x: pegX,         y: childInputY },
-            { x: childInputX,  y: childInputY }
+            { x: pegPtX,        y: parentOutputY },
+            { x: pegPtX,        y: childInputY },
+            { x: childInputX,   y: childInputY }
           ];
           drawPolyline(polyPoints, childAlpha, lineColor, edgeData, dashPattern, isGlowing, glowColor);
           const mid = getPolylineThirdSegmentMidpoint(polyPoints);
           labelMidX = mid.x;
           labelMidY = mid.y;
+        }
+        // 记录拐点命中区 + 排队绘制按钮：同父同向子连线的拐点完全重合，只记一次
+        const pegKey = treeEdgePegKey(nodeId, isStepNode);
+        if (!_pegQueuedKeys.has(pegKey)) {
+          _pegQueuedKeys.add(pegKey);
+          setPegHitAreas([...pegHitAreas, {
+            parentId: nodeId, isStep: isStepNode, x: pegPtX, y: pegPtY
+          }]);
+          // 悬停/拖动中 → 排队绘制拐点按钮（连线批量上屏后绘制，避免被线盖住）
+          if (_isPegActive(nodeId, isStepNode)) {
+            const btnX = pegPtX, btnY = pegPtY, btnAlpha = Math.min(1, childAlpha);
+            const btnStep = isStepNode, btnColor = lineColor;
+            _pegButtonQueue.push(() => _drawPegButton(btnX, btnY, btnStep, btnColor, btnAlpha));
+          }
         }
       }
       if (labelMidX != null) {
@@ -189,6 +210,52 @@ export function drawTreeRecursive(layout, positionMap, parentCollapsedProgress =
     }
     drawTreeRecursive(child, positionMap, effectiveProgress, false, deferredCards);
   }
+}
+
+// ============================================================
+//  树连线拐点按钮（悬停显示，长按拖动改变第一段折线长度）
+// ============================================================
+let _pegButtonQueue = [];   // 延迟到连线批量上屏后绘制，避免被折线盖住
+let _pegQueuedKeys = new Set();  // 本帧已处理的拐点 key（父节点+方向），重合拐点去重
+function _isPegActive(parentId, isStep) {
+  const match = p => p && p.parentId === parentId && p.isStep === isStep;
+  return match(pegDragState) || match(hoveredEdgePeg);
+}
+// 拐点按钮：圆形底 + 双箭头指示拖动方向（普通边 ↔ / 步骤边 ↕）
+function _drawPegButton(x, y, isStep, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.arc(x, y, 6, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // 双箭头（沿第一段折线方向）
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  if (isStep) {
+    ctx.moveTo(x, y - 3); ctx.lineTo(x, y + 3);
+    ctx.moveTo(x, y - 3); ctx.lineTo(x - 1.6, y - 1.4);
+    ctx.moveTo(x, y - 3); ctx.lineTo(x + 1.6, y - 1.4);
+    ctx.moveTo(x, y + 3); ctx.lineTo(x - 1.6, y + 1.4);
+    ctx.moveTo(x, y + 3); ctx.lineTo(x + 1.6, y + 1.4);
+  } else {
+    ctx.moveTo(x - 3, y); ctx.lineTo(x + 3, y);
+    ctx.moveTo(x - 3, y); ctx.lineTo(x - 1.4, y - 1.6);
+    ctx.moveTo(x - 3, y); ctx.lineTo(x - 1.4, y + 1.6);
+    ctx.moveTo(x + 3, y); ctx.lineTo(x + 1.4, y - 1.6);
+    ctx.moveTo(x + 3, y); ctx.lineTo(x + 1.4, y + 1.6);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+/** 在 flushLineBatch 之后调用：绘制本帧收集的拐点按钮，并重置每帧去重集合 */
+export function flushPegButtons() {
+  for (const drawBtn of _pegButtonQueue) drawBtn();
+  _pegButtonQueue = [];
+  _pegQueuedKeys.clear();
 }
 
 // ============================================================

@@ -7,7 +7,7 @@ import {
   canvas, visible, transform,
   keys2D
 } from '../shared.js';
-import { draw } from '../render/index.js';
+import { draw, scheduleDraw } from '../render/index.js';
 import { canvasToWorld } from './coordinate-utils.js';
 
 // 聚焦到指定节点（带 600ms 动画）
@@ -46,7 +46,7 @@ export function focusOnNode2D(nodeId) {
 export function zoom2D(factor) {
   transform.scale *= factor;
   transform.scale = Math.max(0.1, Math.min(3, transform.scale));
-  draw();
+  scheduleDraw();
 }
 
 // 重置视图

@@ -9,11 +9,20 @@
     overflow: visible;
     user-select: none;
     -webkit-user-select: none;
+    /* 禁止浏览器原生拖拽：否则拖动块内元素会冒出整块半透明拖影 */
+    -webkit-user-drag: none;
 }
 
 .tmce-overlay-block:hover {
     border: none;
     background: transparent;
+}
+
+/* TinyMCE 7 内容拖拽的拖影容器：拖动画布块/块内元素时 TinyMCE 会 cloneNode
+   整个活动块塞进该容器（opacity 0.5）跟随鼠标，表现为「整个画布框虚影」。
+   画布块拖拽完全由 overlay 自己的 mousemove 逻辑处理，TinyMCE 的拖影无用，直接隐藏。 */
+.mce-drag-container {
+    display: none !important;
 }
 
 /* 画布块选中状态 */
@@ -49,6 +58,11 @@
     pointer-events: auto;
     transition: none;
     user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* media / canvas / 包装层同样禁止原生拖拽（video、canvas 默认可拖） */
+.oly-img-item * {
     -webkit-user-drag: none;
 }
 

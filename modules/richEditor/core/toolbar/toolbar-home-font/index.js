@@ -13,6 +13,7 @@ import { registerPinyin } from './register-pinyin.js';
 import { registerEmphasis } from './register-emphasis.js';
 import { registerUnderline } from './register-underline.js';
 import { registerColorPicker } from './register-color-picker.js';
+import { registerListFeatures } from '../../../lists.js';
 
 import {
   cnFonts, enFonts, cnFontNameMap, enFontNameMap,
@@ -39,4 +40,7 @@ export function registerFontRegion(editor) {
   registerEmphasis(editor, shared);
   registerUnderline(editor, shared);
   registerColorPicker(editor, shared);
+
+  // 自定义项目符号/编号按钮 + 编号列表同步 + 标题自动重编号
+  registerListFeatures(editor);
 }

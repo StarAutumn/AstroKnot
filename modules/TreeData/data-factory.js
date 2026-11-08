@@ -27,6 +27,7 @@ export const getEmptyProjectData = () => ({
   layers: [],
   currentLayerId: null,
   treeEdgeLabels: {},
+  treeEdgePegOffsets: {},
   cameraView: {
     position: { x: 0, y: 4.5, z: 8 },
     target: { x: 0, y: 0.2, z: 0 }
@@ -84,6 +85,7 @@ export function cloneProjectData(data) {
     positions: clonePositions(data.positions),
     nodeRichContents: JSON.parse(JSON.stringify(data.nodeRichContents || {})),
     treeEdgeLabels: JSON.parse(JSON.stringify(data.treeEdgeLabels || {})),
+    treeEdgePegOffsets: JSON.parse(JSON.stringify(data.treeEdgePegOffsets || {})),
     fishboneTrunks: JSON.parse(JSON.stringify(data.fishboneTrunks || []))
   };
 }

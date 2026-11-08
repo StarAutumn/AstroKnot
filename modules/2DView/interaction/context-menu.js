@@ -125,6 +125,9 @@ export function showMultiSelectContextMenu(x, y) {
   document.getElementById('alignSection').style.display = count >= 2 ? 'flex' : 'none';
   document.getElementById('alignRowHorizontal').style.display = count >= 2 ? 'flex' : 'none';
   document.getElementById('alignRowVertical').style.display = count >= 2 ? 'flex' : 'none';
+  // 等距排列需要至少 3 个节点才有意义
+  document.getElementById('distributeHBtn').style.display = count >= 3 ? '' : 'none';
+  document.getElementById('distributeVBtn').style.display = count >= 3 ? '' : 'none';
   document.getElementById('groupRow').style.display = segSimplify ? 'none' : 'flex';
   document.getElementById('addConnectionContextBtn').style.display = 'none';
   document.getElementById('removeConnectionContextBtn').style.display = 'none';

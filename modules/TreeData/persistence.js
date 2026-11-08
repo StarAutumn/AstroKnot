@@ -87,6 +87,7 @@ export function saveCurrentProjectData() {
     layer3DSpacing: appState.layer3DSpacing ?? 4,
     cameraView: cameraView,
     treeEdgeLabels: Object.fromEntries(appState.treeEdgeLabels || new Map()),
+    treeEdgePegOffsets: Object.fromEntries(appState.treeEdgePegOffsets || new Map()),
     fishboneTrunks: JSON.parse(JSON.stringify(appState.fishboneTrunks || []))
   };
 
@@ -133,6 +134,7 @@ export function getEmergencySnapshot() {
       })),
       currentLayerId: d.currentLayerId || null,
       treeEdgeLabels: d.treeEdgeLabels || {},
+      treeEdgePegOffsets: d.treeEdgePegOffsets || {},
       cameraView: d.cameraView || { position: { x: 0, y: 4.5, z: 8 }, target: { x: 0, y: 0.2, z: 0 } }
     }
   };

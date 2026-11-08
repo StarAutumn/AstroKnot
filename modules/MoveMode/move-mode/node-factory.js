@@ -14,6 +14,7 @@ import {
 } from '../../VisualComponents/index.js';
 import { hideContextMenu, hideBlankContextMenu } from '../../module8_ContextMenu.js';
 import { apply3DWith2DLayoutImmediate } from '../../UI/Resize.js';
+import { getNodeLayoutSize, H_GAP, V_GAP } from '../../2DView/shared.js';
 import {
   lastBlankMenuMouse
 } from '../shared.js';
@@ -183,12 +184,41 @@ function _computeRadialPosition(newId) {
 // ============================================================
 //  在 2D 场景中放置节点
 // ============================================================
-function placeNodeIn2D(newId, parentId, offsetX, offsetY) {
-  // 子节点：临时放在父节点附近（自动排列会重新计算最终位置）
+// 新建子节点的同向兄弟尺寸（测量失败时给保守默认值）
+function _siblingLayoutSize(node) {
+  try {
+    const s = getNodeLayoutSize(node, node.sizeScale || 1);
+    if (s && s.width > 0 && s.height > 0) return s;
+  } catch {}
+  return { width: 160, height: 60 };
+}
+
+// 链式找位：新子节点接在最后一个同向兄弟后面（沿用布局约定：
+// 普通子节点纵向排在父右侧列、步骤子节点横向排在父下方行），不挪动任何已有节点
+function placeChildNodePos(parentId, isStepFlow, fallbackX, fallbackY) {
+  const parent = appState.nodeMap.get(parentId);
+  let last = null;
+  if (parent && parent.children) {
+    for (const ch of parent.children) {
+      if (!!ch.isStepFlow !== !!isStepFlow) continue;   // 只看同向兄弟
+      const p = appState.positions2D.get(ch.id);
+      if (p) last = { node: ch, pos: p };
+    }
+  }
+  if (!last) return { x: fallbackX, y: fallbackY };     // 无同向兄弟：调用方默认偏移
+  const sz = _siblingLayoutSize(last.node);
+  return isStepFlow
+    ? { x: last.pos.x + sz.width + H_GAP, y: last.pos.y }   // 步骤：横向续排
+    : { x: last.pos.x, y: last.pos.y + sz.height + V_GAP }; // 普通：纵向续排
+}
+
+function placeNodeIn2D(newId, parentId, offsetX, offsetY, isStepFlow) {
+  // 子节点：不做自动重排，按同向兄弟链式找位（位置可手动拖动 / 拖连线拐点微调）
   if (parentId) {
     let parentPos2d = appState.positions2D.get(parentId);
     if (parentPos2d) {
-      appState.positions2D.set(newId, { x: parentPos2d.x + (offsetX || 160), y: parentPos2d.y + (offsetY || 10) });
+      const pos = placeChildNodePos(parentId, isStepFlow, parentPos2d.x + (offsetX || 160), parentPos2d.y + (offsetY || 10));
+      appState.positions2D.set(newId, pos);
       return;
     }
   }
@@ -247,7 +277,7 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
         : new THREE.Vector3(0, 0, 0);
       let randPos = generateRandomPosition(existing3d, base3d);
       appState.positions.set(newId, randPos);
-      placeNodeIn2D(newId, parentId, offsetX, offsetY);
+      placeNodeIn2D(newId, parentId, offsetX, offsetY, isStepFlow);
       createNodeMesh(newNode, randPos);
     } else {
       let basePos = parentId && appState.positions.has(parentId)
@@ -257,7 +287,7 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
       const pos = appState.positions.get(newId);
       createNodeMesh(newNode, pos);
       // 3D 模式创建也同步登记 2D 位置（父节点附近），保证切换到 2D 时新节点就近出现
-      placeNodeIn2D(newId, parentId, offsetX, offsetY);
+      placeNodeIn2D(newId, parentId, offsetX, offsetY, isStepFlow);
     }
 
     // 增量添加连线，避免销毁重建导致其他连线粒子动画重置
@@ -281,13 +311,7 @@ export function createNodeInProject({ name, desc, sizeScale, nodeType, blockType
     // 保证 3D 模式下增删改查后切到 2D 时布局重算（否则新节点不显示/已删节点残留）
     if (appState.refresh2DView) appState.refresh2DView();
 
-    // 创建子节点后自动重排子树，避免重叠（纯数据操作，3D 模式下同样安全）
-    if (parentId && appState.arrangeSubtreeIncremental) {
-      appState.arrangeSubtreeIncremental(parentId);
-      if (appState.refresh2DView) appState.refresh2DView();
-    }
-
-    // 勾选「排列实时同步」：2D 位置登记+子树重排完成后，把当前 2D 布局整体映射到 3D，
+    // 勾选「排列实时同步」：把当前 2D 布局整体映射到 3D，
     // 新节点在 3D 出现在父节点旁的映射位置（而非随机散布），3D 布局始终由 2D 决定。
     // (true, false)：仅映射当前图层，且与「自动排列」同源（computeAutoArrangeTargets），
     // 多图层项目下创建非首层节点也能正确同步（旧参数 false 只映射第一图层存储布局）

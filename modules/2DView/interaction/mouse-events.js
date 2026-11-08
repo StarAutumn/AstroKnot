@@ -31,17 +31,19 @@ import {
   BASE_NODE_WIDTH, BASE_NODE_HEIGHT,
   nodeHitAreas, lineHitAreas,
   isFreeDrawing, freeDrawState,
-  hoveredNodeId, setHoveredNodeId, quickAddHover, setQuickAddHover
+  hoveredNodeId, setHoveredNodeId, quickAddHover, setQuickAddHover,
+  pegDragState, setPegDragState, hoveredEdgePeg, setHoveredEdgePeg,
+  getTreeEdgePegOffset, treeEdgePegKey
 } from '../shared.js';
-import { draw, mark2DDirty, _cardRenameHitAreas, getNodeVisibilityAlpha } from '../render/index.js';
-import { collectDescendantIds } from '../Layout.js';
+import { draw, scheduleDraw, mark2DDirty, _cardRenameHitAreas, getNodeVisibilityAlpha } from '../render/index.js';
+import { collectDescendantIds, collectPegDragNodeIds } from '../Layout.js';
 import { canvasToWorld, getCanvasPos, pointToSegmentDistance } from './coordinate-utils.js';
 import {
   hitTestCardHandle, getCardResizeState, setCardResizeStart, resetCardResize
 } from './card-overlays.js';
 import {
   hitTestAnchorOnAnyNode, hitTestQuickAddButton, quickAddChildNode,
-  hitTestGroupHandle, hitTestGroupRect
+  hitTestGroupHandle, hitTestGroupRect, hitTestEdgePeg
 } from './hit-tests.js';
 import {
   startFreeDraw, addFreeDrawWaypoint, updateFreeDrawMousePos, cancelFreeDraw, completeFreeDraw
@@ -93,6 +95,36 @@ export function onMouseDown(e) {
     if (qaHit) {
       e.preventDefault();
       quickAddChildNode(qaHit.nodeId, qaHit.type);
+      return;
+    }
+  }
+
+  // 树连线拐点按钮按下 → 进入第一段折线长度拖动（长按拖动；优先于连线 tooltip 命中）
+  if (!appState.connectionMode && !appState.convertChildMode && !appState.arrangeAnim2DActive) {
+    const pegHit = hitTestEdgePeg(worldPos.x, worldPos.y);
+    if (pegHit) {
+      e.preventDefault();
+      setDragging(false);
+      setNodeDragging(false);
+      // 收集需要跟随平移的下游节点（同向子节点 + 各自全部后代），记录拖动起始位置
+      const affectedIds = [...collectPegDragNodeIds(pegHit.parentId, pegHit.isStep)];
+      const initialPositions = new Map();
+      for (const id of affectedIds) {
+        const p = appState.positions2D.get(id);
+        if (p) initialPositions.set(id, { x: p.x, y: p.y });
+      }
+      setPegDragState({
+        parentId: pegHit.parentId,
+        isStep: pegHit.isStep,
+        startValue: getTreeEdgePegOffset(pegHit.parentId, pegHit.isStep),
+        startWorld: { x: worldPos.x, y: worldPos.y },
+        affectedIds: affectedIds,
+        initialPositions: initialPositions
+      });
+      setHoveredEdgePeg(pegHit);
+      canvas.style.cursor = pegHit.isStep ? 'ns-resize' : 'ew-resize';
+      if (appState.hideLineTooltip) appState.hideLineTooltip();
+      draw();
       return;
     }
   }
@@ -331,7 +363,30 @@ export function onMouseMove(e) {
     const worldPos = canvasToWorld(pos.x, pos.y);
     updateFreeDrawMousePos(worldPos.x, worldPos.y);
     mark2DDirty();
-    draw();
+    scheduleDraw();
+    return;
+  }
+
+  // ── 树连线拐点拖动：第一段折线变长 + 下游子树沿连线方向整体跟随平移 ──
+  if (pegDragState) {
+    e.preventDefault();
+    const worldPos = canvasToWorld(pos.x, pos.y);
+    const d = pegDragState;
+    const rawDelta = d.isStep ? worldPos.y - d.startWorld.y : worldPos.x - d.startWorld.x;
+    // 拐点长度最小 8：拖过头时子树与拐点同步停在最小值处，保持相对形状
+    const delta = Math.max(rawDelta, 8 - d.startValue);
+    appState.treeEdgePegOffsets.set(treeEdgePegKey(d.parentId, d.isStep), d.startValue + delta);
+    // 下游子树整体平移（普通边向右 / 步骤边向下）
+    for (const id of d.affectedIds) {
+      const init = d.initialPositions.get(id);
+      if (init) {
+        appState.positions2D.set(id, d.isStep
+          ? { x: init.x, y: init.y + delta }
+          : { x: init.x + delta, y: init.y });
+      }
+    }
+    mark2DDirty();
+    scheduleDraw();
     return;
   }
 
@@ -373,7 +428,7 @@ export function onMouseMove(e) {
         break;
     }
     mark2DDirty();
-    draw();
+    scheduleDraw();
     return;
   }
 
@@ -434,7 +489,7 @@ export function onMouseMove(e) {
     node.cardHeight = newH;
     appState.positions2D.set(info.nodeId, { x: newX, y: newY });
     mark2DDirty();
-    draw();
+    scheduleDraw();
     return;
   }
 
@@ -455,7 +510,7 @@ export function onMouseMove(e) {
       }
       setGroupDragStart(worldPos);
       mark2DDirty();
-      draw();
+      scheduleDraw();
     }
     return;
   }
@@ -468,7 +523,7 @@ export function onMouseMove(e) {
       appState.positions2D.set(id, { x: initPos.x + delta.x, y: initPos.y + delta.y });
     }
     mark2DDirty();
-    draw();
+    scheduleDraw();
     return;
   }
 
@@ -478,14 +533,14 @@ export function onMouseMove(e) {
     setBoxSelectCanvasEnd(pos);
     updateBoxSelectedNodes();
     mark2DDirty();
-    draw();
+    scheduleDraw();
     return;
   }
 
   if (isDragging) {
     transform.offsetX = pos.x - dragStart.x;
     transform.offsetY = pos.y - dragStart.y;
-    draw();
+    scheduleDraw();
     return;
   }
 
@@ -494,10 +549,23 @@ export function onMouseMove(e) {
 
   // 连线模式/变成子节点模式下不显示快速创建按钮
   if (appState.connectionMode || appState.convertChildMode) {
-    if (hoveredNodeId) { setHoveredNodeId(null); setQuickAddHover(null); draw(); }
+    if (hoveredNodeId) { setHoveredNodeId(null); setQuickAddHover(null); scheduleDraw(); }
+    if (hoveredEdgePeg) { setHoveredEdgePeg(null); scheduleDraw(); }
     canvas.style.cursor = appState.connectionMode ? 'crosshair' : 'grab';
     return;
   }
+
+  // 树连线拐点悬停 → 显示拖动按钮（双箭头）
+  const pegHover = hitTestEdgePeg(worldPos.x, worldPos.y);
+  if (pegHover) {
+    if (!hoveredEdgePeg || hoveredEdgePeg.parentId !== pegHover.parentId || hoveredEdgePeg.isStep !== pegHover.isStep) {
+      setHoveredEdgePeg(pegHover);
+      scheduleDraw();
+    }
+    canvas.style.cursor = pegHover.isStep ? 'ns-resize' : 'ew-resize';
+    return;
+  }
+  if (hoveredEdgePeg) { setHoveredEdgePeg(null); scheduleDraw(); }
 
   // 快速创建子节点按钮命中 → 高亮该按钮
   const qaHit = hitTestQuickAddButton(worldPos.x, worldPos.y);
@@ -505,7 +573,7 @@ export function onMouseMove(e) {
     if (hoveredNodeId !== qaHit.nodeId) setHoveredNodeId(qaHit.nodeId);
     if (quickAddHover !== qaHit.type) setQuickAddHover(qaHit.type);
     canvas.style.cursor = 'pointer';
-    draw();
+    scheduleDraw();
     return;
   }
 
@@ -516,14 +584,14 @@ export function onMouseMove(e) {
   );
   if (nodeHit?.id) {
     // 卡片和网页节点也支持悬浮显示加号按钮
-    if (hoveredNodeId !== nodeHit.id) { setHoveredNodeId(nodeHit.id); setQuickAddHover(null); draw(); }
-    else if (quickAddHover) { setQuickAddHover(null); draw(); }
+    if (hoveredNodeId !== nodeHit.id) { setHoveredNodeId(nodeHit.id); setQuickAddHover(null); scheduleDraw(); }
+    else if (quickAddHover) { setQuickAddHover(null); scheduleDraw(); }
     canvas.style.cursor = 'grab';
     return;
   }
 
   // 离开节点 → 清除悬停
-  if (hoveredNodeId) { setHoveredNodeId(null); setQuickAddHover(null); draw(); }
+  if (hoveredNodeId) { setHoveredNodeId(null); setQuickAddHover(null); scheduleDraw(); }
 
   if (selectedGroupRectId) {
     const selGr = groupRects.find(g => g.id === selectedGroupRectId);
@@ -570,6 +638,15 @@ export function onMouseUp(e) {
 
   // ── 鱼骨编辑拖动收尾（3D 同步 / 落盘）— fishbone-mouse.js ──
   if (fishboneMouseUp()) return;
+
+  // ── 树连线拐点拖动收尾：落盘 ──
+  if (pegDragState) {
+    setPegDragState(null);
+    canvas.style.cursor = 'grab';
+    draw();
+    saveCurrentProjectData();
+    return;
+  }
 
   if (isGroupResizing) {
     setGroupResizing(false);
@@ -780,5 +857,5 @@ export function onWheel(e) {
   const delta = e.deltaY > 0 ? 0.9 : 1.1;
   transform.scale *= delta;
   transform.scale = Math.max(0.1, Math.min(3, transform.scale));
-  draw();
+  scheduleDraw();
 }
